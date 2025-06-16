@@ -1,0 +1,15 @@
+/vendor/
+/composer.lock
+/.phpunit.cache/
+/.idea/
+/.vscode/
+/.env
+.DS_Store
+Thumbs.db
+*.log
+*.cache
+coverage/
+.php-cs-fixer.cache
+.phpunit.result.cache
+psalm.xml
+phpstan.neon

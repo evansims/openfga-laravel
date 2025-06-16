@@ -1,0 +1,63 @@
+{
+  "name": "openfga/laravel",
+  "description": "Laravel integration for OpenFGA PHP SDK",
+  "type": "library",
+  "keywords": [
+    "openfga",
+    "laravel",
+    "authorization",
+    "rbac",
+    "rebac",
+    "zanzibar",
+    "fine-grained-authorization"
+  ],
+  "homepage": "https://github.com/evansims/openfga-laravel",
+  "license": "Apache-2.0",
+  "authors": [
+    {
+      "name": "OpenFGA",
+      "homepage": "https://openfga.dev"
+    }
+  ],
+  "require": {
+    "php": "^8.3",
+    "evansims/openfga-php": "^1.0",
+    "illuminate/contracts": "^12.0",
+    "illuminate/support": "^12.0"
+  },
+  "require-dev": {
+    "orchestra/testbench": "^9.0",
+    "pestphp/pest": "^3.0",
+    "pestphp/pest-plugin-laravel": "^3.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "OpenFga\\Laravel\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "OpenFga\\Laravel\\Tests\\": "tests/"
+    }
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "OpenFga\\Laravel\\OpenFgaServiceProvider"
+      ],
+      "aliases": {
+        "OpenFga": "OpenFga\\Laravel\\Facades\\OpenFga"
+      }
+    }
+  },
+  "config": {
+    "sort-packages": true,
+    "preferred-install": "dist",
+    "optimize-autoloader": true
+  },
+  "scripts": {
+    "test": "vendor/bin/pest"
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true
+}
