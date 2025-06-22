@@ -3,12 +3,6 @@
 
   <h1>OpenFGA Laravel SDK</h1>
 
-  <p>
-    <a href="https://codecov.io/gh/evansims/openfga-php" target="_blank"><img src="https://codecov.io/gh/evansims/openfga-php/graph/badge.svg?token=DYXXS91T0S" alt="codecov" /></a>
-    <a href="https://shepherd.dev/github/evansims/openfga-php" target="_blank"><img src="https://shepherd.dev/github/evansims/openfga-php/coverage.svg" alt="Psalm Type Coverage" /></a>
-    <a href="https://www.bestpractices.dev/projects/10666"><img src="https://www.bestpractices.dev/projects/10666/badge"></a>
-  </p>
-
   <p>Stop writing authorization logic. Start asking questions.</p>
 </div>
 
