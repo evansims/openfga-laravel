@@ -1,35 +1,55 @@
 {
   "name": "openfga/laravel",
-  "description": "Laravel integration for OpenFGA PHP SDK",
+  "description": "Stop writing authorization logic. Start asking questions. OpenFGA high performance relationship-based access control for Laravel.",
+  "license": "Apache-2.0",
   "type": "library",
   "keywords": [
     "openfga",
-    "laravel",
     "authorization",
+    "fine-grained-authorization",
+    "access-control",
+    "permissions",
     "rbac",
-    "rebac",
+    "abac",
+    "relationship-based-access-control",
     "zanzibar",
-    "fine-grained-authorization"
+    "auth0-fga",
+    "security",
+    "authentication",
+    "policy-engine",
+    "observability",
+    "opentelemetry"
   ],
-  "homepage": "https://github.com/evansims/openfga-laravel",
-  "license": "Apache-2.0",
   "authors": [
     {
       "name": "OpenFGA",
       "homepage": "https://openfga.dev"
     }
   ],
+  "homepage": "https://github.com/evansims/openfga-laravel",
+  "support": {
+    "issues": "https://github.com/evansims/openfga-laravel/issues",
+    "source": "https://github.com/evansims/openfga-laravel",
+    "docs": "https://github.com/evansims/openfga-laravel#readme"
+  },
   "require": {
     "php": "^8.3",
-    "evansims/openfga-php": "^1.0",
-    "illuminate/contracts": "^12.0",
-    "illuminate/support": "^12.0"
+    "evansims/openfga-php": "^1",
+    "illuminate/contracts": "^12",
+    "illuminate/support": "^12"
   },
   "require-dev": {
-    "orchestra/testbench": "^9.0",
-    "pestphp/pest": "^3.0",
-    "pestphp/pest-plugin-laravel": "^3.0"
+    "ergebnis/composer-normalize": "^2",
+    "friendsofphp/php-cs-fixer": "^3",
+    "pestphp/pest": "^3",
+    "pestphp/pest-plugin-laravel": "^3",
+    "phpstan/phpstan": "^2",
+    "phpstan/phpstan-strict-rules": "^2",
+    "rector/rector": "^2",
+    "vimeo/psalm": "^6"
   },
+  "minimum-stability": "stable",
+  "prefer-stable": true,
   "autoload": {
     "psr-4": {
       "OpenFga\\Laravel\\": "src/"
@@ -40,24 +60,49 @@
       "OpenFga\\Laravel\\Tests\\": "tests/"
     }
   },
+  "config": {
+    "allow-plugins": {
+      "ergebnis/composer-normalize": true,
+      "pestphp/pest-plugin": true
+    },
+    "optimize-autoloader": true,
+    "preferred-install": "dist",
+    "process-timeout": 0,
+    "sort-packages": true
+  },
   "extra": {
     "laravel": {
-      "providers": [
-        "OpenFga\\Laravel\\OpenFgaServiceProvider"
-      ],
       "aliases": {
         "OpenFga": "OpenFga\\Laravel\\Facades\\OpenFga"
-      }
+      },
+      "providers": [
+        "OpenFga\\Laravel\\OpenFgaServiceProvider"
+      ]
     }
   },
-  "config": {
-    "sort-packages": true,
-    "preferred-install": "dist",
-    "optimize-autoloader": true
-  },
   "scripts": {
+    "lint": [
+      "@lint:phpstan",
+      "@lint:psalm",
+      "@lint:rector",
+      "@lint:phpcs"
+    ],
+    "lint:fix": [
+      "@lint:rector:fix",
+      "@lint:phpcs:fix"
+    ],
+    "lint:phpcs": [
+      "@putenv PHP_CS_FIXER_IGNORE_ENV=1",
+      "@php vendor/bin/php-cs-fixer fix --dry-run --diff"
+    ],
+    "lint:phpcs:fix": [
+      "@putenv PHP_CS_FIXER_IGNORE_ENV=1",
+      "@php vendor/bin/php-cs-fixer fix"
+    ],
+    "lint:phpstan": "@php vendor/bin/phpstan analyze",
+    "lint:psalm": "@php vendor/bin/psalm",
+    "lint:rector": "@php vendor/bin/rector process src --dry-run",
+    "lint:rector:fix": "@php vendor/bin/rector process src",
     "test": "vendor/bin/pest"
-  },
-  "minimum-stability": "stable",
-  "prefer-stable": true
+  }
 }

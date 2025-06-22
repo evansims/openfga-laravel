@@ -1,0 +1,60 @@
+<?xml version="1.0"?>
+<psalm
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns="https://getpsalm.org/schema/config"
+    xsi:schemaLocation="https://getpsalm.org/schema/config vendor/vimeo/psalm/config.xsd"
+    noCache="true"
+    errorLevel="1"
+    resolveFromConfigFile="true"
+    findUnusedCode="false"
+    findUnusedVariablesAndParams="true"
+    allowPhpStormGenerics="true"
+    useDocblockTypes="true"
+    requireDocblocks="true"
+    strictBinaryOperands="true"
+    rememberPropertyAssignmentsAfterCall="false"
+    memoizeMethodCallResults="true"
+    hoistConstants="true"
+    addParamTypehints="true"
+    addReturnTypehints="true"
+    addVoidReturnTypehints="true"
+    hideExternalErrors="false"
+    findUnusedPsalmSuppress="true"
+    findUnusedBaselineEntry="true"
+    reportMixedIssues="true"
+    ensureArrayStringOffsetsExist="true"
+    ensureArrayIntOffsetsExist="true"
+    checkForThrowsDocblock="true"
+    checkForThrowsInGlobalScope="true">
+
+    <projectFiles>
+        <directory name="src" />
+    </projectFiles>
+
+    <!-- Suppress issues that conflict with modern PHP patterns -->
+    <issueHandlers>
+        <!-- Support for modern PHP union and intersection types -->
+        <MixedReturnTypeCoercion errorLevel="info" />
+        <MixedArgumentTypeCoercion errorLevel="info" />
+
+        <!-- Support for typed properties and strict types -->
+        <PropertyNotSetInConstructor errorLevel="error" />
+        <MissingConstructor errorLevel="error" />
+
+        <!-- Modern PSR standards -->
+        <UnusedVariable errorLevel="error" />
+        <UnusedParam errorLevel="error" />
+
+        <!-- PHP 8+ specific features -->
+        <UndefinedClass errorLevel="error" />
+        <UndefinedMethod errorLevel="error" />
+        <UndefinedFunction errorLevel="error" />
+        <InvalidReturnType errorLevel="error" />
+        <InvalidArgument errorLevel="error" />
+
+        <!-- Encourage explicit type declarations -->
+        <MissingParamType errorLevel="error" />
+        <MissingReturnType errorLevel="error" />
+        <MissingPropertyType errorLevel="error" />
+    </issueHandlers>
+</psalm>

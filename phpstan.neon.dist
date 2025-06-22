@@ -1,0 +1,27 @@
+includes:
+    - vendor/phpstan/phpstan-strict-rules/rules.neon
+
+parameters:
+    level: max
+    treatPhpDocTypesAsCertain: false
+    inferPrivatePropertyTypeFromConstructor: true
+
+    # Enhanced strict analysis
+    checkMissingCallableSignature: true
+    checkUninitializedProperties: true
+    polluteScopeWithLoopInitialAssignments: false
+    polluteScopeWithAlwaysIterableForeach: false
+
+    # Modern PHP best practices
+    checkExplicitMixedMissingReturn: true
+    checkFunctionNameCase: true
+    checkInternalClassCaseSensitivity: true
+    checkTooWideReturnTypesInProtectedAndPublicMethods: true
+
+    # Readonly properties support (PHP 8.1+)
+    checkDynamicProperties: true
+
+    ignoreErrors: []
+
+    paths:
+        - src

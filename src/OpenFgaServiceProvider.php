@@ -2,45 +2,17 @@
 
 declare(strict_types=1);
 
-namespace OpenFga\Laravel;
+namespace OpenFGA\Laravel;
 
 use Illuminate\Contracts\Support\DeferrableProvider;
 use Illuminate\Support\ServiceProvider;
-use OpenFga\Sdk\Client;
-use OpenFga\Sdk\ClientConfiguration;
-use OpenFga\Sdk\ClientInterface;
+use OpenFGA\{Client, ClientInterface};
+use Override;
+
+use function is_string;
 
 final class OpenFgaServiceProvider extends ServiceProvider implements DeferrableProvider
 {
-    /**
-     * Register the service provider.
-     */
-    public function register(): void
-    {
-        $this->mergeConfigFrom(__DIR__ . '/../config/openfga.php', 'openfga');
-
-        $this->app->singleton(ClientInterface::class, function ($app) {
-            $config = $app->make('config')->get('openfga');
-
-            $configuration = new ClientConfiguration([
-                'api_url' => $config['api_url'] ?? 'http://localhost:8080',
-                'store_id' => $config['store_id'] ?? null,
-                'authorization_model_id' => $config['authorization_model_id'] ?? null,
-                'credentials' => $this->buildCredentials($config),
-                'retry' => [
-                    'enabled' => $config['retry']['enabled'] ?? true,
-                    'max_retries' => $config['retry']['max_retries'] ?? 3,
-                    'retry_delay' => $config['retry']['retry_delay'] ?? 1000,
-                ],
-            ]);
-
-            return new Client($configuration);
-        });
-
-        $this->app->alias(ClientInterface::class, 'openfga');
-        $this->app->alias(ClientInterface::class, Client::class);
-    }
-
     /**
      * Bootstrap the application services.
      */
@@ -58,6 +30,7 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
      *
      * @return array<int, string>
      */
+    #[Override]
     public function provides(): array
     {
         return [
@@ -68,9 +41,29 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
     }
 
     /**
+     * Register the service provider.
+     */
+    #[Override]
+    public function register(): void
+    {
+        $this->mergeConfigFrom(__DIR__ . '/../config/openfga.php', 'openfga');
+
+        $this->app->singleton(ClientInterface::class, static function ($app) {
+            $config = $app->make('config')->get('openfga');
+
+            return new Client(
+                url: $config['api_url'] ?? 'http://localhost:8080',
+            );
+        });
+
+        $this->app->alias(ClientInterface::class, 'openfga');
+        $this->app->alias(ClientInterface::class, Client::class);
+    }
+
+    /**
      * Build credentials array from configuration.
      *
-     * @param array<string, mixed> $config
+     * @param  array<string, mixed>      $config
      * @return array<string, mixed>|null
      */
     private function buildCredentials(array $config): ?array
