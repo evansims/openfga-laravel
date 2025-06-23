@@ -30,10 +30,8 @@ use function sprintf;
 /**
  * Manages multiple OpenFGA connections and provides a fluent API
  * for interacting with OpenFGA services.
- *
- * @psalm-suppress ClassMustBeFinal This class is extended in tests
  */
-class OpenFgaManager
+final class OpenFgaManager
 {
     /**
      * The active connection instances.
@@ -54,8 +52,8 @@ class OpenFgaManager
      * @param Container                                                                                                                                                              $container
      */
     public function __construct(
-        protected Container $container,
-        protected array $config,
+        private readonly Container $container,
+        private array $config,
     ) {
     }
 
@@ -363,10 +361,10 @@ class OpenFgaManager
      * @param string               $object     The object to grant on
      * @param string|null          $connection Optional connection name
      *
-     * @throws Exception If throwExceptions is true and an error occurs
-     * @throws ClientThrowable
-     * @throws InvalidArgumentException
      * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception                  If throwExceptions is true and an error occurs
+     * @throws InvalidArgumentException
      */
     public function grant(
         string | array $users,
@@ -450,10 +448,10 @@ class OpenFgaManager
      * @param object|null                                                       $context          Optional context
      * @param string|null                                                       $connection       Optional connection name
      *
-     * @throws Exception If throwExceptions is true and an error occurs
-     * @throws ClientThrowable
-     * @throws InvalidArgumentException
      * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception                  If throwExceptions is true and an error occurs
+     * @throws InvalidArgumentException
      *
      * @return array<string>
      */
@@ -531,10 +529,10 @@ class OpenFgaManager
      * @param object|null                                                       $context          Optional context
      * @param string|null                                                       $connection       Optional connection name
      *
-     * @throws Exception If throwExceptions is true and an error occurs
-     * @throws ClientThrowable
-     * @throws InvalidArgumentException
      * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception                  If throwExceptions is true and an error occurs
+     * @throws InvalidArgumentException
      *
      * @return array<mixed>
      */
@@ -613,10 +611,10 @@ class OpenFgaManager
      * @param string               $object     The object to revoke from
      * @param string|null          $connection Optional connection name
      *
-     * @throws Exception If throwExceptions is true and an error occurs
-     * @throws ClientThrowable
-     * @throws InvalidArgumentException
      * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception                  If throwExceptions is true and an error occurs
+     * @throws InvalidArgumentException
      */
     public function revoke(
         string | array $users,
@@ -670,10 +668,10 @@ class OpenFgaManager
      * @param TupleKeysInterface|null $deletes    Tuples to delete
      * @param string|null             $connection Optional connection name
      *
-     * @throws Exception If throwExceptions is true and an error occurs
-     * @throws ClientThrowable
-     * @throws InvalidArgumentException
      * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception                  If throwExceptions is true and an error occurs
+     * @throws InvalidArgumentException
      */
     public function write(
         ?TupleKeysInterface $writes = null,
@@ -721,7 +719,7 @@ class OpenFgaManager
      * @param  array<string, mixed>      $config
      * @return array<string, mixed>|null
      */
-    protected function buildCredentials(array $config): ?array
+    private function buildCredentials(array $config): ?array
     {
         if (! isset($config['method']) || 'none' === $config['method']) {
             return null;
@@ -803,6 +801,7 @@ class OpenFgaManager
      * Create a new connection instance.
      *
      * @param array<string, mixed> $config
+     *
      * @throws InvalidArgumentException
      */
     private function createConnection(array $config): ClientInterface
@@ -854,7 +853,7 @@ class OpenFgaManager
     /**
      * Detect available PSR-18 HTTP client.
      */
-    protected function detectHttpClient(): ?\Psr\Http\Client\ClientInterface
+    private function detectHttpClient(): ?\Psr\Http\Client\ClientInterface
     {
         // Priority order of HTTP clients to check
         $clients = [
@@ -871,6 +870,7 @@ class OpenFgaManager
                         if (method_exists($client, 'find')) {
                             /** @var callable(): \Psr\Http\Client\ClientInterface $callable */
                             $callable = [$client, 'find'];
+
                             return $callable();
                         }
                     } else {
@@ -907,6 +907,7 @@ class OpenFgaManager
                         if (method_exists($factory, 'findRequestFactory')) {
                             /** @var callable(): RequestFactoryInterface $callable */
                             $callable = [$factory, 'findRequestFactory'];
+
                             return $callable();
                         }
                     } else {
@@ -943,6 +944,7 @@ class OpenFgaManager
                         if (method_exists($factory, 'findResponseFactory')) {
                             /** @var callable(): ResponseFactoryInterface $callable */
                             $callable = [$factory, 'findResponseFactory'];
+
                             return $callable();
                         }
                     } else {
@@ -979,6 +981,7 @@ class OpenFgaManager
                         if (method_exists($factory, 'findStreamFactory')) {
                             /** @var callable(): StreamFactoryInterface $callable */
                             $callable = [$factory, 'findStreamFactory'];
+
                             return $callable();
                         }
                     } else {
@@ -1089,6 +1092,7 @@ class OpenFgaManager
      *
      * @param TupleKeysInterface|null $writes
      * @param TupleKeysInterface|null $deletes
+     *
      * @throws BindingResolutionException
      */
     private function invalidateCache(?TupleKeysInterface $writes, ?TupleKeysInterface $deletes): void

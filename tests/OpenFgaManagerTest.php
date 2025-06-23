@@ -91,26 +91,24 @@ describe('OpenFgaManager', function (): void {
 
     describe('credential building', function (): void {
         it('returns null for no authentication', function (): void {
-            $manager = new class($this->container, $this->config) extends OpenFgaManager {
-                public function testBuildCredentials(array $config): ?array
-                {
-                    return $this->buildCredentials($config);
-                }
-            };
+            $manager = new OpenFgaManager($this->container, $this->config);
 
-            expect($manager->testBuildCredentials(['method' => 'none']))->toBeNull();
-            expect($manager->testBuildCredentials([]))->toBeNull();
+            $reflection = new ReflectionClass($manager);
+            $method = $reflection->getMethod('buildCredentials');
+            $method->setAccessible(true);
+
+            expect($method->invoke($manager, ['method' => 'none']))->toBeNull();
+            expect($method->invoke($manager, []))->toBeNull();
         });
 
         it('builds api token credentials', function (): void {
-            $manager = new class($this->container, $this->config) extends OpenFgaManager {
-                public function testBuildCredentials(array $config): ?array
-                {
-                    return $this->buildCredentials($config);
-                }
-            };
+            $manager = new OpenFgaManager($this->container, $this->config);
 
-            $credentials = $manager->testBuildCredentials([
+            $reflection = new ReflectionClass($manager);
+            $method = $reflection->getMethod('buildCredentials');
+            $method->setAccessible(true);
+
+            $credentials = $method->invoke($manager, [
                 'method' => 'api_token',
                 'token' => 'test-token',
             ]);
@@ -119,14 +117,13 @@ describe('OpenFgaManager', function (): void {
         });
 
         it('builds client credentials', function (): void {
-            $manager = new class($this->container, $this->config) extends OpenFgaManager {
-                public function testBuildCredentials(array $config): ?array
-                {
-                    return $this->buildCredentials($config);
-                }
-            };
+            $manager = new OpenFgaManager($this->container, $this->config);
 
-            $credentials = $manager->testBuildCredentials([
+            $reflection = new ReflectionClass($manager);
+            $method = $reflection->getMethod('buildCredentials');
+            $method->setAccessible(true);
+
+            $credentials = $method->invoke($manager, [
                 'method' => 'client_credentials',
                 'client_id' => 'test-id',
                 'client_secret' => 'test-secret',
@@ -148,15 +145,14 @@ describe('OpenFgaManager', function (): void {
 
     describe('PSR detection', function (): void {
         it('detects available HTTP clients', function (): void {
-            $manager = new class($this->container, $this->config) extends OpenFgaManager {
-                public function testDetectHttpClient(): ?object
-                {
-                    return $this->detectHttpClient();
-                }
-            };
+            $manager = new OpenFgaManager($this->container, $this->config);
+
+            $reflection = new ReflectionClass($manager);
+            $method = $reflection->getMethod('detectHttpClient');
+            $method->setAccessible(true);
 
             // This will return null or an object depending on what's installed
-            $client = $manager->testDetectHttpClient();
+            $client = $method->invoke($manager);
 
             expect($client)->toBeObject()->or->toBeNull();
         });

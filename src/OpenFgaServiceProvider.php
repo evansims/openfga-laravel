@@ -25,9 +25,9 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
 {
     /**
      * Bootstrap the application services.
-     * 
-     * @throws InvalidArgumentException
+     *
      * @throws BindingResolutionException
+     * @throws InvalidArgumentException
      */
     public function boot(): void
     {
