@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace OpenFGA\Laravel;
 
 use Illuminate\Contracts\Config\Repository;
+use Illuminate\Contracts\Container\BindingResolutionException;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Contracts\Support\DeferrableProvider;
 use Illuminate\Support\ServiceProvider;
 use InvalidArgumentException;
+use LogicException;
 use OpenFGA\{Client, ClientInterface};
 use Override;
 
@@ -17,14 +19,15 @@ use function in_array;
 use function is_array;
 use function is_int;
 use function is_string;
+use function sprintf;
 
 final class OpenFgaServiceProvider extends ServiceProvider implements DeferrableProvider
 {
     /**
      * Bootstrap the application services.
-     */
-    /**
+     * 
      * @throws InvalidArgumentException
+     * @throws BindingResolutionException
      */
     public function boot(): void
     {
@@ -56,6 +59,8 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
 
     /**
      * Register the service provider.
+     *
+     * @throws LogicException
      */
     #[Override]
     public function register(): void
@@ -68,8 +73,10 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
 
     /**
      * Register the default client binding.
+     *
+     * @throws LogicException
      */
-    protected function registerDefaultClient(): void
+    private function registerDefaultClient(): void
     {
         $this->app->bind(ClientInterface::class, static function (Application $app) {
             $manager = $app->make(OpenFgaManager::class);
@@ -83,10 +90,12 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
 
     /**
      * Register the OpenFGA manager.
+     *
+     * @throws LogicException
      */
-    protected function registerManager(): void
+    private function registerManager(): void
     {
-        $this->app->singleton(OpenFgaManager::class, function (Application $app) {
+        $this->app->singleton(OpenFgaManager::class, static function (Application $app) {
             /** @var Repository $configRepository */
             $configRepository = $app->make('config');
 
@@ -102,9 +111,10 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
     /**
      * Validate the configuration.
      *
+     * @throws BindingResolutionException
      * @throws InvalidArgumentException
      */
-    protected function validateConfiguration(): void
+    private function validateConfiguration(): void
     {
         /** @var Repository $config */
         $config = $this->app->make('config');
@@ -120,7 +130,7 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
         $connections = $openfgaConfig['connections'] ?? null;
 
         if (null === $connections || ! isset($connections[$defaultConnection])) {
-            throw new InvalidArgumentException("Default OpenFGA connection [{$defaultConnection}] is not configured.");
+            throw new InvalidArgumentException(sprintf('Default OpenFGA connection [%s] is not configured.', $defaultConnection));
         }
 
         // Validate each connection
@@ -137,11 +147,11 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
      *
      * @throws InvalidArgumentException
      */
-    protected function validateConnection(string $name, array $config): void
+    private function validateConnection(string $name, array $config): void
     {
         // Validate URL format
         if (isset($config['url']) && false === filter_var($config['url'], FILTER_VALIDATE_URL)) {
-            throw new InvalidArgumentException("Invalid URL configured for OpenFGA connection [{$name}].");
+            throw new InvalidArgumentException(sprintf('Invalid URL configured for OpenFGA connection [%s].', $name));
         }
 
         // Validate credentials
@@ -151,12 +161,12 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
             if (! is_string($method) || ! in_array($method, ['none', 'api_token', 'client_credentials'], true)) {
                 $methodStr = is_string($method) ? $method : gettype($method);
 
-                throw new InvalidArgumentException("Invalid authentication method [{$methodStr}] for OpenFGA connection [{$name}]. " . 'Supported methods are: none, api_token, client_credentials.');
+                throw new InvalidArgumentException(sprintf('Invalid authentication method [%s] for OpenFGA connection [%s]. ', $methodStr, $name) . 'Supported methods are: none, api_token, client_credentials.');
             }
 
             // Validate required fields for each auth method
             if ('api_token' === $method && (! isset($config['credentials']['token']) || ! is_string($config['credentials']['token']) || '' === $config['credentials']['token'])) {
-                throw new InvalidArgumentException("API token is required when using api_token authentication for connection [{$name}].");
+                throw new InvalidArgumentException(sprintf('API token is required when using api_token authentication for connection [%s].', $name));
             }
 
             if ('client_credentials' === $method) {
@@ -164,7 +174,7 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
 
                 foreach ($required as $field) {
                     if (! isset($config['credentials'][$field]) || ! is_string($config['credentials'][$field]) || '' === $config['credentials'][$field]) {
-                        throw new InvalidArgumentException("Field [{$field}] is required when using client_credentials authentication for connection [{$name}].");
+                        throw new InvalidArgumentException(sprintf('Field [%s] is required when using client_credentials authentication for connection [%s].', $field, $name));
                     }
                 }
             }
@@ -175,7 +185,7 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
             $maxRetries = $config['retries']['max_retries'];
 
             if (! is_int($maxRetries) || 0 > $maxRetries) {
-                throw new InvalidArgumentException("Invalid max_retries value for OpenFGA connection [{$name}]. Must be a non-negative integer.");
+                throw new InvalidArgumentException(sprintf('Invalid max_retries value for OpenFGA connection [%s]. Must be a non-negative integer.', $name));
             }
         }
 
@@ -186,7 +196,7 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
                     $value = $config['http_options'][$option];
 
                     if (! is_numeric($value) || 0 >= $value) {
-                        throw new InvalidArgumentException("Invalid {$option} value for OpenFGA connection [{$name}]. Must be a positive number.");
+                        throw new InvalidArgumentException(sprintf('Invalid %s value for OpenFGA connection [%s]. Must be a positive number.', $option, $name));
                     }
                 }
             }

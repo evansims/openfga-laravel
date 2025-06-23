@@ -8,11 +8,12 @@ use Exception;
 use Illuminate\Cache\CacheManager;
 use Illuminate\Contracts\Auth\Factory as AuthFactory;
 use Illuminate\Contracts\Cache\Repository as CacheRepository;
-use Illuminate\Contracts\Container\Container;
+use Illuminate\Contracts\Container\{BindingResolutionException, Container};
 use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
 use OpenFGA\Authentication\{AuthenticationInterface, ClientCredentialAuthentication, TokenAuthentication};
 use OpenFGA\{Client, ClientInterface};
+use OpenFGA\Exceptions\ClientThrowable;
 use OpenFGA\Models\{BatchCheckItem, TupleKey, UserTypeFilter};
 use OpenFGA\Models\Collections\{BatchCheckItems, TupleKeys, TupleKeysInterface, UserTypeFilters};
 use OpenFGA\Results\{FailureInterface, SuccessInterface};
@@ -23,12 +24,14 @@ use Throwable;
 use function count;
 use function is_array;
 use function is_int;
-use function is_object;
 use function is_string;
+use function sprintf;
 
 /**
  * Manages multiple OpenFGA connections and provides a fluent API
  * for interacting with OpenFGA services.
+ *
+ * @psalm-suppress ClassMustBeFinal This class is extended in tests
  */
 class OpenFgaManager
 {
@@ -78,7 +81,10 @@ class OpenFgaManager
      * @param array<int, array{user: string, relation: string, object: string}> $checks
      * @param string|null                                                       $connection Optional connection name
      *
-     * @throws Exception If throwExceptions is true and an error occurs
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception                  If throwExceptions is true and an error occurs
+     * @throws InvalidArgumentException
      *
      * @return array<string, bool> Keyed by "user:relation:object"
      */
@@ -90,7 +96,7 @@ class OpenFgaManager
 
         foreach ($checks as $index => $check) {
             $user = $this->resolveUserId($check['user']);
-            $key = "{$user}:{$check['relation']}:{$check['object']}";
+            $key = sprintf('%s:%s:%s', $user, $check['relation'], $check['object']);
 
             // Check cache first
             if ($this->cacheEnabled()) {
@@ -104,7 +110,7 @@ class OpenFgaManager
                 }
             }
 
-            $correlationId = "check-{$index}";
+            $correlationId = 'check-' . $index;
             $keyMap[$correlationId] = $key;
 
             $batchItems[] = new BatchCheckItem(
@@ -117,7 +123,7 @@ class OpenFgaManager
             );
         }
 
-        if (0 < count($batchItems)) {
+        if ([] !== $batchItems) {
             $connectionConfig = $this->configuration($connection ?? $this->getDefaultConnection());
 
             if (null === $connectionConfig) {
@@ -141,41 +147,40 @@ class OpenFgaManager
                 checks: new BatchCheckItems($batchItems),
             );
 
-            /** @var array<mixed> $batchResults */
-            $batchResults = $this->handleResult($result, function ($success) {
+            $batchResults = $this->handleResult($result, static function ($success) {
                 if (method_exists($success, 'getResults')) {
-                    /** @var array<mixed> */
+                    /** @var array<object> */
                     return $success->getResults();
                 }
 
-                return null;
+                return [];
             });
 
             if (! is_array($batchResults)) {
                 $batchResults = [];
             }
 
-            foreach ($batchResults as $response) {
-                if (is_object($response) && method_exists($response, 'getCorrelationId') && method_exists($response, 'getAllowed')) {
+            foreach ($batchResults as $batchResult) {
+                if (method_exists($batchResult, 'getCorrelationId') && method_exists($batchResult, 'getAllowed')) {
                     /** @var string $correlationId */
-                    $correlationId = $response->getCorrelationId();
+                    $correlationId = $batchResult->getCorrelationId();
 
                     /** @var bool $allowed */
-                    $allowed = $response->getAllowed();
+                    $allowed = $batchResult->getAllowed();
 
                     if (isset($keyMap[$correlationId])) {
                         $key = $keyMap[$correlationId];
                         $results[$key] = $allowed;
-                    }
 
-                    // Cache the result
-                    if ($this->cacheEnabled() && isset($key)) {
-                        $parts = explode(':', $key, 3);
+                        // Cache the result
+                        if ($this->cacheEnabled()) {
+                            $parts = explode(':', $key, 3);
 
-                        if (3 === count($parts)) {
-                            [$user, $relation, $object] = $parts;
-                            $cacheKey = $this->getCacheKey('check', $user, $relation, $object);
-                            $this->getCache()->put($cacheKey, $allowed, $this->getCacheTtl());
+                            if (3 === count($parts)) {
+                                [$user, $relation, $object] = $parts;
+                                $cacheKey = $this->getCacheKey('check', $user, $relation, $object);
+                                $this->getCache()->put($cacheKey, $allowed, $this->getCacheTtl());
+                            }
                         }
                     }
                 }
@@ -195,9 +200,11 @@ class OpenFgaManager
      * @param object|null                                                       $context          Optional context
      * @param string|null                                                       $connection       Optional connection name
      *
-     * @throws Exception If throwExceptions is true and an error occurs
-     *
-     * @return bool
+     * @throws \Psr\SimpleCache\InvalidArgumentException
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception                                 If throwExceptions is true and an error occurs
+     * @throws InvalidArgumentException
      */
     public function check(
         string $user,
@@ -232,14 +239,14 @@ class OpenFgaManager
         // Build contextual tuples if provided
         $contextualTuplesCollection = null;
 
-        if (0 < count($contextualTuples)) {
+        if ([] !== $contextualTuples) {
             $tuples = [];
 
-            foreach ($contextualTuples as $tuple) {
+            foreach ($contextualTuples as $contextualTuple) {
                 $tuples[] = new TupleKey(
-                    user: $this->resolveUserId($tuple['user']),
-                    relation: $tuple['relation'],
-                    object: $tuple['object'],
+                    user: $this->resolveUserId($contextualTuple['user']),
+                    relation: $contextualTuple['relation'],
+                    object: $contextualTuple['object'],
                 );
             }
             $contextualTuplesCollection = new TupleKeys($tuples);
@@ -275,7 +282,7 @@ class OpenFgaManager
 
         // Handle result
         /** @var bool|null $allowed */
-        $allowed = $this->handleResult($result, function ($success) {
+        $allowed = $this->handleResult($result, static function ($success) {
             if (method_exists($success, 'getAllowed')) {
                 return $success->getAllowed();
             }
@@ -285,6 +292,7 @@ class OpenFgaManager
 
         // Cache the result if enabled
         if ($this->cacheEnabled() && null !== $allowed) {
+            $cacheKey = $this->getCacheKey('check', $user, $relation, $object);
             $this->getCache()->put($cacheKey, $allowed, $this->getCacheTtl());
         }
 
@@ -297,8 +305,6 @@ class OpenFgaManager
      * @param string|null $name
      *
      * @throws InvalidArgumentException
-     *
-     * @return ClientInterface
      */
     public function connection(?string $name = null): ClientInterface
     {
@@ -358,8 +364,9 @@ class OpenFgaManager
      * @param string|null          $connection Optional connection name
      *
      * @throws Exception If throwExceptions is true and an error occurs
-     *
-     * @return bool
+     * @throws ClientThrowable
+     * @throws InvalidArgumentException
+     * @throws BindingResolutionException
      */
     public function grant(
         string | array $users,
@@ -386,8 +393,7 @@ class OpenFgaManager
     /**
      * Check the health of a connection.
      *
-     * @param  string|null $name
-     * @return bool
+     * @param string|null $name
      */
     public function healthCheck(?string $name = null): bool
     {
@@ -445,6 +451,9 @@ class OpenFgaManager
      * @param string|null                                                       $connection       Optional connection name
      *
      * @throws Exception If throwExceptions is true and an error occurs
+     * @throws ClientThrowable
+     * @throws InvalidArgumentException
+     * @throws BindingResolutionException
      *
      * @return array<string>
      */
@@ -466,14 +475,14 @@ class OpenFgaManager
         // Build contextual tuples if provided
         $contextualTuplesCollection = null;
 
-        if (0 < count($contextualTuples)) {
+        if ([] !== $contextualTuples) {
             $tuples = [];
 
-            foreach ($contextualTuples as $tuple) {
+            foreach ($contextualTuples as $contextualTuple) {
                 $tuples[] = new TupleKey(
-                    user: $this->resolveUserId($tuple['user']),
-                    relation: $tuple['relation'],
-                    object: $tuple['object'],
+                    user: $this->resolveUserId($contextualTuple['user']),
+                    relation: $contextualTuple['relation'],
+                    object: $contextualTuple['object'],
                 );
             }
             $contextualTuplesCollection = new TupleKeys($tuples);
@@ -500,8 +509,7 @@ class OpenFgaManager
             contextualTuples: $contextualTuplesCollection,
         );
 
-        /** @var array<string>|null $objects */
-        $objects = $this->handleResult($result, function ($success) {
+        $objects = $this->handleResult($result, static function ($success) {
             if (method_exists($success, 'getObjects')) {
                 /** @var array<string> */
                 return $success->getObjects();
@@ -524,6 +532,9 @@ class OpenFgaManager
      * @param string|null                                                       $connection       Optional connection name
      *
      * @throws Exception If throwExceptions is true and an error occurs
+     * @throws ClientThrowable
+     * @throws InvalidArgumentException
+     * @throws BindingResolutionException
      *
      * @return array<mixed>
      */
@@ -540,26 +551,22 @@ class OpenFgaManager
         // Build user type filters from the provided array
         $filters = [];
 
-        if (0 < count($userTypes)) {
-            foreach ($userTypes as $type) {
-                if (is_string($type)) {
-                    $filters[] = new UserTypeFilter($type);
-                }
-            }
+        foreach ($userTypes as $userType) {
+            $filters[] = new UserTypeFilter($userType);
         }
         $userFilters = new UserTypeFilters($filters);
 
         // Build contextual tuples if provided
         $contextualTuplesCollection = null;
 
-        if (0 < count($contextualTuples)) {
+        if ([] !== $contextualTuples) {
             $tuples = [];
 
-            foreach ($contextualTuples as $tuple) {
+            foreach ($contextualTuples as $contextualTuple) {
                 $tuples[] = new TupleKey(
-                    user: $this->resolveUserId($tuple['user']),
-                    relation: $tuple['relation'],
-                    object: $tuple['object'],
+                    user: $this->resolveUserId($contextualTuple['user']),
+                    relation: $contextualTuple['relation'],
+                    object: $contextualTuple['object'],
                 );
             }
             $contextualTuplesCollection = new TupleKeys($tuples);
@@ -586,8 +593,7 @@ class OpenFgaManager
             contextualTuples: $contextualTuplesCollection,
         );
 
-        /** @var array<mixed>|null $users */
-        $users = $this->handleResult($result, function ($success) {
+        $users = $this->handleResult($result, static function ($success) {
             if (method_exists($success, 'getUsers')) {
                 /** @var array<mixed> */
                 return $success->getUsers();
@@ -608,8 +614,9 @@ class OpenFgaManager
      * @param string|null          $connection Optional connection name
      *
      * @throws Exception If throwExceptions is true and an error occurs
-     *
-     * @return bool
+     * @throws ClientThrowable
+     * @throws InvalidArgumentException
+     * @throws BindingResolutionException
      */
     public function revoke(
         string | array $users,
@@ -664,8 +671,9 @@ class OpenFgaManager
      * @param string|null             $connection Optional connection name
      *
      * @throws Exception If throwExceptions is true and an error occurs
-     *
-     * @return bool
+     * @throws ClientThrowable
+     * @throws InvalidArgumentException
+     * @throws BindingResolutionException
      */
     public function write(
         ?TupleKeysInterface $writes = null,
@@ -702,7 +710,7 @@ class OpenFgaManager
         );
 
         /** @var bool|null $success */
-        $success = $this->handleResult($result, fn () => true);
+        $success = $this->handleResult($result, static fn (): true => true);
 
         return true === $success;
     }
@@ -740,6 +748,7 @@ class OpenFgaManager
      */
     private function cacheEnabled(): bool
     {
+        /** @var bool $enabled */
         $enabled = $this->config['cache']['enabled'] ?? false;
 
         return true === $enabled;
@@ -765,8 +774,7 @@ class OpenFgaManager
     /**
      * Create authentication instance from credentials.
      *
-     * @param  array<string, mixed>         $credentials
-     * @return AuthenticationInterface|null
+     * @param array<string, mixed> $credentials
      */
     private function createAuthentication(array $credentials): ?AuthenticationInterface
     {
@@ -794,8 +802,8 @@ class OpenFgaManager
     /**
      * Create a new connection instance.
      *
-     * @param  array<string, mixed> $config
-     * @return ClientInterface
+     * @param array<string, mixed> $config
+     * @throws InvalidArgumentException
      */
     private function createConnection(array $config): ClientInterface
     {
@@ -815,6 +823,7 @@ class OpenFgaManager
         $maxRetries = 3;
 
         if (isset($config['retries']) && is_array($config['retries']) && isset($config['retries']['max_retries'])) {
+            /** @var mixed $retryValue */
             $retryValue = $config['retries']['max_retries'];
 
             if (is_int($retryValue) && 0 < $retryValue) {
@@ -844,8 +853,6 @@ class OpenFgaManager
 
     /**
      * Detect available PSR-18 HTTP client.
-     *
-     * @return \Psr\Http\Client\ClientInterface|null
      */
     protected function detectHttpClient(): ?\Psr\Http\Client\ClientInterface
     {
@@ -856,19 +863,20 @@ class OpenFgaManager
             '\Symfony\Component\HttpClient\Psr18Client',
         ];
 
-        foreach ($clients as $class) {
-            if (class_exists($class)) {
+        foreach ($clients as $client) {
+            if (class_exists($client)) {
                 try {
                     // Use discovery for discovery classes
-                    if (str_contains($class, 'Discovery')) {
-                        if (method_exists($class, 'find')) {
-                            /** @var \Psr\Http\Client\ClientInterface */
-                            return $class::find();
+                    if (str_contains($client, 'Discovery')) {
+                        if (method_exists($client, 'find')) {
+                            /** @var callable(): \Psr\Http\Client\ClientInterface $callable */
+                            $callable = [$client, 'find'];
+                            return $callable();
                         }
                     } else {
                         // Direct instantiation for concrete classes
-                        /** @var class-string<\Psr\Http\Client\ClientInterface> $class */
-                        return new $class;
+                        /** @var class-string<\Psr\Http\Client\ClientInterface> $client */
+                        return new $client;
                     }
                 } catch (Throwable) {
                     continue;
@@ -881,8 +889,6 @@ class OpenFgaManager
 
     /**
      * Detect available PSR-17 request factory.
-     *
-     * @return RequestFactoryInterface|null
      */
     private function detectRequestFactory(): ?RequestFactoryInterface
     {
@@ -893,19 +899,20 @@ class OpenFgaManager
             '\Laminas\Diactoros\RequestFactory',
         ];
 
-        foreach ($factories as $class) {
-            if (class_exists($class)) {
+        foreach ($factories as $factory) {
+            if (class_exists($factory)) {
                 try {
                     // Use discovery for discovery classes
-                    if (str_contains($class, 'Discovery')) {
-                        if (method_exists($class, 'findRequestFactory')) {
-                            /** @var RequestFactoryInterface */
-                            return $class::findRequestFactory();
+                    if (str_contains($factory, 'Discovery')) {
+                        if (method_exists($factory, 'findRequestFactory')) {
+                            /** @var callable(): RequestFactoryInterface $callable */
+                            $callable = [$factory, 'findRequestFactory'];
+                            return $callable();
                         }
                     } else {
                         // Direct instantiation for concrete classes
-                        /** @var class-string<RequestFactoryInterface> $class */
-                        return new $class;
+                        /** @var class-string<RequestFactoryInterface> $factory */
+                        return new $factory;
                     }
                 } catch (Throwable) {
                     continue;
@@ -918,8 +925,6 @@ class OpenFgaManager
 
     /**
      * Detect available PSR-17 response factory.
-     *
-     * @return ResponseFactoryInterface|null
      */
     private function detectResponseFactory(): ?ResponseFactoryInterface
     {
@@ -930,19 +935,20 @@ class OpenFgaManager
             '\Laminas\Diactoros\ResponseFactory',
         ];
 
-        foreach ($factories as $class) {
-            if (class_exists($class)) {
+        foreach ($factories as $factory) {
+            if (class_exists($factory)) {
                 try {
                     // Use discovery for discovery classes
-                    if (str_contains($class, 'Discovery')) {
-                        if (method_exists($class, 'findResponseFactory')) {
-                            /** @var ResponseFactoryInterface */
-                            return $class::findResponseFactory();
+                    if (str_contains($factory, 'Discovery')) {
+                        if (method_exists($factory, 'findResponseFactory')) {
+                            /** @var callable(): ResponseFactoryInterface $callable */
+                            $callable = [$factory, 'findResponseFactory'];
+                            return $callable();
                         }
                     } else {
                         // Direct instantiation for concrete classes
-                        /** @var class-string<ResponseFactoryInterface> $class */
-                        return new $class;
+                        /** @var class-string<ResponseFactoryInterface> $factory */
+                        return new $factory;
                     }
                 } catch (Throwable) {
                     continue;
@@ -955,8 +961,6 @@ class OpenFgaManager
 
     /**
      * Detect available PSR-17 stream factory.
-     *
-     * @return StreamFactoryInterface|null
      */
     private function detectStreamFactory(): ?StreamFactoryInterface
     {
@@ -967,19 +971,20 @@ class OpenFgaManager
             '\Laminas\Diactoros\StreamFactory',
         ];
 
-        foreach ($factories as $class) {
-            if (class_exists($class)) {
+        foreach ($factories as $factory) {
+            if (class_exists($factory)) {
                 try {
                     // Use discovery for discovery classes
-                    if (str_contains($class, 'Discovery')) {
-                        if (method_exists($class, 'findStreamFactory')) {
-                            /** @var StreamFactoryInterface */
-                            return $class::findStreamFactory();
+                    if (str_contains($factory, 'Discovery')) {
+                        if (method_exists($factory, 'findStreamFactory')) {
+                            /** @var callable(): StreamFactoryInterface $callable */
+                            $callable = [$factory, 'findStreamFactory'];
+                            return $callable();
                         }
                     } else {
                         // Direct instantiation for concrete classes
-                        /** @var class-string<StreamFactoryInterface> $class */
-                        return new $class;
+                        /** @var class-string<StreamFactoryInterface> $factory */
+                        return new $factory;
                     }
                 } catch (Throwable) {
                     continue;
@@ -992,9 +997,12 @@ class OpenFgaManager
 
     /**
      * Get the cache repository.
+     *
+     * @throws BindingResolutionException
      */
     private function getCache(): CacheRepository
     {
+        /** @var mixed $store */
         $store = $this->config['cache']['store'] ?? null;
 
         if (! is_string($store) && null !== $store) {
@@ -1004,18 +1012,18 @@ class OpenFgaManager
         /** @var CacheManager $cacheManager */
         $cacheManager = $this->container->make('cache');
 
-        /** @var CacheRepository $repository */
         return $cacheManager->store($store);
     }
 
     /**
      * Generate cache key.
      *
-     * @param string   $operation
-     * @param string[] $parts
+     * @param string $operation
+     * @param string ...$parts
      */
     private function getCacheKey(string $operation, string ...$parts): string
     {
+        /** @var mixed $prefix */
         $prefix = $this->config['cache']['prefix'] ?? 'openfga';
 
         if (! is_string($prefix)) {
@@ -1030,6 +1038,7 @@ class OpenFgaManager
      */
     private function getCacheTtl(): int
     {
+        /** @var mixed $ttl */
         $ttl = $this->config['cache']['ttl'] ?? 300;
 
         if (is_int($ttl)) {
@@ -1047,14 +1056,16 @@ class OpenFgaManager
      * @param FailureInterface|SuccessInterface $result
      * @param callable(SuccessInterface): T     $successHandler
      *
+     * @throws ClientThrowable
      * @throws Exception
      *
      * @return T|null
      */
-    private function handleResult($result, callable $successHandler)
+    private function handleResult(FailureInterface | SuccessInterface $result, callable $successHandler)
     {
         if ($result instanceof FailureInterface) {
             if ($this->throwExceptions) {
+                /** @var mixed $error */
                 $error = $result->val();
 
                 // All errors from the Result pattern should be Throwable
@@ -1078,21 +1089,22 @@ class OpenFgaManager
      *
      * @param TupleKeysInterface|null $writes
      * @param TupleKeysInterface|null $deletes
+     * @throws BindingResolutionException
      */
     private function invalidateCache(?TupleKeysInterface $writes, ?TupleKeysInterface $deletes): void
     {
         $cache = $this->getCache();
 
-        if (null !== $writes) {
-            foreach ($writes as $tuple) {
-                $cacheKey = $this->getCacheKey('check', $tuple->getUser(), $tuple->getRelation(), $tuple->getObject());
+        if ($writes instanceof TupleKeysInterface) {
+            foreach ($writes as $write) {
+                $cacheKey = $this->getCacheKey('check', $write->getUser(), $write->getRelation(), $write->getObject());
                 $cache->forget($cacheKey);
             }
         }
 
-        if (null !== $deletes) {
-            foreach ($deletes as $tuple) {
-                $cacheKey = $this->getCacheKey('check', $tuple->getUser(), $tuple->getRelation(), $tuple->getObject());
+        if ($deletes instanceof TupleKeysInterface) {
+            foreach ($deletes as $delete) {
+                $cacheKey = $this->getCacheKey('check', $delete->getUser(), $delete->getRelation(), $delete->getObject());
                 $cache->forget($cacheKey);
             }
         }
@@ -1106,18 +1118,15 @@ class OpenFgaManager
      */
     private function logCacheHit(string $operation, string $key): void
     {
+        /** @var bool $loggingEnabled */
         $loggingEnabled = $this->config['logging']['enabled'] ?? false;
 
         if (true === $loggingEnabled) {
+            /** @var string $channel */
             $channel = $this->config['logging']['channel'] ?? 'default';
 
-            if (is_string($channel)) {
-                Log::channel($channel)
-                    ->debug("OpenFGA cache hit for {$operation}", ['key' => $key]);
-            } else {
-                Log::channel('default')
-                    ->debug("OpenFGA cache hit for {$operation}", ['key' => $key]);
-            }
+            Log::channel($channel)
+                ->debug('OpenFGA cache hit for ' . $operation, ['key' => $key]);
         }
     }
 
@@ -1125,28 +1134,26 @@ class OpenFgaManager
      * Log error from failed result.
      *
      * @param FailureInterface $result
+     *
+     * @throws ClientThrowable
      */
     private function logError(FailureInterface $result): void
     {
+        /** @var bool $loggingEnabled */
         $loggingEnabled = $this->config['logging']['enabled'] ?? false;
 
         if (true === $loggingEnabled) {
+            /** @var mixed $error */
             $error = $result->val();
+
+            /** @var string $channel */
             $channel = $this->config['logging']['channel'] ?? 'default';
 
-            if (is_string($channel)) {
-                Log::channel($channel)
-                    ->error('OpenFGA operation failed', [
-                        'error' => $error instanceof Throwable ? $error->getMessage() : 'Unknown error',
-                        'trace' => $error instanceof Throwable ? $error->getTraceAsString() : null,
-                    ]);
-            } else {
-                Log::channel('default')
-                    ->error('OpenFGA operation failed', [
-                        'error' => $error instanceof Throwable ? $error->getMessage() : 'Unknown error',
-                        'trace' => $error instanceof Throwable ? $error->getTraceAsString() : null,
-                    ]);
-            }
+            Log::channel($channel)
+                ->error('OpenFGA operation failed', [
+                    'error' => $error instanceof Throwable ? $error->getMessage() : 'Unknown error',
+                    'trace' => $error instanceof Throwable ? $error->getTraceAsString() : null,
+                ]);
         }
     }
 
@@ -1162,7 +1169,7 @@ class OpenFgaManager
         $config = $this->configuration($name);
 
         if (null === $config) {
-            throw new InvalidArgumentException("OpenFGA connection [{$name}] not configured.");
+            throw new InvalidArgumentException(sprintf('OpenFGA connection [%s] not configured.', $name));
         }
 
         return $this->createConnection($config);
@@ -1171,8 +1178,10 @@ class OpenFgaManager
     /**
      * Resolve user ID from various formats.
      *
-     * @param  string $user
-     * @return string
+     * @param string $user
+     *
+     * @throws BindingResolutionException
+     * @throws InvalidArgumentException
      */
     private function resolveUserId(string $user): string
     {

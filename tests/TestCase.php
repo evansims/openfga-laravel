@@ -14,7 +14,7 @@ use PHPUnit\Framework\TestCase as BaseTestCase;
 
 use function dirname;
 
-class MockApplication extends Container implements Application
+final class MockApplication extends Container implements Application
 {
     public function basePath($path = '')
     {
