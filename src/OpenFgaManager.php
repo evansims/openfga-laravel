@@ -14,6 +14,7 @@ use InvalidArgumentException;
 use OpenFGA\Authentication\{AuthenticationInterface, ClientCredentialAuthentication, TokenAuthentication};
 use OpenFGA\{Client, ClientInterface};
 use OpenFGA\Exceptions\ClientThrowable;
+use OpenFGA\Laravel\Query\AuthorizationQuery;
 use OpenFGA\Models\{BatchCheckItem, TupleKey, UserTypeFilter};
 use OpenFGA\Models\Collections\{BatchCheckItems, TupleKeys, TupleKeysInterface, UserTypeFilters};
 use OpenFGA\Results\{FailureInterface, SuccessInterface};
@@ -389,6 +390,16 @@ final class OpenFgaManager
     }
 
     /**
+     * Create a new query builder instance.
+     *
+     * @param string|null $connection Optional connection name
+     */
+    public function query(?string $connection = null): AuthorizationQuery
+    {
+        return new AuthorizationQuery($this, $connection);
+    }
+
+    /**
      * Check the health of a connection.
      *
      * @param string|null $name
@@ -601,6 +612,49 @@ final class OpenFgaManager
         });
 
         return $users ?? [];
+    }
+
+    /**
+     * List all relations a user has with an object.
+     *
+     * @param string                                                            $user             User identifier
+     * @param string                                                            $object           The object
+     * @param array<string>                                                     $relations        Optional relation filters
+     * @param array<int, array{user: string, relation: string, object: string}> $contextualTuples Optional contextual tuples
+     * @param object|null                                                       $context          Optional context
+     * @param string|null                                                       $connection       Optional connection name
+     *
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception                  If throwExceptions is true and an error occurs
+     * @throws InvalidArgumentException
+     *
+     * @return array<string, bool> Relations mapped to whether the user has them
+     */
+    public function listRelations(
+        string $user,
+        string $object,
+        array $relations = [],
+        array $contextualTuples = [],
+        ?object $context = null,
+        ?string $connection = null,
+    ): array {
+        $user = $this->resolveUserId($user);
+        
+        // If no specific relations provided, we need to check all possible relations
+        // In a real implementation, you might want to get these from the authorization model
+        if (count($relations) === 0) {
+            throw new InvalidArgumentException('Relations array cannot be empty');
+        }
+        
+        $results = [];
+        
+        // Check each relation
+        foreach ($relations as $relation) {
+            $results[$relation] = $this->check($user, $relation, $object, $contextualTuples, $context, $connection);
+        }
+        
+        return $results;
     }
 
     /**
