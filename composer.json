@@ -52,12 +52,12 @@
   "prefer-stable": true,
   "autoload": {
     "psr-4": {
-      "OpenFga\\Laravel\\": "src/"
+      "OpenFGA\\Laravel\\": "src/"
     }
   },
   "autoload-dev": {
     "psr-4": {
-      "OpenFga\\Laravel\\Tests\\": "tests/"
+      "OpenFGA\\Laravel\\Tests\\": "tests/"
     }
   },
   "config": {
@@ -73,10 +73,10 @@
   "extra": {
     "laravel": {
       "aliases": {
-        "OpenFga": "OpenFga\\Laravel\\Facades\\OpenFga"
+        "OpenFga": "OpenFGA\\Laravel\\Facades\\OpenFga"
       },
       "providers": [
-        "OpenFga\\Laravel\\OpenFgaServiceProvider"
+        "OpenFGA\\Laravel\\OpenFgaServiceProvider"
       ]
     }
   },

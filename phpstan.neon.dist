@@ -21,7 +21,11 @@ parameters:
     # Readonly properties support (PHP 8.1+)
     checkDynamicProperties: true
 
-    ignoreErrors: []
+    ignoreErrors:
+        # Dynamic method calls are expected for proxy pattern
+        - '#Variable method call on OpenFGA\\ClientInterface#'
+        # PSR discovery - PHPStan can't determine runtime class checks
+        - '#Call to function method_exists\(\) with .* will always evaluate to false#'
 
     paths:
         - src

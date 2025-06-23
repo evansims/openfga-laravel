@@ -2,34 +2,35 @@
 
 declare(strict_types=1);
 
-namespace OpenFga\Laravel\Facades;
+namespace OpenFGA\Laravel\Facades;
 
 use Illuminate\Support\Facades\Facade;
-use OpenFGA\{Client, ClientInterface};
+use OpenFGA\{Client};
+use Override;
 
 /**
- * @method static \OpenFGA\Result\Success|\OpenFGA\Result\Failure check(string $user, string $relation, string $object, array $contextualTuples = [], array $context = [], ?string $authorizationModelId = null)
- * @method static \OpenFGA\Result\Success|\OpenFGA\Result\Failure batchCheck(array $requests, ?string $authorizationModelId = null)
- * @method static \OpenFGA\Result\Success|\OpenFGA\Result\Failure expand(string $relation, string $object, ?string $authorizationModelId = null)
- * @method static \OpenFGA\Result\Success|\OpenFGA\Result\Failure listObjects(string $user, string $relation, string $type, array $contextualTuples = [], array $context = [], ?string $authorizationModelId = null)
- * @method static \OpenFGA\Result\Success|\OpenFGA\Result\Failure listRelations(string $user, string $object, array $relations = [], array $contextualTuples = [], array $context = [], ?string $authorizationModelId = null)
- * @method static \OpenFGA\Result\Success|\OpenFGA\Result\Failure listUsers(string $object, string $relation, array $userFilters = [], array $contextualTuples = [], array $context = [], ?string $authorizationModelId = null)
- * @method static \OpenFGA\Result\Success|\OpenFGA\Result\Failure write(array $writes = [], array $deletes = [], ?string $authorizationModelId = null)
- * @method static \OpenFGA\Result\Success|\OpenFGA\Result\Failure writeTuples(array $tuples, ?string $authorizationModelId = null)
- * @method static \OpenFGA\Result\Success|\OpenFGA\Result\Failure deleteTuples(array $tuples, ?string $authorizationModelId = null)
- * @method static \OpenFGA\Result\Success|\OpenFGA\Result\Failure readTuples(?string $user = null, ?string $relation = null, ?string $object = null, ?int $pageSize = null, ?string $continuationToken = null)
- * @method static \OpenFGA\Result\Success|\OpenFGA\Result\Failure readChanges(?string $type = null, ?int $pageSize = null, ?string $continuationToken = null)
- * @method static \OpenFGA\Result\Success|\OpenFGA\Result\Failure createStore(string $name, ?string $model = null)
- * @method static \OpenFGA\Result\Success|\OpenFGA\Result\Failure getStore(?string $storeId = null)
- * @method static \OpenFGA\Result\Success|\OpenFGA\Result\Failure deleteStore(?string $storeId = null)
- * @method static \OpenFGA\Result\Success|\OpenFGA\Result\Failure listStores(?int $pageSize = null, ?string $continuationToken = null)
- * @method static \OpenFGA\Result\Success|\OpenFGA\Result\Failure writeAuthorizationModel(array $typeDefinitions, array $schemaVersion = null, array $conditions = null, ?string $storeId = null)
- * @method static \OpenFGA\Result\Success|\OpenFGA\Result\Failure readAuthorizationModel(?string $authorizationModelId = null, ?string $storeId = null)
- * @method static \OpenFGA\Result\Success|\OpenFGA\Result\Failure readAuthorizationModels(?int $pageSize = null, ?string $continuationToken = null, ?string $storeId = null)
- * @method static \OpenFGA\Result\Success|\OpenFGA\Result\Failure readLatestAuthorizationModel(?string $storeId = null)
- * @method static \OpenFGA\Result\Success|\OpenFGA\Result\Failure writeAssertions(array $assertions, ?string $authorizationModelId = null, ?string $storeId = null)
- * @method static \OpenFGA\Result\Success|\OpenFGA\Result\Failure readAssertions(?string $authorizationModelId = null, ?string $storeId = null)
- * @method static \OpenFGA\Result\Success|\OpenFGA\Result\Failure dsl(string $dsl, ?string $storeId = null)
+ * @method static \OpenFGA\Results\Success|\OpenFGA\Results\Failure check(string $user, string $relation, string $object, array<int, mixed> $contextualTuples = [], array<string, mixed> $context = [], ?string $authorizationModelId = null)
+ * @method static \OpenFGA\Results\Success|\OpenFGA\Results\Failure batchCheck(array<int, mixed> $requests, ?string $authorizationModelId = null)
+ * @method static \OpenFGA\Results\Success|\OpenFGA\Results\Failure expand(string $relation, string $object, ?string $authorizationModelId = null)
+ * @method static \OpenFGA\Results\Success|\OpenFGA\Results\Failure listObjects(string $user, string $relation, string $type, array<int, mixed> $contextualTuples = [], array<string, mixed> $context = [], ?string $authorizationModelId = null)
+ * @method static \OpenFGA\Results\Success|\OpenFGA\Results\Failure listRelations(string $user, string $object, array<int, string> $relations = [], array<int, mixed> $contextualTuples = [], array<string, mixed> $context = [], ?string $authorizationModelId = null)
+ * @method static \OpenFGA\Results\Success|\OpenFGA\Results\Failure listUsers(string $object, string $relation, array<int, mixed> $userFilters = [], array<int, mixed> $contextualTuples = [], array<string, mixed> $context = [], ?string $authorizationModelId = null)
+ * @method static \OpenFGA\Results\Success|\OpenFGA\Results\Failure write(array<int, mixed> $writes = [], array<int, mixed> $deletes = [], ?string $authorizationModelId = null)
+ * @method static \OpenFGA\Results\Success|\OpenFGA\Results\Failure writeTuples(array<int, mixed> $tuples, ?string $authorizationModelId = null)
+ * @method static \OpenFGA\Results\Success|\OpenFGA\Results\Failure deleteTuples(array<int, mixed> $tuples, ?string $authorizationModelId = null)
+ * @method static \OpenFGA\Results\Success|\OpenFGA\Results\Failure readTuples(?string $user = null, ?string $relation = null, ?string $object = null, ?int $pageSize = null, ?string $continuationToken = null)
+ * @method static \OpenFGA\Results\Success|\OpenFGA\Results\Failure readChanges(?string $type = null, ?int $pageSize = null, ?string $continuationToken = null)
+ * @method static \OpenFGA\Results\Success|\OpenFGA\Results\Failure createStore(string $name, ?string $model = null)
+ * @method static \OpenFGA\Results\Success|\OpenFGA\Results\Failure getStore(?string $storeId = null)
+ * @method static \OpenFGA\Results\Success|\OpenFGA\Results\Failure deleteStore(?string $storeId = null)
+ * @method static \OpenFGA\Results\Success|\OpenFGA\Results\Failure listStores(?int $pageSize = null, ?string $continuationToken = null)
+ * @method static \OpenFGA\Results\Success|\OpenFGA\Results\Failure writeAuthorizationModel(array<int, mixed> $typeDefinitions, array<string, mixed> $schemaVersion = null, array<string, mixed> $conditions = null, ?string $storeId = null)
+ * @method static \OpenFGA\Results\Success|\OpenFGA\Results\Failure readAuthorizationModel(?string $authorizationModelId = null, ?string $storeId = null)
+ * @method static \OpenFGA\Results\Success|\OpenFGA\Results\Failure readAuthorizationModels(?int $pageSize = null, ?string $continuationToken = null, ?string $storeId = null)
+ * @method static \OpenFGA\Results\Success|\OpenFGA\Results\Failure readLatestAuthorizationModel(?string $storeId = null)
+ * @method static \OpenFGA\Results\Success|\OpenFGA\Results\Failure writeAssertions(array<int, mixed> $assertions, ?string $authorizationModelId = null, ?string $storeId = null)
+ * @method static \OpenFGA\Results\Success|\OpenFGA\Results\Failure readAssertions(?string $authorizationModelId = null, ?string $storeId = null)
+ * @method static \OpenFGA\Results\Success|\OpenFGA\Results\Failure dsl(string $dsl, ?string $storeId = null)
  *
  * @see Client
  */
@@ -38,8 +39,9 @@ final class OpenFga extends Facade
     /**
      * Get the registered name of the component.
      */
+    #[Override]
     protected static function getFacadeAccessor(): string
     {
-        return ClientInterface::class;
+        return 'openfga.manager';
     }
 }
