@@ -16,35 +16,145 @@
 
 ## Installation
 
-This package is currenly under development.
+```bash
+composer require openfga/laravel
+```
+
+Publish the configuration:
+
+```bash
+php artisan vendor:publish --tag="openfga-config"
+```
+
+Set your environment variables:
+
+```env
+OPENFGA_URL=http://localhost:8080
+OPENFGA_STORE_ID=your-store-id
+```
 
 <p><br /></p>
 
-## Quickstart
+## Why OpenFGA Laravel?
+
+### 🚫 Without OpenFGA (Scattered Authorization)
 
 ```php
-use OpenFGA\Client;
-use function OpenFGA\{allowed, tuple};
-
-$client = new Client(url: 'http://localhost:8080');
-
-// Instead of scattered if statements in your controllers:
-if ($user->isAdmin() || $user->owns($document) || $user->team->canEdit($document)) {
-    // ...
+// In your controller
+if ($request->user()->id === $document->user_id || 
+    $request->user()->isAdmin() || 
+    $request->user()->teams()->where('documents.id', $document->id)->exists()) {
+    // Can edit...
 }
 
-// Ask OpenFGA:
-$canEdit = allowed(
-    client: $client,
-    store: 'my-store',
-    model: 'my-model',
-    tuple: tuple('user:alice', 'editor', 'document:readme')
-);
+// In your middleware  
+if (!$user->hasRole('editor') && !$user->department->canAccessResource($resource)) {
+    abort(403);
+}
 
-// Zero business logic coupling. Pure authorization.
+// In your Blade views
+@if($user->id === $post->user_id || $user->isModerator())
+    <button>Edit</button>
+@endif
 ```
 
-See [the documentation](https://github.com/evansims/openfga-php/wiki) to get started.
+### ✅ With OpenFGA Laravel (Centralized & Expressive)
+
+```php
+// In your controller - Just ask!
+if (cannot('edit', $document)) {
+    abort(403);
+}
+
+// Or use middleware
+Route::put('/documents/{document}', [DocumentController::class, 'update'])
+    ->middleware('openfga:editor,document:{document}');
+
+// In your Blade views
+@can('edit', 'document:' . $document->id)
+    <button>Edit</button>
+@endcan
+
+// Even better with Eloquent models
+$document->grant($user, 'editor');        // Grant permission
+$document->check($user, 'editor');        // Check permission  
+$document->revoke($user, 'editor');       // Revoke permission
+
+// Query by permissions
+$myDocuments = Document::whereUserCan($user, 'edit')->get();
+```
+
+<p><br /></p>
+
+## Real-World Example
+
+Here's how you'd implement a document sharing system:
+
+```php
+// 1. Define your authorization model (in OpenFGA)
+model
+  schema 1.1
+
+type user
+
+type document
+  relations
+    define owner: [user]
+    define editor: [user] or owner
+    define viewer: [user] or editor
+
+// 2. In your Laravel app
+use App\Models\Document;
+use OpenFGA\Laravel\Facades\OpenFga;
+
+class DocumentController extends Controller
+{
+    public function share(Request $request, Document $document)
+    {
+        // Ensure user can share (only owners can share)
+        $this->authorize('owner', $document);
+        
+        // Grant permission to new user
+        $document->grant($request->user_email, $request->permission);
+        
+        return back()->with('success', 'Document shared successfully!');
+    }
+    
+    public function index()
+    {
+        // Get all documents the user can view
+        // This automatically queries OpenFGA and filters results
+        $documents = Document::whereUserCan(auth()->user(), 'viewer')
+            ->latest()
+            ->paginate();
+            
+        return view('documents.index', compact('documents'));
+    }
+}
+```
+
+<p><br /></p>
+
+## Key Features
+
+🔐 **Eloquent Integration** - Authorization methods on your models  
+🛡️ **Middleware Protection** - Secure routes with permission checks  
+🎨 **Blade Directives** - Show/hide UI based on permissions  
+🧪 **Testing Utilities** - Fake permissions in your tests  
+⚡ **Performance Optimized** - Built-in caching and batch operations  
+🔄 **Queue Support** - Async permission operations  
+📊 **Multi-tenancy Ready** - Multiple stores and connections
+
+<p><br /></p>
+
+## Documentation
+
+- [Installation Guide](docs/installation.md)
+- [Quick Start Tutorial](docs/quickstart.md)  
+- [Configuration](docs/configuration.md)
+- [Eloquent Integration](docs/eloquent.md)
+- [Testing](docs/testing.md)
+- [API Reference](docs/api-reference.md)
 
 <p><br /></p>
 

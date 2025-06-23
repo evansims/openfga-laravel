@@ -1,0 +1,231 @@
+<?php
+
+declare(strict_types=1);
+
+namespace OpenFGA\Laravel\Database;
+
+use Closure;
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Support\Facades\App;
+use OpenFGA\Laravel\OpenFgaManager;
+use OpenFGA\Models\Collections\TupleKeys;
+use OpenFGA\Models\TupleKey;
+
+/**
+ * Base migration class for handling OpenFGA permissions.
+ */
+abstract class PermissionMigration extends Migration
+{
+    /**
+     * The OpenFGA manager instance.
+     */
+    protected OpenFgaManager $manager;
+
+    /**
+     * Permissions to be granted during migration.
+     *
+     * @var array<int, array{user: string, relation: string, object: string}>
+     */
+    protected array $permissions = [];
+
+    /**
+     * Permissions to be revoked during rollback.
+     *
+     * @var array<int, array{user: string, relation: string, object: string}>
+     */
+    protected array $rollbackPermissions = [];
+
+    /**
+     * Constructor.
+     */
+    public function __construct(?OpenFgaManager $manager = null)
+    {
+        /** @var OpenFgaManager $resolvedManager */
+        $resolvedManager = $manager ?? App::make(OpenFgaManager::class);
+        $this->manager = $resolvedManager;
+    }
+
+    /**
+     * Run the migrations.
+     *
+     * @throws \Illuminate\Contracts\Container\BindingResolutionException
+     * @throws \OpenFGA\Exceptions\ClientThrowable
+     * @throws \Exception
+     */
+    public function up(): void
+    {
+        $this->definePermissions();
+        $this->applyPermissions();
+    }
+
+    /**
+     * Reverse the migrations.
+     *
+     * @throws \Illuminate\Contracts\Container\BindingResolutionException
+     * @throws \OpenFGA\Exceptions\ClientThrowable
+     * @throws \Exception
+     */
+    public function down(): void
+    {
+        $this->defineRollbackPermissions();
+        $this->applyRollback();
+    }
+
+    /**
+     * Define the permissions to be granted.
+     * Override this method in your migration.
+     */
+    abstract protected function definePermissions(): void;
+
+    /**
+     * Define the permissions to be revoked on rollback.
+     * By default, this will revoke all permissions granted in definePermissions.
+     */
+    protected function defineRollbackPermissions(): void
+    {
+        $this->rollbackPermissions = $this->permissions;
+    }
+
+    /**
+     * Add a permission to be granted.
+     *
+     * @param string $user     The user identifier
+     * @param string $relation The relation/permission
+     * @param string $object   The object identifier
+     */
+    protected function grant(string $user, string $relation, string $object): void
+    {
+        $this->permissions[] = [
+            'user' => $user,
+            'relation' => $relation,
+            'object' => $object,
+        ];
+    }
+
+    /**
+     * Add multiple permissions to be granted.
+     *
+     * @param array<int, array{user: string, relation: string, object: string}> $permissions
+     */
+    protected function grantMany(array $permissions): void
+    {
+        foreach ($permissions as $permission) {
+            $this->grant(
+                $permission['user'],
+                $permission['relation'],
+                $permission['object']
+            );
+        }
+    }
+
+    /**
+     * Grant permissions for multiple users on the same object.
+     *
+     * @param array<string> $users    The user identifiers
+     * @param string        $relation The relation/permission
+     * @param string        $object   The object identifier
+     */
+    protected function grantToMany(array $users, string $relation, string $object): void
+    {
+        foreach ($users as $user) {
+            $this->grant($user, $relation, $object);
+        }
+    }
+
+    /**
+     * Add a permission to be revoked on rollback.
+     *
+     * @param string $user     The user identifier
+     * @param string $relation The relation/permission
+     * @param string $object   The object identifier
+     */
+    protected function revokeOnRollback(string $user, string $relation, string $object): void
+    {
+        $this->rollbackPermissions[] = [
+            'user' => $user,
+            'relation' => $relation,
+            'object' => $object,
+        ];
+    }
+
+    /**
+     * Execute a callback with a specific connection.
+     *
+     * @param string               $connection The connection name
+     * @param Closure(\OpenFGA\ClientInterface): void $callback   The callback to execute
+     *
+     * @throws \InvalidArgumentException
+     */
+    protected function usingConnection(string $connection, Closure $callback): void
+    {
+        $callback($this->manager->connection($connection));
+    }
+
+    /**
+     * Apply the defined permissions.
+     *
+     * @throws \Illuminate\Contracts\Container\BindingResolutionException
+     * @throws \OpenFGA\Exceptions\ClientThrowable
+     * @throws \Exception
+     */
+    protected function applyPermissions(): void
+    {
+        if ([] === $this->permissions) {
+            return;
+        }
+
+        $tuples = new TupleKeys();
+        
+        foreach ($this->permissions as $permission) {
+            $tuples->add(new TupleKey(
+                $permission['user'],
+                $permission['relation'],
+                $permission['object']
+            ));
+        }
+
+        $this->manager->write($tuples);
+        
+        $this->info(sprintf('Granted %d permissions', count($this->permissions)));
+    }
+
+    /**
+     * Apply the rollback permissions.
+     *
+     * @throws \Illuminate\Contracts\Container\BindingResolutionException
+     * @throws \OpenFGA\Exceptions\ClientThrowable
+     * @throws \Exception
+     */
+    protected function applyRollback(): void
+    {
+        if ([] === $this->rollbackPermissions) {
+            return;
+        }
+
+        $tuples = new TupleKeys();
+        
+        foreach ($this->rollbackPermissions as $permission) {
+            $tuples->add(new TupleKey(
+                $permission['user'],
+                $permission['relation'],
+                $permission['object']
+            ));
+        }
+
+        $this->manager->write(null, $tuples);
+        
+        $this->info(sprintf('Revoked %d permissions', count($this->rollbackPermissions)));
+    }
+
+    /**
+     * Output information to the console if available.
+     *
+     * @param string $message
+     */
+    protected function info(string $message): void
+    {
+        if (App::runningInConsole()) {
+            echo $message . PHP_EOL;
+        }
+    }
+}

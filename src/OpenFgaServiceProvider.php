@@ -12,6 +12,7 @@ use Illuminate\Support\ServiceProvider;
 use InvalidArgumentException;
 use LogicException;
 use OpenFGA\{Client, ClientInterface};
+use OpenFGA\Laravel\Console;
 use Override;
 
 use function gettype;
@@ -35,8 +36,24 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
             $this->publishes([
                 __DIR__ . '/../config/openfga.php' => config_path('openfga.php'),
             ], 'openfga-config');
+            
+            $this->commands([
+                Console\Commands\MakePermissionMigrationCommand::class,
+                Console\Commands\MakePermissionSeederCommand::class,
+                Console\Commands\CheckCommand::class,
+                Console\Commands\GrantCommand::class,
+                Console\Commands\RevokeCommand::class,
+                Console\Commands\ExpandCommand::class,
+                Console\Commands\ListObjectsCommand::class,
+                Console\Commands\DebugCommand::class,
+                Console\Commands\StatsCommand::class,
+            ]);
         }
 
+        $this->registerMiddleware();
+        $this->registerAuthorizationIntegration();
+        $this->registerBladeIntegration();
+        $this->loadHelpers();
         $this->validateConfiguration();
     }
 
@@ -69,6 +86,21 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
 
         $this->registerManager();
         $this->registerDefaultClient();
+        $this->registerViewHelpers();
+    }
+
+    /**
+     * Register view helper services.
+     */
+    private function registerViewHelpers(): void
+    {
+        $this->app->singleton(View\JavaScriptHelper::class, function ($app) {
+            return new View\JavaScriptHelper($app[OpenFgaManager::class]);
+        });
+
+        $this->app->bind(View\MenuBuilder::class, function ($app) {
+            return new View\MenuBuilder($app[OpenFgaManager::class]);
+        });
     }
 
     /**
@@ -106,6 +138,85 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
         });
 
         $this->app->alias(OpenFgaManager::class, 'openfga.manager');
+    }
+
+    /**
+     * Register OpenFGA middleware.
+     */
+    private function registerMiddleware(): void
+    {
+        if (!$this->app->bound('router')) {
+            return;
+        }
+        
+        $router = $this->app['router'];
+
+        $router->aliasMiddleware('openfga', Http\Middleware\OpenFgaMiddleware::class);
+        $router->aliasMiddleware('openfga.permission', Http\Middleware\RequiresPermission::class);
+        $router->aliasMiddleware('openfga.any', Http\Middleware\RequiresAnyPermission::class);
+        $router->aliasMiddleware('openfga.all', Http\Middleware\RequiresAllPermissions::class);
+        $router->aliasMiddleware('openfga.load', Http\Middleware\LoadPermissions::class);
+    }
+
+    /**
+     * Register OpenFGA authorization integration.
+     */
+    private function registerAuthorizationIntegration(): void
+    {
+        // Register the authorization service provider
+        $this->app->register(Authorization\AuthorizationServiceProvider::class);
+    }
+
+    /**
+     * Register OpenFGA Blade integration.
+     */
+    private function registerBladeIntegration(): void
+    {
+        // Register the Blade service provider
+        $this->app->register(View\BladeServiceProvider::class);
+
+        // Register Blade components
+        $this->registerBladeComponents();
+
+        // Register view paths
+        $this->loadViewsFrom(__DIR__ . '/../resources/views', 'openfga');
+    }
+
+    /**
+     * Register Blade components.
+     */
+    private function registerBladeComponents(): void
+    {
+        if (method_exists($this->app, 'make') && $this->app->bound('blade.compiler')) {
+            $this->loadBladeComponentsFrom([
+                'openfga-can' => View\Components\Can::class,
+                'openfga-cannot' => View\Components\Cannot::class,
+                'openfga-can-any' => View\Components\CanAny::class,
+                'openfga-can-all' => View\Components\CanAll::class,
+            ]);
+        }
+    }
+
+    /**
+     * Load Blade components.
+     *
+     * @param array<string, string> $components
+     */
+    private function loadBladeComponentsFrom(array $components): void
+    {
+        foreach ($components as $alias => $class) {
+            $this->app['blade.compiler']->component($class, $alias);
+        }
+    }
+
+    /**
+     * Load helper functions.
+     */
+    private function loadHelpers(): void
+    {
+        if (file_exists(__DIR__ . '/helpers.php')) {
+            require_once __DIR__ . '/helpers.php';
+        }
     }
 
     /**

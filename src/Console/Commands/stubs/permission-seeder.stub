@@ -1,0 +1,36 @@
+<?php
+
+namespace {{ namespace }};
+
+use OpenFGA\Laravel\Database\PermissionSeeder;
+
+class {{ class }} extends PermissionSeeder
+{
+    /**
+     * Define and seed the permissions.
+     */
+    protected function seedPermissions(): void
+    {
+        // Example: Grant individual permission
+        // $this->grant('user:admin', 'owner', 'organization:acme');
+        
+        // Example: Grant permissions to multiple users
+        // $this->grantToMany(['user:1', 'user:2'], 'editor', 'document:123');
+        
+        // Example: Grant multiple relations to a user
+        // $this->grantRelations('user:admin', ['owner', 'editor', 'viewer'], 'project:456');
+        
+        // Example: Grant permissions for all models in a collection
+        // $documents = Document::all();
+        // $this->grantForModels($documents, 'user:admin', 'owner');
+        
+        // Example: Grant batch permissions
+        // $this->grantMany([
+        //     ['user' => 'user:1', 'relation' => 'viewer', 'object' => 'document:456'],
+        //     ['user' => 'user:2', 'relation' => 'editor', 'object' => 'document:789'],
+        // ]);
+        
+        // Example: Setup default admin permissions
+        // $this->grantAdminPermissions('user:super-admin', 'organization:main');
+    }
+}

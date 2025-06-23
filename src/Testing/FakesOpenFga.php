@@ -1,0 +1,182 @@
+<?php
+
+declare(strict_types=1);
+
+namespace OpenFGA\Laravel\Testing;
+
+use OpenFGA\Laravel\OpenFgaManager;
+
+/**
+ * Trait for faking OpenFGA in tests.
+ */
+trait FakesOpenFga
+{
+    /**
+     * The fake OpenFGA instance.
+     */
+    protected ?FakeOpenFga $fakeOpenFga = null;
+
+    /**
+     * Replace the OpenFGA manager with a fake implementation.
+     */
+    protected function fakeOpenFga(): FakeOpenFga
+    {
+        $this->fakeOpenFga = new FakeOpenFga();
+
+        // Create a wrapper manager that delegates to our fake
+        $fakeManager = new class($this->fakeOpenFga) {
+            public function __construct(private FakeOpenFga $fake) {}
+
+            public function check(string $user, string $relation, string $object, array $contextualTuples = [], array $context = [], ?string $connection = null): bool
+            {
+                return $this->fake->check($user, $relation, $object);
+            }
+
+            public function grant(string $user, string $relation, string $object, ?string $connection = null): void
+            {
+                $this->fake->grant($user, $relation, $object);
+            }
+
+            public function revoke(string $user, string $relation, string $object, ?string $connection = null): void
+            {
+                $this->fake->revoke($user, $relation, $object);
+            }
+
+            public function listObjects(string $user, string $relation, string $type, array $contextualTuples = [], array $context = [], ?string $connection = null): array
+            {
+                return $this->fake->listObjects($user, $relation, $type);
+            }
+
+            public function expand(string $object, string $relation, ?string $connection = null): array
+            {
+                return $this->fake->expand($object, $relation);
+            }
+
+            public function writeBatch(array $writes = [], array $deletes = [], ?string $connection = null): void
+            {
+                $this->fake->writeBatch($writes, $deletes);
+            }
+
+            public function connection(?string $name = null)
+            {
+                return $this;
+            }
+
+            public function query(?string $connection = null)
+            {
+                return new class($this->fake) {
+                    public function __construct(private FakeOpenFga $fake) {}
+
+                    private ?string $user = null;
+                    private ?string $relation = null;
+                    private ?string $object = null;
+
+                    public function for(string $user)
+                    {
+                        $this->user = $user;
+                        return $this;
+                    }
+
+                    public function can(string $relation)
+                    {
+                        $this->relation = $relation;
+                        return $this;
+                    }
+
+                    public function on(string $object)
+                    {
+                        $this->object = $object;
+                        return $this;
+                    }
+
+                    public function check(): bool
+                    {
+                        return $this->fake->check($this->user, $this->relation, $this->object);
+                    }
+                };
+            }
+        };
+
+        // Replace the manager in the container
+        $this->app->instance(OpenFgaManager::class, $fakeManager);
+        $this->app->instance('openfga.manager', $fakeManager);
+
+        return $this->fakeOpenFga;
+    }
+
+    /**
+     * Get the fake OpenFGA instance.
+     */
+    protected function getFakeOpenFga(): ?FakeOpenFga
+    {
+        return $this->fakeOpenFga;
+    }
+
+    /**
+     * Assert that a permission was granted.
+     */
+    protected function assertPermissionGranted(string $user, string $relation, string $object, ?string $message = null): void
+    {
+        if (!$this->fakeOpenFga) {
+            $this->fail('OpenFGA fake is not active. Call fakeOpenFga() first.');
+        }
+
+        $this->fakeOpenFga->assertGranted($user, $relation, $object, $message);
+    }
+
+    /**
+     * Assert that a permission was not granted.
+     */
+    protected function assertPermissionNotGranted(string $user, string $relation, string $object, ?string $message = null): void
+    {
+        if (!$this->fakeOpenFga) {
+            $this->fail('OpenFGA fake is not active. Call fakeOpenFga() first.');
+        }
+
+        $this->fakeOpenFga->assertNotGranted($user, $relation, $object, $message);
+    }
+
+    /**
+     * Assert that a permission check was performed.
+     */
+    protected function assertPermissionChecked(string $user, string $relation, string $object, ?string $message = null): void
+    {
+        if (!$this->fakeOpenFga) {
+            $this->fail('OpenFGA fake is not active. Call fakeOpenFga() first.');
+        }
+
+        $this->fakeOpenFga->assertChecked($user, $relation, $object, $message);
+    }
+
+    /**
+     * Assert that a permission check was not performed.
+     */
+    protected function assertPermissionNotChecked(string $user, string $relation, string $object, ?string $message = null): void
+    {
+        if (!$this->fakeOpenFga) {
+            $this->fail('OpenFGA fake is not active. Call fakeOpenFga() first.');
+        }
+
+        $this->fakeOpenFga->assertNotChecked($user, $relation, $object, $message);
+    }
+
+    /**
+     * Assert the number of permission checks performed.
+     */
+    protected function assertPermissionCheckCount(int $count, ?string $message = null): void
+    {
+        if (!$this->fakeOpenFga) {
+            $this->fail('OpenFGA fake is not active. Call fakeOpenFga() first.');
+        }
+
+        $this->fakeOpenFga->assertCheckCount($count, $message);
+    }
+
+    /**
+     * Assert that no permission checks were performed.
+     */
+    protected function assertNoPermissionChecks(?string $message = null): void
+    {
+        $this->assertPermissionCheckCount(0, $message);
+    }
+}

@@ -1,0 +1,38 @@
+<?php
+
+use OpenFGA\Laravel\Database\PermissionMigration;
+
+class {{ class }} extends PermissionMigration
+{
+    /**
+     * Define the permissions to be granted.
+     */
+    protected function definePermissions(): void
+    {
+        // Example: Grant admin permissions
+        // $this->grant('user:admin', 'owner', 'organization:acme');
+        
+        // Example: Grant permissions to multiple users
+        // $this->grantToMany(['user:1', 'user:2'], 'editor', 'document:123');
+        
+        // Example: Grant multiple permissions at once
+        // $this->grantMany([
+        //     ['user' => 'user:1', 'relation' => 'viewer', 'object' => 'document:456'],
+        //     ['user' => 'user:2', 'relation' => 'editor', 'object' => 'document:789'],
+        // ]);
+    }
+
+    /**
+     * Define the permissions to be revoked on rollback.
+     * 
+     * By default, this will revoke all permissions granted in definePermissions().
+     * Override this method if you need custom rollback behavior.
+     */
+    protected function defineRollbackPermissions(): void
+    {
+        parent::defineRollbackPermissions();
+        
+        // Example: Additional permissions to revoke on rollback
+        // $this->revokeOnRollback('user:old-admin', 'owner', 'organization:acme');
+    }
+}
