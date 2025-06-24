@@ -6,6 +6,7 @@ namespace OpenFGA\Laravel\View;
 
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Support\Facades\Auth;
+use InvalidArgumentException;
 use OpenFGA\Laravel\OpenFgaManager;
 use OpenFGA\Laravel\Traits\ResolvesAuthorizationUser;
 
@@ -32,6 +33,8 @@ final readonly class JavaScriptHelper
      * @param array<string> $objects    List of objects to check permissions for
      * @param array<string> $relations  List of relations to check
      * @param string|null   $connection OpenFGA connection to use
+     *
+     * @throws InvalidArgumentException
      */
     public function bladeDirective(array $objects = [], array $relations = [], ?string $connection = null): string
     {
@@ -46,6 +49,8 @@ final readonly class JavaScriptHelper
      * @param array<string> $objects    List of objects to check permissions for
      * @param array<string> $relations  List of relations to check
      * @param string|null   $connection OpenFGA connection to use
+     *
+     * @throws InvalidArgumentException
      */
     public function generate(array $objects = [], array $relations = [], ?string $connection = null): string
     {
@@ -161,6 +166,8 @@ final readonly class JavaScriptHelper
      * @param array<string> $objects    List of objects to check permissions for
      * @param array<string> $relations  List of relations to check
      * @param string|null   $connection OpenFGA connection to use
+     *
+     * @throws InvalidArgumentException
      */
     public function generatePermissionsScript(array $objects, array $relations, ?string $connection = null): string
     {
@@ -182,8 +189,7 @@ final readonly class JavaScriptHelper
 
             foreach ($relations as $relation) {
                 $permissions[$object][$relation] = $this->manager
-                    ->connection($connection)
-                    ->check($userId, $relation, $object);
+                    ->check($userId, $relation, $object, [], [], $connection);
             }
         }
 
@@ -192,17 +198,26 @@ final readonly class JavaScriptHelper
             'auth_id' => $user->getAuthIdentifier(),
         ];
 
-        return 'window.OpenFGA = ' . json_encode([
+        $json = json_encode([
             'permissions' => $permissions,
             'user' => $userData,
-        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . ';';
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+
+        if (false === $json) {
+            return 'window.OpenFGA = {};';
+        }
+
+        return 'window.OpenFGA = ' . $json . ';';
     }
 
     /**
      * Resolve the user ID for OpenFGA.
      *
-     * @param  Authenticatable $user The authenticated user
-     * @return string          The user identifier for OpenFGA
+     * @param Authenticatable $user The authenticated user
+     *
+     * @throws InvalidArgumentException
+     *
+     * @return string The user identifier for OpenFGA
      */
     private function resolveUserId(Authenticatable $user): string
     {

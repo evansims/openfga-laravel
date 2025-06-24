@@ -5,10 +5,15 @@ declare(strict_types=1);
 namespace OpenFGA\Laravel\Http\Middleware;
 
 use Closure;
+use Exception;
 use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Contracts\Container\BindingResolutionException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use InvalidArgumentException;
+use LogicException;
+use OpenFGA\Exceptions\ClientThrowable;
 use OpenFGA\Laravel\OpenFgaManager;
 use OpenFGA\Laravel\Traits\{ResolvesAuthorizationObject, ResolvesAuthorizationUser};
 use Symfony\Component\HttpFoundation\Response;
@@ -38,6 +43,11 @@ final readonly class LoadPermissions
      * @param Request                      $request
      * @param Closure(Request): (Response) $next
      * @param string                       ...$relations Relations to pre-load
+     *
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
+     * @throws InvalidArgumentException
      */
     public function handle(Request $request, Closure $next, string ...$relations): Response
     {
@@ -64,6 +74,11 @@ final readonly class LoadPermissions
      * @param string        $user
      * @param array<string> $relations
      * @param array<string> $objects
+     *
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
+     * @throws InvalidArgumentException
      */
     private function preloadPermissions(string $user, array $relations, array $objects): void
     {
@@ -86,7 +101,10 @@ final readonly class LoadPermissions
     /**
      * Resolve objects from the request context.
      *
-     * @param  Request       $request
+     * @param Request $request
+     *
+     * @throws LogicException
+     *
      * @return array<string>
      */
     private function resolveObjects(Request $request): array
@@ -100,9 +118,13 @@ final readonly class LoadPermissions
         }
 
         // Extract objects from route parameters
-        foreach ($route->parameters() as $value) {
-            if ($value instanceof Model) {
-                $objects[] = $this->getAuthorizationObjectFromModel($value);
+        /** @var array<string, mixed> $parameters */
+        $parameters = $route->parameters();
+
+        /** @var mixed $parameter */
+        foreach ($parameters as $parameter) {
+            if ($parameter instanceof Model) {
+                $objects[] = $this->getAuthorizationObjectFromModel($parameter);
             }
         }
 
@@ -112,8 +134,11 @@ final readonly class LoadPermissions
     /**
      * Resolve the user identifier from the request.
      *
-     * @param  Request $request
-     * @return string  User identifier or empty string if no user
+     * @param Request $request
+     *
+     * @throws InvalidArgumentException
+     *
+     * @return string User identifier or empty string if no user
      */
     private function resolveUser(Request $request): string
     {

@@ -47,6 +47,7 @@ final class GrantCommand extends Command
      *
      * @throws BindingResolutionException
      * @throws ClientThrowable
+     * @throws Exception
      * @throws InvalidArgumentException
      * @throws ReflectionException
      */
@@ -88,6 +89,12 @@ final class GrantCommand extends Command
      *
      * @param OpenFgaManager $manager
      * @param string|null    $connection
+     *
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
+     * @throws InvalidArgumentException
+     * @throws ReflectionException
      */
     private function handleBatch(OpenFgaManager $manager, ?string $connection): int
     {
@@ -184,6 +191,10 @@ final class GrantCommand extends Command
      *
      * @param OpenFgaManager $manager
      * @param string|null    $connection
+     *
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
      */
     private function handleSingle(OpenFgaManager $manager, ?string $connection): int
     {

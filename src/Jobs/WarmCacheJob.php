@@ -57,10 +57,14 @@ final class WarmCacheJob implements ShouldQueue
         private array $options = [],
     ) {
         // Set queue configuration
+        /** @var mixed $queueEnabled */
         $queueEnabled = config('openfga.queue.enabled');
 
         if (true === $queueEnabled) {
+            /** @var mixed $connection */
             $connection = config('openfga.queue.connection');
+
+            /** @var mixed $queue */
             $queue = config('openfga.queue.queue');
 
             if (is_string($connection)) {
@@ -80,6 +84,7 @@ final class WarmCacheJob implements ShouldQueue
      */
     public function handle(CacheWarmer $warmer): void
     {
+        /** @var mixed $method */
         $method = $this->options['method'] ?? 'batch';
 
         match ($method) {
@@ -134,6 +139,7 @@ final class WarmCacheJob implements ShouldQueue
      */
     private function warmFromActivity(CacheWarmer $warmer): void
     {
+        /** @var mixed $limit */
         $limit = $this->options['limit'] ?? 1000;
 
         if (is_int($limit)) {

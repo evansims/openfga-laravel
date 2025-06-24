@@ -77,6 +77,7 @@ final class RelationExpanded
         }
 
         if (isset($node['leaf']) && is_array($node['leaf']) && isset($node['leaf']['users']) && is_array($node['leaf']['users'])) {
+            /** @var mixed $user */
             foreach ($node['leaf']['users'] as $user) {
                 if (is_string($user)) {
                     $users[] = $user;
@@ -85,6 +86,7 @@ final class RelationExpanded
         }
 
         if (isset($node['union']) && is_array($node['union']) && isset($node['union']['nodes']) && is_array($node['union']['nodes'])) {
+            /** @var mixed $unionNode */
             foreach ($node['union']['nodes'] as $unionNode) {
                 if (is_array($unionNode)) {
                     /** @var array<string, mixed> $unionNode */
@@ -94,6 +96,7 @@ final class RelationExpanded
         }
 
         if (isset($node['intersection']) && is_array($node['intersection']) && isset($node['intersection']['nodes']) && is_array($node['intersection']['nodes'])) {
+            /** @var mixed $intersectionNode */
             foreach ($node['intersection']['nodes'] as $intersectionNode) {
                 if (is_array($intersectionNode)) {
                     /** @var array<string, mixed> $intersectionNode */

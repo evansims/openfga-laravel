@@ -6,9 +6,13 @@ namespace OpenFGA\Laravel\Console\Commands;
 
 use Exception;
 use Illuminate\Console\Command;
+use Illuminate\Contracts\Container\BindingResolutionException;
+use InvalidArgumentException;
+use OpenFGA\Exceptions\ClientThrowable;
 use OpenFGA\Laravel\OpenFgaManager;
 use OpenFGA\Models\Collections\TupleKeys;
 use OpenFGA\Models\TupleKey;
+use ReflectionException;
 
 use function count;
 use function is_string;
@@ -40,6 +44,12 @@ final class RevokeCommand extends Command
      * Execute the console command.
      *
      * @param OpenFgaManager $manager
+     *
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
+     * @throws InvalidArgumentException
+     * @throws ReflectionException
      */
     public function handle(OpenFgaManager $manager): int
     {
@@ -79,6 +89,12 @@ final class RevokeCommand extends Command
      *
      * @param OpenFgaManager $manager
      * @param string|null    $connection
+     *
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
+     * @throws InvalidArgumentException
+     * @throws ReflectionException
      */
     private function handleBatch(OpenFgaManager $manager, ?string $connection): int
     {
@@ -175,6 +191,10 @@ final class RevokeCommand extends Command
      *
      * @param OpenFgaManager $manager
      * @param string|null    $connection
+     *
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
      */
     private function handleSingle(OpenFgaManager $manager, ?string $connection): int
     {

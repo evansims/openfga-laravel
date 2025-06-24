@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel;
 
+use Illuminate\Container\Container;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Contracts\Container\BindingResolutionException;
 use Illuminate\Contracts\Foundation\Application;
@@ -237,11 +238,7 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
      */
     private function registerViewHelpers(): void
     {
-        $this->app->singleton(JavaScriptHelper::class, static function ($app): JavaScriptHelper {
-            if (! is_object($app) || ! method_exists($app, 'get')) {
-                throw new RuntimeException('Container does not support get() method');
-            }
-
+        $this->app->singleton(JavaScriptHelper::class, static function (Container $app): JavaScriptHelper {
             $manager = $app->get(OpenFgaManager::class);
 
             if (! $manager instanceof OpenFgaManager) {
@@ -251,11 +248,7 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
             return new JavaScriptHelper($manager);
         });
 
-        $this->app->bind(MenuBuilder::class, static function ($app): MenuBuilder {
-            if (! is_object($app) || ! method_exists($app, 'get')) {
-                throw new RuntimeException('Container does not support get() method');
-            }
-
+        $this->app->bind(MenuBuilder::class, static function (Container $app): MenuBuilder {
             $manager = $app->get(OpenFgaManager::class);
 
             if (! $manager instanceof OpenFgaManager) {

@@ -157,12 +157,15 @@ final class PerformanceMonitor
      */
     private function getCacheStats(): array
     {
+        /** @var mixed $hitsValue */
         $hitsValue = Cache::get('openfga:counters:cache_hits', 0);
+
+        /** @var mixed $missesValue */
         $missesValue = Cache::get('openfga:counters:cache_misses', 0);
 
-        $hits = is_numeric($hitsValue) ? (float) $hitsValue : 0;
-        $misses = is_numeric($missesValue) ? (float) $missesValue : 0;
-        $total = (float) $hits + (float) $misses;
+        $hits = is_numeric($hitsValue) ? (float) $hitsValue : 0.0;
+        $misses = is_numeric($missesValue) ? (float) $missesValue : 0.0;
+        $total = $hits + $misses;
 
         return [
             'hits' => $hits,
@@ -191,6 +194,8 @@ final class PerformanceMonitor
     private function getMetricStats(string $name, int $minutes): array
     {
         $key = $this->getMetricKey($name);
+
+        /** @var mixed $metricsValue */
         $metricsValue = Cache::get($key, []);
         $metrics = is_array($metricsValue) ? $metricsValue : [];
 
@@ -272,6 +277,7 @@ final class PerformanceMonitor
         $key = 'openfga:histograms:' . $name;
         $ttl = 3600; // 1 hour
 
+        /** @var mixed $histogramValue */
         $histogramValue = Cache::get($key, []);
         $histogram = is_array($histogramValue) ? $histogramValue : [];
 
@@ -299,6 +305,7 @@ final class PerformanceMonitor
         $key = $this->getMetricKey($name);
         $ttl = 3600; // 1 hour
 
+        /** @var mixed $metricsValue */
         $metricsValue = Cache::get($key, []);
         $metrics = is_array($metricsValue) ? $metricsValue : [];
 

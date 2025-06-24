@@ -102,6 +102,7 @@ final readonly class MonitorPerformance
      */
     private function isEnabled(): bool
     {
+        /** @var mixed $enabled */
         $enabled = config('openfga.monitoring.enabled', true);
 
         return is_bool($enabled) ? $enabled : true;

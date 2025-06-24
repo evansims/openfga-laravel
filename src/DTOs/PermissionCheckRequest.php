@@ -131,6 +131,7 @@ final readonly class PermissionCheckRequest
     {
         // Check for authorization methods first
         if (method_exists($user, 'authorizationUser')) {
+            /** @var mixed $result */
             $result = $user->authorizationUser();
 
             if (is_string($result)) {
@@ -139,6 +140,7 @@ final readonly class PermissionCheckRequest
         }
 
         if (method_exists($user, 'getAuthorizationUserId')) {
+            /** @var mixed $result */
             $result = $user->getAuthorizationUserId();
 
             if (is_string($result)) {

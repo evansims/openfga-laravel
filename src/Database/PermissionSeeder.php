@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace OpenFGA\Laravel\Database;
 
 use Exception;
-use Illuminate\Contracts\Container\BindingResolutionException;
+use Illuminate\Console\Command;
+use Illuminate\Contracts\Container\{BindingResolutionException, Container};
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\App;
@@ -20,6 +21,9 @@ use function sprintf;
 
 /**
  * Base seeder class for seeding OpenFGA permissions.
+ *
+ * @property Command|null   $command
+ * @property Container|null $container
  */
 abstract class PermissionSeeder extends Seeder
 {

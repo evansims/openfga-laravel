@@ -12,7 +12,6 @@ use Psr\SimpleCache\InvalidArgumentException;
 
 use function count;
 use function is_array;
-use function is_scalar;
 use function is_string;
 use function sprintf;
 
@@ -122,8 +121,7 @@ final class CheckCommand extends Command
                     $this->info("\nContext:");
 
                     foreach ($context as $key => $value) {
-                        $valueStr = is_scalar($value) ? (string) $value : 'non-scalar value';
-                        $this->line(sprintf('  - %s: %s', $key, $valueStr));
+                        $this->line(sprintf('  - %s: %s', $key, $value));
                     }
                 }
             }
@@ -147,8 +145,8 @@ final class CheckCommand extends Command
     /**
      * Parse context values from command options.
      *
-     * @param  array<string>        $contextValues
-     * @return array<string, mixed>
+     * @param  array<string>         $contextValues
+     * @return array<string, string>
      */
     private function parseContext(array $contextValues): array
     {

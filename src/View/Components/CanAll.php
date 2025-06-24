@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\View\Components;
 
+use Exception;
 use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Contracts\Container\BindingResolutionException;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\View\Component;
+use Illuminate\View\{Component, ComponentAttributeBag};
 use InvalidArgumentException;
+use OpenFGA\Exceptions\ClientThrowable;
 use OpenFGA\Laravel\Contracts\AuthorizationType;
 use OpenFGA\Laravel\Helpers\ModelKeyHelper;
 use OpenFGA\Laravel\OpenFgaManager;
@@ -23,6 +26,10 @@ use function is_string;
 
 /**
  * Blade component for rendering content when user has all of the given OpenFGA permissions.
+ *
+ * @property string|null           $componentName
+ * @property array<string>         $except
+ * @property ComponentAttributeBag $attributes
  */
 final class CanAll extends Component
 {
@@ -45,6 +52,10 @@ final class CanAll extends Component
     /**
      * Determine if the user has all of the required permissions.
      *
+     * @throws \Psr\SimpleCache\InvalidArgumentException
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
      * @throws InvalidArgumentException
      */
     public function hasAllPermissions(): bool
@@ -73,6 +84,10 @@ final class CanAll extends Component
     /**
      * Get the view / contents that represent the component.
      *
+     * @throws \Psr\SimpleCache\InvalidArgumentException
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
      * @throws InvalidArgumentException
      */
     #[Override]
@@ -101,6 +116,7 @@ final class CanAll extends Component
 
         // Model with authorization support
         if (is_object($object) && method_exists($object, 'authorizationObject')) {
+            /** @var mixed|string $result */
             $result = $object->authorizationObject();
 
             if (is_string($result)) {
@@ -159,6 +175,7 @@ final class CanAll extends Component
     private function resolveUserId(Authenticatable $user): string
     {
         if (method_exists($user, 'authorizationUser')) {
+            /** @var mixed|numeric|string $result */
             $result = $user->authorizationUser();
 
             if (is_string($result) || is_numeric($result)) {
@@ -169,6 +186,7 @@ final class CanAll extends Component
         }
 
         if (method_exists($user, 'getAuthorizationUserId')) {
+            /** @var mixed|numeric|string $result */
             $result = $user->getAuthorizationUserId();
 
             if (is_string($result) || is_numeric($result)) {
@@ -178,6 +196,7 @@ final class CanAll extends Component
             throw new InvalidArgumentException('getAuthorizationUserId() must return a string or numeric value');
         }
 
+        /** @var int|mixed|string $identifier */
         $identifier = $user->getAuthIdentifier();
 
         if (is_scalar($identifier)) {

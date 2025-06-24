@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\View;
 
+use Exception;
 use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Contracts\Container\BindingResolutionException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use InvalidArgumentException;
+use OpenFGA\Exceptions\ClientThrowable;
 use OpenFGA\Laravel\Contracts\{AuthorizationType, AuthorizationUser, AuthorizationUserId};
 use OpenFGA\Laravel\Helpers\ModelKeyHelper;
 use OpenFGA\Laravel\OpenFgaManager;
@@ -65,7 +68,7 @@ final readonly class MenuBuilder
      * @param  array<string, mixed> $attributes
      * @return $this
      */
-    public function add(string $label, string $url, ?string $relation = null, $object = null, array $attributes = []): self
+    public function add(string $label, string $url, ?string $relation = null, mixed $object = null, array $attributes = []): self
     {
         $this->items->push([
             'label' => $label,
@@ -89,7 +92,7 @@ final readonly class MenuBuilder
      * @param  array<string, mixed> $attributes
      * @return $this
      */
-    public function addIfCan(string $label, string $url, string $relation, $object, array $attributes = []): self
+    public function addIfCan(string $label, string $url, string $relation, mixed $object, array $attributes = []): self
     {
         return $this->add($label, $url, $relation, $object, $attributes);
     }
@@ -147,7 +150,7 @@ final readonly class MenuBuilder
      * @param  array<string, mixed> $attributes
      * @return $this
      */
-    public function submenu(string $label, callable $callback, ?string $relation = null, $object = null, array $attributes = []): self
+    public function submenu(string $label, callable $callback, ?string $relation = null, mixed $object = null, array $attributes = []): self
     {
         $submenu = new self($this->manager, $this->connection);
         $callback($submenu);
@@ -191,7 +194,10 @@ final readonly class MenuBuilder
             }
 
             // Check permission if specified
+            /** @var mixed $relation */
             $relation = $item['relation'] ?? null;
+
+            /** @var mixed $object */
             $object = $item['object'] ?? null;
 
             if (is_string($relation) && null !== $object && ! $this->hasPermission($relation, $object)) {
@@ -199,6 +205,7 @@ final readonly class MenuBuilder
             }
 
             // Filter children recursively
+            /** @var mixed $children */
             $children = $item['children'] ?? null;
 
             if ($children instanceof Collection && $children->isNotEmpty()) {
@@ -220,8 +227,14 @@ final readonly class MenuBuilder
      *
      * @param string $relation
      * @param mixed  $object
+     *
+     * @throws \Psr\SimpleCache\InvalidArgumentException
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
+     * @throws InvalidArgumentException
      */
-    private function hasPermission(string $relation, $object): bool
+    private function hasPermission(string $relation, mixed $object): bool
     {
         if (! Auth::check()) {
             return false;
@@ -246,7 +259,7 @@ final readonly class MenuBuilder
      *
      * @throws InvalidArgumentException
      */
-    private function resolveObject($object): string
+    private function resolveObject(mixed $object): string
     {
         // String in object:id format
         if (is_string($object)) {
@@ -255,6 +268,7 @@ final readonly class MenuBuilder
 
         // Model with authorization support
         if (is_object($object) && method_exists($object, 'authorizationObject')) {
+            /** @var mixed $result */
             $result = $object->authorizationObject();
 
             if (is_string($result)) {
@@ -296,19 +310,22 @@ final readonly class MenuBuilder
     /**
      * Resolve the user ID for OpenFGA.
      *
-     * @param  Authenticatable $user The authenticated user
-     * @return string          The user identifier for OpenFGA
+     * @param Authenticatable $user The authenticated user
+     *
+     * @throws RuntimeException
+     *
+     * @return string The user identifier for OpenFGA
      */
     private function resolveUserId(Authenticatable $user): string
     {
         if (method_exists($user, 'authorizationUser')) {
             /** @var Authenticatable&AuthorizationUser $user */
-            return (string) $user->authorizationUser();
+            return $user->authorizationUser();
         }
 
         if (method_exists($user, 'getAuthorizationUserId')) {
             /** @var Authenticatable&AuthorizationUserId $user */
-            return (string) $user->getAuthorizationUserId();
+            return $user->getAuthorizationUserId();
         }
 
         $identifier = $user->getAuthIdentifier();

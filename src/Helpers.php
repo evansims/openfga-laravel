@@ -53,6 +53,12 @@ if (! function_exists('openfga_cannot')) {
      * @param string      $relation
      * @param mixed       $object
      * @param string|null $connection
+     *
+     * @throws Psr\SimpleCache\InvalidArgumentException
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
+     * @throws InvalidArgumentException
      */
     function openfga_cannot(string $relation, $object, ?string $connection = null): bool
     {
@@ -153,6 +159,8 @@ if (! function_exists('openfga_revoke')) {
 if (! function_exists('openfga_user')) {
     /**
      * Get the current user's OpenFGA identifier.
+     *
+     * @throws InvalidArgumentException
      */
     function openfga_user(): ?string
     {
@@ -199,6 +207,7 @@ if (! function_exists('openfga_resolve_user_id')) {
         // Authenticatable user
         if (is_object($user) && method_exists($user, 'getAuthIdentifier')) {
             /** @var Authenticatable $user */
+            /** @var mixed $identifier */
             $identifier = $user->getAuthIdentifier();
 
             if (is_string($identifier) || is_numeric($identifier)) {
@@ -230,9 +239,7 @@ if (! function_exists('openfga_resolve_object')) {
         // Model with authorization support
         if (is_object($object) && method_exists($object, 'authorizationObject')) {
             /** @var AuthorizationObject&object $object */
-            $result = $object->authorizationObject();
-
-            return (string) $result;
+            return $object->authorizationObject();
         }
 
         // Model with authorization type method
@@ -245,12 +252,16 @@ if (! function_exists('openfga_resolve_object')) {
         }
 
         // Eloquent model fallback
-        if (is_object($object) && method_exists($object, 'getTable') && method_exists($object, 'getKey')) {
-            /** @var Model $object */
-            $key = ModelKeyHelper::stringId($object);
-            $table = $object->getTable();
+        // Check is_object first to satisfy Psalm's type checking
+        if (is_object($object)) {
+            /** @var object $object */
+            if (method_exists($object, 'getTable') && method_exists($object, 'getKey')) {
+                /** @var Model $object */
+                $key = ModelKeyHelper::stringId($object);
+                $table = $object->getTable();
 
-            return (string) $table . ':' . $key;
+                return $table . ':' . $key;
+            }
         }
 
         throw new InvalidArgumentException('Cannot resolve object identifier for: ' . gettype($object));
@@ -260,10 +271,8 @@ if (! function_exists('openfga_resolve_object')) {
 if (! function_exists('openfga_manager')) {
     /**
      * Get the OpenFGA manager instance.
-     *
-     * @param string|null $connection
      */
-    function openfga_manager(?string $connection = null): OpenFgaManager
+    function openfga_manager(): OpenFgaManager
     {
         return app(OpenFgaManager::class);
         // connection() returns ClientInterface, not OpenFgaManager
@@ -279,6 +288,6 @@ if (! function_exists('openfga_query')) {
      */
     function openfga_query(?string $connection = null): AuthorizationQuery
     {
-        return openfga_manager($connection)->query();
+        return openfga_manager()->query($connection);
     }
 }

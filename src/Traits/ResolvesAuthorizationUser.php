@@ -27,6 +27,7 @@ trait ResolvesAuthorizationUser
     {
         // Check for custom authorization user methods
         if (method_exists($user, 'authorizationUser')) {
+            /** @var mixed $result */
             $result = $user->authorizationUser();
 
             if (is_string($result) || is_numeric($result)) {
@@ -35,6 +36,7 @@ trait ResolvesAuthorizationUser
         }
 
         if (method_exists($user, 'getAuthorizationUserId')) {
+            /** @var mixed $result */
             $result = $user->getAuthorizationUserId();
 
             if (is_string($result) || is_numeric($result)) {
@@ -43,6 +45,7 @@ trait ResolvesAuthorizationUser
         }
 
         // Default to user:{id}
+        /** @var mixed $identifier */
         $identifier = $user->getAuthIdentifier();
 
         if (is_string($identifier) || is_numeric($identifier)) {
