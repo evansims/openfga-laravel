@@ -162,12 +162,12 @@ final class PerformanceMonitor
 
         $hits = is_numeric($hitsValue) ? (float) $hitsValue : 0;
         $misses = is_numeric($missesValue) ? (float) $missesValue : 0;
-        $total = $hits + $misses;
+        $total = (float) $hits + (float) $misses;
 
         return [
             'hits' => $hits,
             'misses' => $misses,
-            'hit_rate' => 0 < $total ? ($hits / $total) * 100 : 0,
+            'hit_rate' => 0 < $total ? ((float) $hits / $total) * 100 : 0,
         ];
     }
 
@@ -222,7 +222,7 @@ final class PerformanceMonitor
 
         return [
             'count' => count($filtered),
-            'avg_duration' => array_sum($floatDurations) / count($floatDurations),
+            'avg_duration' => array_sum($floatDurations) / (float) count($floatDurations),
             'min_duration' => min($floatDurations),
             'max_duration' => max($floatDurations),
         ];
@@ -240,8 +240,8 @@ final class PerformanceMonitor
         $batchStats = $this->getMetricStats('batch_writes', $minutes);
 
         $totalOps = (float) $checkStats['count'] + (float) $batchStats['count'];
-        $avgDuration = ((float) $checkStats['avg_duration'] + (float) $batchStats['avg_duration']) / 2;
-        $opsPerMinute = $totalOps / max(1, $minutes);
+        $avgDuration = ((float) $checkStats['avg_duration'] + (float) $batchStats['avg_duration']) / 2.0;
+        $opsPerMinute = (float) $totalOps / (float) max(1, $minutes);
 
         return [
             'total_operations' => $totalOps,

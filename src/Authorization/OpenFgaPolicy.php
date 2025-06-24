@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 use InvalidArgumentException;
 use OpenFGA\Exceptions\ClientThrowable;
 use OpenFGA\Laravel\Contracts\{AuthorizationObject, AuthorizationType};
+use OpenFGA\Laravel\Helpers\ModelKeyHelper;
 use OpenFGA\Laravel\OpenFgaManager;
 
 use function gettype;
@@ -62,6 +63,8 @@ abstract class OpenFgaPolicy
      * @param array<string>   $relations
      * @param mixed           $resource
      * @param string|null     $connection
+     *
+     * @throws InvalidArgumentException
      */
     protected function canAll(Authenticatable $user, array $relations, $resource, ?string $connection = null): bool
     {
@@ -84,6 +87,8 @@ abstract class OpenFgaPolicy
      * @param array<string>   $relations
      * @param mixed           $resource
      * @param string|null     $connection
+     *
+     * @throws InvalidArgumentException
      */
     protected function canAny(Authenticatable $user, array $relations, $resource, ?string $connection = null): bool
     {
@@ -158,24 +163,16 @@ abstract class OpenFgaPolicy
             /** @var AuthorizationObject&object $resource */
             $result = $resource->authorizationObject();
 
-            return is_string($result) ? $result : (string) $result;
+            return (string) $result;
         }
 
         // Model with authorization type method
         if (is_object($resource) && method_exists($resource, 'authorizationType') && method_exists($resource, 'getKey')) {
             /** @var AuthorizationType&Model&object $resource */
             $type = $resource->authorizationType();
-            $key = $resource->getKey();
+            $key = ModelKeyHelper::stringId($resource);
 
-            if (null === $type || (! is_string($type) && ! is_numeric($type))) {
-                throw new InvalidArgumentException('Authorization type must be string or numeric');
-            }
-
-            if (null === $key || (! is_string($key) && ! is_numeric($key))) {
-                throw new InvalidArgumentException('Model key must be string or numeric');
-            }
-
-            return (string) $type . ':' . (string) $key;
+            return (string) $type . ':' . $key;
         }
 
         // Eloquent model fallback
@@ -184,17 +181,9 @@ abstract class OpenFgaPolicy
             if (method_exists($resource, 'getTable') && method_exists($resource, 'getKey')) {
                 /** @var Model $resource */
                 $table = $resource->getTable();
-                $key = $resource->getKey();
+                $key = ModelKeyHelper::stringId($resource);
 
-                if (! is_string($table)) {
-                    throw new InvalidArgumentException('Table name must be string');
-                }
-
-                if (null === $key || (! is_string($key) && ! is_numeric($key))) {
-                    throw new InvalidArgumentException('Model key must be string or numeric');
-                }
-
-                return $table . ':' . (string) $key;
+                return $table . ':' . $key;
             }
         }
 
@@ -211,9 +200,8 @@ abstract class OpenFgaPolicy
     /**
      * Resolve the user ID for OpenFGA.
      *
-     * @param Authenticatable $user
-     *
-     * @throws InvalidArgumentException
+     * @param  Authenticatable $user The authenticated user
+     * @return string          The user identifier for OpenFGA
      */
     protected function resolveUserId(Authenticatable $user): string
     {

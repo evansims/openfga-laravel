@@ -131,7 +131,7 @@ final class RevokeCommand extends Command
 
         $manager->write(null, $deletes, $connection);
 
-        $duration = round((microtime(true) - $startTime) * 1000, 2);
+        $duration = round((float) ((microtime(true) - $startTime) * 1000), 2);
 
         $jsonOption = $this->option('json');
 
@@ -154,7 +154,7 @@ final class RevokeCommand extends Command
                 ['Field', 'Value'],
                 [
                     ['Tuples Revoked', count($tuples)],
-                    ['Duration', $duration . 'ms'],
+                    ['Duration', ((string) $duration) . 'ms'],
                 ],
             );
 
@@ -196,7 +196,7 @@ final class RevokeCommand extends Command
 
         $manager->revoke($user, $relation, $object, $connection);
 
-        $duration = round((microtime(true) - $startTime) * 1000, 2);
+        $duration = round((float) ((microtime(true) - $startTime) * 1000), 2);
 
         $jsonOption = $this->option('json');
 
@@ -222,7 +222,7 @@ final class RevokeCommand extends Command
                     ['User', $user],
                     ['Relation', $relation],
                     ['Object', $object],
-                    ['Duration', $duration . 'ms'],
+                    ['Duration', ((string) $duration) . 'ms'],
                 ],
             );
         }

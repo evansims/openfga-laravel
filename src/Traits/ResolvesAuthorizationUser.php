@@ -17,9 +17,13 @@ trait ResolvesAuthorizationUser
     /**
      * Resolve the user ID for OpenFGA from an authenticatable user.
      *
-     * @param Authenticatable|mixed $user
+     * @param Authenticatable $user The authenticated user
+     *
+     * @throws InvalidArgumentException If user is not Authenticatable or identifier cannot be resolved
+     *
+     * @return string The user identifier for OpenFGA
      */
-    protected function resolveUserIdentifier($user): string
+    protected function resolveUserIdentifier(Authenticatable $user): string
     {
         if (! $user instanceof Authenticatable) {
             throw new InvalidArgumentException('User must implement Authenticatable interface');

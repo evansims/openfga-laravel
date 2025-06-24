@@ -79,7 +79,7 @@ final class ListObjectsCommand extends Command
 
             $objects = $manager->listObjects($user, $relation, $type, $contextualTuples, $context, $connection);
 
-            $duration = round((microtime(true) - $startTime) * 1000, 2);
+            $duration = round((float) ((microtime(true) - $startTime) * 1000), 2);
 
             // Apply limit if specified
 
@@ -198,7 +198,7 @@ final class ListObjectsCommand extends Command
             ['Metric', 'Value'],
             [
                 ['Total Objects', count($objects) . ($truncated ? ' (truncated)' : '')],
-                ['Duration', $duration . 'ms'],
+                ['Duration', ((string) $duration) . 'ms'],
                 ['Connection', $this->option('connection') ?? 'default'],
             ],
         );

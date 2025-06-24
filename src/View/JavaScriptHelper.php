@@ -201,7 +201,8 @@ final readonly class JavaScriptHelper
     /**
      * Resolve the user ID for OpenFGA.
      *
-     * @param Authenticatable $user
+     * @param  Authenticatable $user The authenticated user
+     * @return string          The user identifier for OpenFGA
      */
     private function resolveUserId(Authenticatable $user): string
     {

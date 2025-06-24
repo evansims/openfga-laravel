@@ -7,6 +7,7 @@ namespace OpenFGA\Laravel\Http\Middleware;
 use Closure;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
+use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -134,9 +135,14 @@ final class OpenFgaMiddleware
      * Resolve the user identifier from the request.
      *
      * @param Request $request
+     *
+     * @throws InvalidArgumentException If no authenticated user found
+     *
+     * @return string User identifier
      */
     private function resolveUser(Request $request): string
     {
+        /** @var Authenticatable|null $user */
         $user = $request->user();
 
         if (null === $user) {

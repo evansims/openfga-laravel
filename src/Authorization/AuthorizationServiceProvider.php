@@ -14,9 +14,11 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\ServiceProvider;
 use InvalidArgumentException;
 use OpenFGA\Laravel\Contracts\{AuthorizableUser, AuthorizationObject, AuthorizationType};
+use OpenFGA\Laravel\Helpers\ModelKeyHelper;
 use OpenFGA\Laravel\OpenFgaManager;
 use Override;
 
+use function count;
 use function gettype;
 use function is_object;
 use function is_scalar;
@@ -80,13 +82,9 @@ final class AuthorizationServiceProvider extends ServiceProvider
         if (is_object($resource) && method_exists($resource, 'authorizationType') && method_exists($resource, 'getKey')) {
             /** @var AuthorizationType&Model&object $resource */
             $type = $resource->authorizationType();
-            $key = $resource->getKey();
+            $key = ModelKeyHelper::stringId($resource);
 
-            if (null === $key || (! is_string($key) && ! is_numeric($key))) {
-                throw new InvalidArgumentException('Model key must be string or numeric');
-            }
-
-            return $type . ':' . (string) $key;
+            return $type . ':' . $key;
         }
 
         // Eloquent model fallback
@@ -95,18 +93,11 @@ final class AuthorizationServiceProvider extends ServiceProvider
             if (method_exists($resource, 'getTable') && method_exists($resource, 'getKey')) {
                 /** @var Model $resource */
                 $table = $resource->getTable();
-                $key = $resource->getKey();
-
-                if (null === $key || (! is_string($key) && ! is_numeric($key))) {
-                    throw new InvalidArgumentException('Model key must be string or numeric');
-                }
+                $key = ModelKeyHelper::stringId($resource);
 
                 // Ensure table is a string
-                if (! is_string($table)) {
-                    throw new InvalidArgumentException('Table name must be string');
-                }
 
-                return $table . ':' . (string) $key;
+                return $table . ':' . $key;
             }
         }
 
@@ -206,8 +197,12 @@ final class AuthorizationServiceProvider extends ServiceProvider
                 $relation = str_replace('openfga:', '', $ability);
                 $resource = $arguments[0] ?? null;
 
-                /** @var string|null $connection */
-                $connection = is_string($arguments[1] ?? null) ? $arguments[1] : null;
+                // Guard against missing resource argument
+                if (null === $resource) {
+                    throw new InvalidArgumentException('Missing resource argument');
+                }
+
+                $connection = (1 < count($arguments) && is_string($arguments[1])) ? $arguments[1] : null;
 
                 if (null !== $resource) {
                     $manager = $this->app->make(OpenFgaManager::class);

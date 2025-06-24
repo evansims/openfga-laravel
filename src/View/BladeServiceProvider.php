@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\{Auth, Blade};
 use Illuminate\Support\ServiceProvider;
 use Illuminate\View\{Factory, View};
 use InvalidArgumentException;
+use OpenFGA\Laravel\Helpers\ModelKeyHelper;
 use OpenFGA\Laravel\OpenFgaManager;
 
 use function gettype;
@@ -83,9 +84,9 @@ final class BladeServiceProvider extends ServiceProvider
         // Model with authorization type method
         if (is_object($object) && method_exists($object, 'authorizationType') && method_exists($object, 'getKey')) {
             $type = $object->authorizationType();
-            $key = $object->getKey();
+            $key = ModelKeyHelper::stringId($object);
 
-            if (is_string($type) && (is_string($key) || is_numeric($key))) {
+            if (is_string($type)) {
                 return $type . ':' . $key;
             }
         }
@@ -93,9 +94,9 @@ final class BladeServiceProvider extends ServiceProvider
         // Eloquent model fallback
         if (is_object($object) && method_exists($object, 'getTable') && method_exists($object, 'getKey')) {
             $table = $object->getTable();
-            $key = $object->getKey();
+            $key = ModelKeyHelper::stringId($object);
 
-            if (is_string($table) && (is_string($key) || is_numeric($key))) {
+            if (is_string($table)) {
                 return $table . ':' . $key;
             }
         }
@@ -106,7 +107,11 @@ final class BladeServiceProvider extends ServiceProvider
     /**
      * Resolve the user ID for OpenFGA.
      *
-     * @param Authenticatable $user
+     * @param Authenticatable $user The authenticated user
+     *
+     * @throws InvalidArgumentException If user identifier cannot be resolved
+     *
+     * @return string The user identifier for OpenFGA
      */
     public function resolveUserId(Authenticatable $user): string
     {

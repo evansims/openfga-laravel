@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use OpenFGA\Exceptions\ClientThrowable;
 use OpenFGA\Laravel\Contracts\{AuthorizationObject, AuthorizationType, AuthorizationUser, AuthorizationUserId};
+use OpenFGA\Laravel\Helpers\ModelKeyHelper;
 use OpenFGA\Laravel\OpenFgaManager;
 use OpenFGA\Laravel\Query\AuthorizationQuery;
 
@@ -186,17 +187,13 @@ if (! function_exists('openfga_resolve_user_id')) {
         // User object with custom method
         if (is_object($user) && method_exists($user, 'authorizationUser')) {
             /** @var AuthorizationUser&object $user */
-            $result = $user->authorizationUser();
-
-            return is_string($result) ? $result : (string) $result;
+            return $user->authorizationUser();
         }
 
         // User object with alternative method
         if (is_object($user) && method_exists($user, 'getAuthorizationUserId')) {
             /** @var AuthorizationUserId&object $user */
-            $result = $user->getAuthorizationUserId();
-
-            return is_string($result) ? $result : (string) $result;
+            return $user->getAuthorizationUserId();
         }
 
         // Authenticatable user
@@ -235,35 +232,25 @@ if (! function_exists('openfga_resolve_object')) {
             /** @var AuthorizationObject&object $object */
             $result = $object->authorizationObject();
 
-            return is_string($result) ? $result : (string) $result;
+            return (string) $result;
         }
 
         // Model with authorization type method
         if (is_object($object) && method_exists($object, 'authorizationType') && method_exists($object, 'getKey')) {
             /** @var AuthorizationType&Model&object $object */
-            $key = $object->getKey();
+            $key = ModelKeyHelper::stringId($object);
+            $type = $object->authorizationType();
 
-            if (is_string($key) || is_numeric($key)) {
-                $type = $object->authorizationType();
-
-                return (string) $type . ':' . (string) $key;
-            }
-
-            throw new InvalidArgumentException('Model key must be string or numeric, got: ' . gettype($key));
+            return $type . ':' . $key;
         }
 
         // Eloquent model fallback
         if (is_object($object) && method_exists($object, 'getTable') && method_exists($object, 'getKey')) {
             /** @var Model $object */
-            $key = $object->getKey();
+            $key = ModelKeyHelper::stringId($object);
+            $table = $object->getTable();
 
-            if (is_string($key) || is_numeric($key)) {
-                $table = $object->getTable();
-
-                return (string) $table . ':' . (string) $key;
-            }
-
-            throw new InvalidArgumentException('Model key must be string or numeric, got: ' . gettype($key));
+            return (string) $table . ':' . $key;
         }
 
         throw new InvalidArgumentException('Cannot resolve object identifier for: ' . gettype($object));

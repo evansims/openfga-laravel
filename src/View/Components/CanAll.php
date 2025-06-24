@@ -9,6 +9,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\Component;
 use InvalidArgumentException;
+use OpenFGA\Laravel\Helpers\ModelKeyHelper;
 use OpenFGA\Laravel\OpenFgaManager;
 use OpenFGA\Results\SuccessInterface;
 use Override;
@@ -110,33 +111,25 @@ final class CanAll extends Component
         // Model with authorization type method
         if (is_object($object) && method_exists($object, 'authorizationType') && method_exists($object, 'getKey')) {
             $type = $object->authorizationType();
-            $key = $object->getKey();
+            $key = ModelKeyHelper::stringId($object);
 
             if (null === $type || (! is_string($type) && ! is_numeric($type))) {
                 throw new InvalidArgumentException('Authorization type must be string or numeric');
             }
 
-            if (null === $key || (! is_string($key) && ! is_numeric($key))) {
-                throw new InvalidArgumentException('Model key must be string or numeric');
-            }
-
-            return (string) $type . ':' . (string) $key;
+            return (string) $type . ':' . $key;
         }
 
         // Eloquent model fallback
         if (is_object($object) && method_exists($object, 'getTable') && method_exists($object, 'getKey')) {
             $table = $object->getTable();
-            $key = $object->getKey();
+            $key = ModelKeyHelper::stringId($object);
 
             if (! is_string($table)) {
                 throw new InvalidArgumentException('Table name must be string');
             }
 
-            if (null === $key || (! is_string($key) && ! is_numeric($key))) {
-                throw new InvalidArgumentException('Model key must be string or numeric');
-            }
-
-            return $table . ':' . (string) $key;
+            return $table . ':' . $key;
         }
 
         // Numeric ID - use 'resource' as default type
@@ -149,6 +142,8 @@ final class CanAll extends Component
 
     /**
      * Resolve a user from identifier.
+     *
+     * @return Authenticatable|null The resolved user or null if not found
      */
     private function resolveUser(): ?Authenticatable
     {
@@ -163,15 +158,11 @@ final class CanAll extends Component
     private function resolveUserId(Authenticatable $user): string
     {
         if (method_exists($user, 'authorizationUser')) {
-            $result = $user->authorizationUser();
-
-            return is_string($result) || is_numeric($result) ? (string) $result : 'user:unknown';
+            return $user->authorizationUser();
         }
 
         if (method_exists($user, 'getAuthorizationUserId')) {
-            $result = $user->getAuthorizationUserId();
-
-            return is_string($result) || is_numeric($result) ? (string) $result : 'user:unknown';
+            return $user->getAuthorizationUserId();
         }
 
         $identifier = $user->getAuthIdentifier();

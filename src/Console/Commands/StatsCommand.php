@@ -186,10 +186,10 @@ final class StatsCommand extends Command
      */
     private function formatDuration(float $seconds): string
     {
-        $milliseconds = $seconds * 1000;
+        $milliseconds = (float) $seconds * 1000;
 
         if (1 > $milliseconds) {
-            return number_format($milliseconds * 1000, 2) . 'μs';
+            return number_format((float) $milliseconds * 1000, 2) . 'μs';
         }
 
         if (1000 > $milliseconds) {

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OpenFGA\Laravel\Http\Middleware;
 
 use Closure;
+use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -111,10 +112,12 @@ final readonly class LoadPermissions
     /**
      * Resolve the user identifier from the request.
      *
-     * @param Request $request
+     * @param  Request $request
+     * @return string  User identifier or empty string if no user
      */
     private function resolveUser(Request $request): string
     {
+        /** @var Authenticatable|null $user */
         $user = $request->user();
 
         if (null === $user) {

@@ -168,7 +168,7 @@ final class ReadThroughCache
         return [
             'hits' => $hits,
             'misses' => $misses,
-            'hit_rate' => 0 < $total ? round($hits / $total * 100, 2) : 0.0,
+            'hit_rate' => 0 < $total ? round((float) $hits / (float) $total * 100, 2) : 0.0,
         ];
     }
 

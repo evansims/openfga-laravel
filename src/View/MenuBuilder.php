@@ -9,6 +9,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use InvalidArgumentException;
 use OpenFGA\Laravel\Contracts\{AuthorizationUser, AuthorizationUserId};
+use OpenFGA\Laravel\Helpers\ModelKeyHelper;
 use OpenFGA\Laravel\OpenFgaManager;
 use RuntimeException;
 
@@ -264,33 +265,25 @@ final readonly class MenuBuilder
         // Model with authorization type method
         if (is_object($object) && method_exists($object, 'authorizationType') && method_exists($object, 'getKey')) {
             $type = $object->authorizationType();
-            $key = $object->getKey();
+            $key = ModelKeyHelper::stringId($object);
 
             if (null === $type || (! is_string($type) && ! is_numeric($type))) {
                 throw new InvalidArgumentException('Authorization type must be string or numeric');
             }
 
-            if (null === $key || (! is_string($key) && ! is_numeric($key))) {
-                throw new InvalidArgumentException('Model key must be string or numeric');
-            }
-
-            return (string) $type . ':' . (string) $key;
+            return (string) $type . ':' . $key;
         }
 
         // Eloquent model fallback
         if (is_object($object) && method_exists($object, 'getTable') && method_exists($object, 'getKey')) {
             $table = $object->getTable();
-            $key = $object->getKey();
+            $key = ModelKeyHelper::stringId($object);
 
             if (! is_string($table)) {
                 throw new InvalidArgumentException('Table name must be string');
             }
 
-            if (null === $key || (! is_string($key) && ! is_numeric($key))) {
-                throw new InvalidArgumentException('Model key must be string or numeric');
-            }
-
-            return $table . ':' . (string) $key;
+            return $table . ':' . $key;
         }
 
         // Numeric ID - use 'menu-item' as default type
@@ -304,11 +297,12 @@ final readonly class MenuBuilder
     /**
      * Resolve the user ID for OpenFGA.
      *
-     * @param Authenticatable|null $user
+     * @param  Authenticatable $user The authenticated user
+     * @return string          The user identifier for OpenFGA
      */
-    private function resolveUserId($user): string
+    private function resolveUserId(Authenticatable $user): string
     {
-        if (null === $user) {
+        if (! $user instanceof Authenticatable) {
             throw new RuntimeException('User is null');
         }
 

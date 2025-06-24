@@ -11,7 +11,8 @@ use Illuminate\Contracts\Container\{BindingResolutionException, Container};
 use Illuminate\Database\Eloquent\Model;
 use InvalidArgumentException;
 use OpenFGA\Exceptions\ClientThrowable;
-use OpenFGA\Laravel\Contracts\{AuthorizableUser, AuthorizationObject, AuthorizationType};
+use OpenFGA\Laravel\Contracts\{AuthorizableUser, AuthorizationObject};
+use OpenFGA\Laravel\Helpers\ModelKeyHelper;
 use OpenFGA\Laravel\OpenFgaManager;
 use Override;
 use UnitEnum;
@@ -19,9 +20,12 @@ use UnitEnum;
 use function is_array;
 use function is_object;
 use function is_string;
+use function sprintf;
 
 /**
  * OpenFGA-powered Gate implementation that integrates with Laravel's authorization system.
+ *
+ * @template TUser of Authenticatable&Model
  */
 final class OpenFgaGate extends Gate
 {
@@ -43,9 +47,9 @@ final class OpenFgaGate extends Gate
     /**
      * Determine if the given ability should be granted for the current user.
      *
-     * @param iterable<mixed>|string|UnitEnum $abilities
-     * @param array|mixed                     $arguments
-     * @param Authenticatable|null            $user
+     * @param iterable<mixed>|string|UnitEnum          $abilities
+     * @param array<int|Model|string>|int|Model|string $arguments
+     * @param Authenticatable|null                     $user
      *
      * @throws \Psr\SimpleCache\InvalidArgumentException
      * @throws BindingResolutionException
@@ -72,11 +76,29 @@ final class OpenFgaGate extends Gate
     }
 
     /**
+     * Resolve the user from the user resolver.
+     *
+     * @return Authenticatable&Model|null
+     */
+    #[Override]
+    protected function resolveUser(): ?Authenticatable
+    {
+        /** @var mixed $user */
+        $user = parent::resolveUser();
+
+        if ($user instanceof Authenticatable) {
+            return $user;
+        }
+
+        return null;
+    }
+
+    /**
      * Check OpenFGA permission.
      *
-     * @param string               $ability
-     * @param array|mixed          $arguments
-     * @param Authenticatable|null $user
+     * @param string                                   $ability
+     * @param array<int|Model|string>|int|Model|string $arguments
+     * @param Authenticatable|null                     $user
      *
      * @throws \Psr\SimpleCache\InvalidArgumentException
      * @throws BindingResolutionException
@@ -88,7 +110,7 @@ final class OpenFgaGate extends Gate
     {
         $user ??= $this->resolveUser();
 
-        if (null === $user) {
+        if (! $user instanceof Authenticatable) {
             return false;
         }
 
@@ -106,7 +128,7 @@ final class OpenFgaGate extends Gate
     /**
      * Determine if this is an OpenFGA permission check.
      *
-     * @param array|mixed $arguments
+     * @param array<int|Model|string>|int|Model|string $arguments
      */
     private function isOpenFgaPermission($arguments): bool
     {
@@ -118,7 +140,7 @@ final class OpenFgaGate extends Gate
                 return true; // Looks like object:id format
             }
 
-            if (is_object($argument) && method_exists($argument, 'authorizationObject')) {
+            if (is_object($argument) && $argument instanceof Model && method_exists($argument, 'authorizationObject')) {
                 return true; // Model with authorization support
             }
         }
@@ -129,7 +151,7 @@ final class OpenFgaGate extends Gate
     /**
      * Resolve the object from arguments.
      *
-     * @param array|mixed $arguments
+     * @param array<int|Model|string>|int|Model|string $arguments
      */
     private function resolveObject($arguments): ?string
     {
@@ -142,38 +164,22 @@ final class OpenFgaGate extends Gate
             }
 
             // Model with authorization support
-            if (is_object($argument) && method_exists($argument, 'authorizationObject')) {
-                /** @var AuthorizationObject&object $argument */
+            if (method_exists($argument, 'authorizationObject')) {
+                /** @var AuthorizationObject&Model $argument */
                 return $argument->authorizationObject();
             }
 
             // Model with authorization type method
-            if (is_object($argument) && method_exists($argument, 'authorizationType') && method_exists($argument, 'getKey')) {
-                /** @var AuthorizationType&Model&object $argument */
-                $type = $argument->authorizationType();
-                $key = $argument->getKey();
-
-                if (null === $key || (! is_string($key) && ! is_numeric($key))) {
-                    return null;
-                }
-
-                return $type . ':' . (string) $key;
+            if (method_exists($argument, 'authorizationType') && method_exists($argument, 'getKey')) {
+                return $this->resolveModelObject($argument);
             }
 
-            // Eloquent model fallback
-            if (is_object($argument)) {
-                /** @var object $argument */
-                if (method_exists($argument, 'getTable') && method_exists($argument, 'getKey')) {
-                    /** @var Model $argument */
-                    $table = $argument->getTable();
-                    $key = $argument->getKey();
+            // Check if argument is a valid Eloquent Model instance with getTable() and getKey() methods
+            if (method_exists($argument, 'getTable') && method_exists($argument, 'getKey')) {
+                $table = $argument->getTable();
+                $key = ModelKeyHelper::stringId($argument);
 
-                    if (null === $key || (! is_string($key) && ! is_numeric($key))) {
-                        return null;
-                    }
-
-                    return $table . ':' . (string) $key;
-                }
+                return sprintf('%s:%s', $table, $key);
             }
         }
 
