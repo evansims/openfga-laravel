@@ -343,7 +343,7 @@ final class DebugCommand extends Command
             // Try to perform a simple check operation
             $manager->connection($connection)->check('test:user', 'test', 'test:object');
 
-            $duration = round((float) ((microtime(true) - $startTime) * 1000), 2);
+            $duration = round((microtime(true) - $startTime) * 1000.0, 2);
 
             $this->info(sprintf('✅ Connection successful! (Response time: %sms)', $duration));
         } catch (Exception $exception) {

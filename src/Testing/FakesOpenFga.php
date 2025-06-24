@@ -117,8 +117,8 @@ trait FakesOpenFga // @phpstan-ignore trait.unused
         $this->fakeOpenFga = new FakeOpenFga;
 
         // Create a wrapper manager that delegates to our fake
-        $fakeManager = new class($this->fakeOpenFga) {
-            public function __construct(private readonly FakeOpenFga $fake)
+        $fakeManager = new readonly class($this->fakeOpenFga) {
+            public function __construct(private FakeOpenFga $fake)
             {
             }
 
@@ -152,7 +152,7 @@ trait FakesOpenFga // @phpstan-ignore trait.unused
                 $this->fake->writeBatch($writes, $deletes);
             }
 
-            public function connection(?string $name = null)
+            public function connection(?string $name = null): self
             {
                 return $this;
             }
@@ -170,21 +170,21 @@ trait FakesOpenFga // @phpstan-ignore trait.unused
 
                     private ?string $object = null;
 
-                    public function for(string $user)
+                    public function for(string $user): self
                     {
                         $this->user = $user;
 
                         return $this;
                     }
 
-                    public function can(string $relation)
+                    public function can(string $relation): self
                     {
                         $this->relation = $relation;
 
                         return $this;
                     }
 
-                    public function on(string $object)
+                    public function on(string $object): self
                     {
                         $this->object = $object;
 

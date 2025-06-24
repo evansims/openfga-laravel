@@ -68,7 +68,7 @@ final class ExpandCommand extends Command
                 ->connection($connection)
                 ->expand($object, $relation);
 
-            $duration = round((float) ((microtime(true) - $startTime) * 1000), 2);
+            $duration = round((microtime(true) - $startTime) * 1000.0, 2);
 
             $jsonOption = $this->option('json');
 

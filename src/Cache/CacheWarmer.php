@@ -52,6 +52,7 @@ final class CacheWarmer
         $store = Cache::store();
 
         if (method_exists($store, 'deletePattern')) {
+            /** @var mixed $result */
             $result = $store->deletePattern($pattern);
 
             return is_int($result) || is_numeric($result) ? (int) $result : 0;

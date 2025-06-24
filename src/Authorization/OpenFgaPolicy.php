@@ -161,9 +161,7 @@ abstract class OpenFgaPolicy
         // Model with authorization support
         if (is_object($resource) && method_exists($resource, 'authorizationObject')) {
             /** @var AuthorizationObject&object $resource */
-            $result = $resource->authorizationObject();
-
-            return (string) $result;
+            return $resource->authorizationObject();
         }
 
         // Model with authorization type method
@@ -172,7 +170,7 @@ abstract class OpenFgaPolicy
             $type = $resource->authorizationType();
             $key = ModelKeyHelper::stringId($resource);
 
-            return (string) $type . ':' . $key;
+            return $type . ':' . $key;
         }
 
         // Eloquent model fallback
@@ -200,8 +198,11 @@ abstract class OpenFgaPolicy
     /**
      * Resolve the user ID for OpenFGA.
      *
-     * @param  Authenticatable $user The authenticated user
-     * @return string          The user identifier for OpenFGA
+     * @param Authenticatable $user The authenticated user
+     *
+     * @throws InvalidArgumentException
+     *
+     * @return string The user identifier for OpenFGA
      */
     protected function resolveUserId(Authenticatable $user): string
     {

@@ -117,6 +117,7 @@ use Rector\EarlyReturn\Rector\StmtsAwareInterface\ReturnEarlyIfVariableRector;
 use Rector\Naming\Rector\Foreach_\{RenameForeachValueVariableToMatchExprVariableRector,
     RenameForeachValueVariableToMatchMethodCallReturnTypeRector};
 use Rector\Php52\Rector\Property\VarToPublicPropertyRector;
+use Rector\Php55\Rector\String_\StringClassNameToClassConstantRector;
 use Rector\Php71\Rector\FuncCall\RemoveExtraParametersRector;
 use Rector\Php80\Rector\Catch_\RemoveUnusedVariableInCatchRector;
 use Rector\Php80\Rector\Class_\{ClassPropertyAssignToConstructorPromotionRector,
@@ -137,6 +138,7 @@ use Rector\Php82\Rector\Class_\ReadOnlyClassRector;
 use Rector\Php83\Rector\ClassMethod\AddOverrideAttributeToOverriddenMethodsRector;
 use Rector\Privatization\Rector\ClassMethod\PrivatizeFinalClassMethodRector;
 use Rector\Privatization\Rector\Property\{PrivatizeFinalClassPropertyRector};
+use Rector\Set\ValueObject\{LevelSetList, SetList};
 use Rector\TypeDeclaration\Rector\ArrowFunction\AddArrowFunctionReturnTypeRector;
 use Rector\TypeDeclaration\Rector\Class_\{PropertyTypeFromStrictSetterGetterRector,
     ReturnTypeFromStrictTernaryRector};
@@ -166,6 +168,10 @@ return RectorConfig::configure()
         __DIR__ . '/src',
         __DIR__ . '/tests',
     ])
+    ->withSets([
+        LevelSetList::UP_TO_PHP_83,
+        SetList::TYPE_DECLARATION,
+    ])
     ->withConfiguredRule(AddOverrideAttributeToOverriddenMethodsRector::class, [
         'allow_override_empty_method' => false,
     ])
@@ -174,6 +180,8 @@ return RectorConfig::configure()
         StaticClosureRector::class => [
             __DIR__ . '/tests/Unit',
         ],
+        // Skip StringClassNameToClassConstantRector to avoid Psalm errors with str_contains() on literals
+        StringClassNameToClassConstantRector::class,
     ])
     ->withRules([
         // PHP 8.1+ Features

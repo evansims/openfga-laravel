@@ -6,6 +6,7 @@ namespace OpenFGA\Laravel\Cache;
 
 use Illuminate\Cache\TaggedCache as LaravelTaggedCache;
 use Illuminate\Support\Facades\Cache;
+use Psr\SimpleCache\InvalidArgumentException;
 
 use function count;
 use function is_bool;
@@ -26,8 +27,13 @@ final class TaggedCache
     public function __construct(
         private array $config = [],
     ) {
+        /** @var mixed $prefix */
         $prefix = config('openfga.cache.prefix', 'openfga');
+
+        /** @var mixed $ttl */
         $ttl = config('openfga.cache.ttl', 300);
+
+        /** @var mixed $enabled */
         $enabled = config('openfga.cache.tags.enabled', true);
 
         $this->config = array_merge([
@@ -48,6 +54,7 @@ final class TaggedCache
             return false;
         }
 
+        /** @var mixed $cache */
         $cache = $this->cache($tags);
 
         if ($cache instanceof LaravelTaggedCache) {
@@ -69,6 +76,7 @@ final class TaggedCache
             return false;
         }
 
+        /** @var mixed $cache */
         $cache = $this->cache($tags);
 
         if ($cache instanceof LaravelTaggedCache) {
@@ -81,8 +89,11 @@ final class TaggedCache
     /**
      * Get a value from cache using tags.
      *
-     * @param  string        $key
-     * @param  array<string> $tags
+     * @param string        $key
+     * @param array<string> $tags
+     *
+     * @throws InvalidArgumentException
+     *
      * @return mixed
      */
     public function get(string $key, array $tags)
@@ -91,6 +102,7 @@ final class TaggedCache
             return null;
         }
 
+        /** @var mixed $cache */
         $cache = $this->cache($tags);
 
         if ($cache instanceof LaravelTaggedCache) {
@@ -106,12 +118,15 @@ final class TaggedCache
      * @param string $user
      * @param string $relation
      * @param string $object
+     *
+     * @throws InvalidArgumentException
      */
     public function getPermission(string $user, string $relation, string $object): ?bool
     {
         $key = $this->getPermissionKey($user, $relation, $object);
         $tags = $this->getPermissionTags($user, $relation, $object);
 
+        /** @var mixed $result */
         $result = $this->get($key, $tags);
 
         return null === $result ? null : (bool) $result;
@@ -182,10 +197,12 @@ final class TaggedCache
         }
 
         if (null === $ttl) {
+            /** @var mixed $configTtl */
             $configTtl = $this->config['ttl'] ?? 300;
             $ttl = is_int($configTtl) || is_numeric($configTtl) ? (int) $configTtl : 300;
         }
 
+        /** @var mixed $cache */
         $cache = $this->cache($tags);
 
         if ($cache instanceof LaravelTaggedCache) {
@@ -225,6 +242,7 @@ final class TaggedCache
      */
     private function cache(array $tags)
     {
+        /** @var mixed $storeConfig */
         $storeConfig = $this->config['store'] ?? null;
         $store = Cache::store(is_string($storeConfig) ? $storeConfig : null);
 
@@ -256,6 +274,7 @@ final class TaggedCache
      */
     private function getObjectTag(string $object): string
     {
+        /** @var mixed $prefix */
         $prefix = $this->config['prefix'] ?? 'openfga';
 
         return (is_string($prefix) ? $prefix : 'openfga') . ':object:' . $object;
@@ -268,6 +287,7 @@ final class TaggedCache
      */
     private function getObjectTypeTag(string $type): string
     {
+        /** @var mixed $prefix */
         $prefix = $this->config['prefix'] ?? 'openfga';
 
         return (is_string($prefix) ? $prefix : 'openfga') . ':object-type:' . $type;
@@ -282,7 +302,9 @@ final class TaggedCache
      */
     private function getPermissionKey(string $user, string $relation, string $object): string
     {
-        $prefix = is_string($this->config['prefix'] ?? null) ? $this->config['prefix'] : 'openfga';
+        /** @var mixed $configPrefix */
+        $configPrefix = $this->config['prefix'] ?? null;
+        $prefix = is_string($configPrefix) ? $configPrefix : 'openfga';
 
         return sprintf(
             '%s:check:%s:%s:%s',
@@ -332,6 +354,7 @@ final class TaggedCache
      */
     private function getRelationTag(string $relation): string
     {
+        /** @var mixed $prefix */
         $prefix = $this->config['prefix'] ?? 'openfga';
 
         return (is_string($prefix) ? $prefix : 'openfga') . ':relation:' . $relation;
@@ -344,6 +367,7 @@ final class TaggedCache
      */
     private function getUserTag(string $user): string
     {
+        /** @var mixed $prefix */
         $prefix = $this->config['prefix'] ?? 'openfga';
 
         return (is_string($prefix) ? $prefix : 'openfga') . ':user:' . $user;
@@ -356,6 +380,7 @@ final class TaggedCache
      */
     private function getUserTypeTag(string $type): string
     {
+        /** @var mixed $prefix */
         $prefix = $this->config['prefix'] ?? 'openfga';
 
         return (is_string($prefix) ? $prefix : 'openfga') . ':user-type:' . $type;
@@ -372,6 +397,7 @@ final class TaggedCache
             return false;
         }
 
+        /** @var mixed $storeConfig */
         $storeConfig = $this->config['store'] ?? null;
         $store = Cache::store(is_string($storeConfig) ? $storeConfig : null);
 

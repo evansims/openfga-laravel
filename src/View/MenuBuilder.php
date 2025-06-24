@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace OpenFGA\Laravel\View;
 
 use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use InvalidArgumentException;
-use OpenFGA\Laravel\Contracts\{AuthorizationUser, AuthorizationUserId};
+use OpenFGA\Laravel\Contracts\{AuthorizationType, AuthorizationUser, AuthorizationUserId};
 use OpenFGA\Laravel\Helpers\ModelKeyHelper;
 use OpenFGA\Laravel\OpenFgaManager;
 use RuntimeException;
@@ -227,6 +228,11 @@ final readonly class MenuBuilder
         }
 
         $user = Auth::user();
+
+        if (null === $user) {
+            return false;
+        }
+
         $userId = $this->resolveUserId($user);
         $objectId = $this->resolveObject($object);
 
@@ -263,25 +269,18 @@ final readonly class MenuBuilder
         }
 
         // Model with authorization type method
-        if (is_object($object) && method_exists($object, 'authorizationType') && method_exists($object, 'getKey')) {
+        if (is_object($object) && $object instanceof Model && $object instanceof AuthorizationType) {
+            /** @var AuthorizationType&Model $object */
             $type = $object->authorizationType();
             $key = ModelKeyHelper::stringId($object);
 
-            if (null === $type || (! is_string($type) && ! is_numeric($type))) {
-                throw new InvalidArgumentException('Authorization type must be string or numeric');
-            }
-
-            return (string) $type . ':' . $key;
+            return $type . ':' . $key;
         }
 
         // Eloquent model fallback
-        if (is_object($object) && method_exists($object, 'getTable') && method_exists($object, 'getKey')) {
+        if (is_object($object) && $object instanceof Model) {
             $table = $object->getTable();
             $key = ModelKeyHelper::stringId($object);
-
-            if (! is_string($table)) {
-                throw new InvalidArgumentException('Table name must be string');
-            }
 
             return $table . ':' . $key;
         }
@@ -302,16 +301,12 @@ final readonly class MenuBuilder
      */
     private function resolveUserId(Authenticatable $user): string
     {
-        if (! $user instanceof Authenticatable) {
-            throw new RuntimeException('User is null');
-        }
-
-        if (is_object($user) && method_exists($user, 'authorizationUser')) {
+        if (method_exists($user, 'authorizationUser')) {
             /** @var Authenticatable&AuthorizationUser $user */
             return (string) $user->authorizationUser();
         }
 
-        if (is_object($user) && method_exists($user, 'getAuthorizationUserId')) {
+        if (method_exists($user, 'getAuthorizationUserId')) {
             /** @var Authenticatable&AuthorizationUserId $user */
             return (string) $user->getAuthorizationUserId();
         }

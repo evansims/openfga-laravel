@@ -6,6 +6,8 @@ namespace OpenFGA\Laravel\Console\Commands;
 
 use Illuminate\Console\Command;
 use OpenFGA\Laravel\OpenFgaManager;
+use Psr\SimpleCache\InvalidArgumentException;
+use RuntimeException;
 
 use function sprintf;
 
@@ -31,6 +33,9 @@ final class CacheStatsCommand extends Command
      * Execute the console command.
      *
      * @param OpenFgaManager $manager
+     *
+     * @throws InvalidArgumentException
+     * @throws RuntimeException
      */
     public function handle(OpenFgaManager $manager): int
     {

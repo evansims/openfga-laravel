@@ -131,7 +131,7 @@ final class RevokeCommand extends Command
 
         $manager->write(null, $deletes, $connection);
 
-        $duration = round((float) ((microtime(true) - $startTime) * 1000), 2);
+        $duration = round((microtime(true) - $startTime) * 1000.0, 2);
 
         $jsonOption = $this->option('json');
 
@@ -196,7 +196,7 @@ final class RevokeCommand extends Command
 
         $manager->revoke($user, $relation, $object, $connection);
 
-        $duration = round((float) ((microtime(true) - $startTime) * 1000), 2);
+        $duration = round((microtime(true) - $startTime) * 1000.0, 2);
 
         $jsonOption = $this->option('json');
 

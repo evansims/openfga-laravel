@@ -74,7 +74,7 @@ final class AuditPermissionChanges implements ShouldQueue
             'object' => $event->object,
             'allowed' => $event->allowed,
             'connection' => $event->connection,
-            'duration_ms' => round((float) $event->duration * 1000, 2),
+            'duration_ms' => round($event->duration * 1000.0, 2),
             'cached' => $event->cached,
         ], $event->context);
 
@@ -100,7 +100,7 @@ final class AuditPermissionChanges implements ShouldQueue
             'relation' => $event->relation,
             'object' => $event->object,
             'connection' => $event->connection,
-            'duration_ms' => round((float) $event->duration * 1000, 2),
+            'duration_ms' => round($event->duration * 1000.0, 2),
         ], $event->context);
 
         Log::channel($this->getLogChannel())->info(
@@ -125,7 +125,7 @@ final class AuditPermissionChanges implements ShouldQueue
             'relation' => $event->relation,
             'object' => $event->object,
             'connection' => $event->connection,
-            'duration_ms' => round((float) $event->duration * 1000, 2),
+            'duration_ms' => round($event->duration * 1000.0, 2),
         ], $event->context);
 
         Log::channel($this->getLogChannel())->info(

@@ -6,9 +6,11 @@ namespace OpenFGA\Laravel\View\Components;
 
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\View\View;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\Component;
 use InvalidArgumentException;
+use OpenFGA\Laravel\Contracts\AuthorizationType;
 use OpenFGA\Laravel\Helpers\ModelKeyHelper;
 use OpenFGA\Laravel\OpenFgaManager;
 use OpenFGA\Results\SuccessInterface;
@@ -42,6 +44,8 @@ final class CanAll extends Component
 
     /**
      * Determine if the user has all of the required permissions.
+     *
+     * @throws InvalidArgumentException
      */
     public function hasAllPermissions(): bool
     {
@@ -68,6 +72,8 @@ final class CanAll extends Component
 
     /**
      * Get the view / contents that represent the component.
+     *
+     * @throws InvalidArgumentException
      */
     #[Override]
     public function render(): View | string
@@ -109,25 +115,18 @@ final class CanAll extends Component
         }
 
         // Model with authorization type method
-        if (is_object($object) && method_exists($object, 'authorizationType') && method_exists($object, 'getKey')) {
+        if (is_object($object) && $object instanceof Model && $object instanceof AuthorizationType) {
+            /** @var AuthorizationType&Model $object */
             $type = $object->authorizationType();
             $key = ModelKeyHelper::stringId($object);
 
-            if (null === $type || (! is_string($type) && ! is_numeric($type))) {
-                throw new InvalidArgumentException('Authorization type must be string or numeric');
-            }
-
-            return (string) $type . ':' . $key;
+            return $type . ':' . $key;
         }
 
         // Eloquent model fallback
-        if (is_object($object) && method_exists($object, 'getTable') && method_exists($object, 'getKey')) {
+        if (is_object($object) && $object instanceof Model) {
             $table = $object->getTable();
             $key = ModelKeyHelper::stringId($object);
-
-            if (! is_string($table)) {
-                throw new InvalidArgumentException('Table name must be string');
-            }
 
             return $table . ':' . $key;
         }
@@ -154,19 +153,37 @@ final class CanAll extends Component
      * Resolve the user ID for OpenFGA.
      *
      * @param Authenticatable $user
+     *
+     * @throws InvalidArgumentException
      */
     private function resolveUserId(Authenticatable $user): string
     {
         if (method_exists($user, 'authorizationUser')) {
-            return $user->authorizationUser();
+            $result = $user->authorizationUser();
+
+            if (is_string($result) || is_numeric($result)) {
+                return (string) $result;
+            }
+
+            throw new InvalidArgumentException('authorizationUser() must return a string or numeric value');
         }
 
         if (method_exists($user, 'getAuthorizationUserId')) {
-            return $user->getAuthorizationUserId();
+            $result = $user->getAuthorizationUserId();
+
+            if (is_string($result) || is_numeric($result)) {
+                return (string) $result;
+            }
+
+            throw new InvalidArgumentException('getAuthorizationUserId() must return a string or numeric value');
         }
 
         $identifier = $user->getAuthIdentifier();
 
-        return 'user:' . (is_scalar($identifier) ? (string) $identifier : '');
+        if (is_scalar($identifier)) {
+            return 'user:' . (string) $identifier;
+        }
+
+        throw new InvalidArgumentException('User identifier must be scalar');
     }
 }

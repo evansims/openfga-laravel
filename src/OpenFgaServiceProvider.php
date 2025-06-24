@@ -193,7 +193,7 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
      */
     private function registerManager(): void
     {
-        $this->app->singleton(OpenFgaManager::class, static function (Application $app) {
+        $this->app->singleton(OpenFgaManager::class, static function (Application $app): OpenFgaManager {
             /** @var Repository $configRepository */
             $configRepository = $app->make('config');
 

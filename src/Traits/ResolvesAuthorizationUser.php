@@ -19,16 +19,12 @@ trait ResolvesAuthorizationUser
      *
      * @param Authenticatable $user The authenticated user
      *
-     * @throws InvalidArgumentException If user is not Authenticatable or identifier cannot be resolved
+     * @throws InvalidArgumentException If identifier cannot be resolved
      *
      * @return string The user identifier for OpenFGA
      */
     protected function resolveUserIdentifier(Authenticatable $user): string
     {
-        if (! $user instanceof Authenticatable) {
-            throw new InvalidArgumentException('User must implement Authenticatable interface');
-        }
-
         // Check for custom authorization user methods
         if (method_exists($user, 'authorizationUser')) {
             $result = $user->authorizationUser();

@@ -79,7 +79,7 @@ final class ListObjectsCommand extends Command
 
             $objects = $manager->listObjects($user, $relation, $type, $contextualTuples, $context, $connection);
 
-            $duration = round((float) ((microtime(true) - $startTime) * 1000), 2);
+            $duration = round((microtime(true) - $startTime) * 1000.0, 2);
 
             // Apply limit if specified
 

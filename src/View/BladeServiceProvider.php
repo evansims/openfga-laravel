@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace OpenFGA\Laravel\View;
 
 use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\{Auth, Blade};
 use Illuminate\Support\ServiceProvider;
 use Illuminate\View\{Factory, View};
 use InvalidArgumentException;
+use OpenFGA\Laravel\Contracts\AuthorizationType;
 use OpenFGA\Laravel\Helpers\ModelKeyHelper;
 use OpenFGA\Laravel\OpenFgaManager;
 
@@ -82,23 +84,20 @@ final class BladeServiceProvider extends ServiceProvider
         }
 
         // Model with authorization type method
-        if (is_object($object) && method_exists($object, 'authorizationType') && method_exists($object, 'getKey')) {
+        if (is_object($object) && $object instanceof Model && $object instanceof AuthorizationType) {
+            /** @var AuthorizationType&Model $object */
             $type = $object->authorizationType();
             $key = ModelKeyHelper::stringId($object);
 
-            if (is_string($type)) {
-                return $type . ':' . $key;
-            }
+            return $type . ':' . $key;
         }
 
         // Eloquent model fallback
-        if (is_object($object) && method_exists($object, 'getTable') && method_exists($object, 'getKey')) {
+        if (is_object($object) && $object instanceof Model) {
             $table = $object->getTable();
             $key = ModelKeyHelper::stringId($object);
 
-            if (is_string($table)) {
-                return $table . ':' . $key;
-            }
+            return $table . ':' . $key;
         }
 
         throw new InvalidArgumentException('Cannot resolve object identifier for: ' . gettype($object));
@@ -146,7 +145,7 @@ final class BladeServiceProvider extends ServiceProvider
     private function registerBladeDirectives(): void
     {
         // @openfgacan directive
-        Blade::if('openfgacan', function (string $relation, $object, ?string $connection = null) {
+        Blade::if('openfgacan', function (string $relation, $object, ?string $connection = null): bool {
             if (! Auth::check()) {
                 return false;
             }
@@ -173,7 +172,7 @@ final class BladeServiceProvider extends ServiceProvider
         });
 
         // @openfgacanany directive - check if user has any of the given permissions
-        Blade::if('openfgacanany', function (array $relations, $object, ?string $connection = null) {
+        Blade::if('openfgacanany', function (array $relations, $object, ?string $connection = null): bool {
             if (! Auth::check()) {
                 return false;
             }
@@ -194,7 +193,7 @@ final class BladeServiceProvider extends ServiceProvider
         });
 
         // @openfgacanall directive - check if user has all of the given permissions
-        Blade::if('openfgacanall', function (array $relations, $object, ?string $connection = null) {
+        Blade::if('openfgacanall', function (array $relations, $object, ?string $connection = null): bool {
             if (! Auth::check()) {
                 return false;
             }
@@ -215,7 +214,7 @@ final class BladeServiceProvider extends ServiceProvider
         });
 
         // @openfgauser directive - check if current user matches the given user identifier
-        Blade::if('openfgauser', function (string $userId) {
+        Blade::if('openfgauser', function (string $userId): bool {
             if (! Auth::check()) {
                 return false;
             }
@@ -236,9 +235,8 @@ final class BladeServiceProvider extends ServiceProvider
         Blade::if('openfgaguest', static fn (): bool => ! Auth::check());
 
         // @openfgajs directive - generate JavaScript helpers
-        Blade::directive('openfgajs', static function ($expression): string {
+        Blade::directive('openfgajs', static function (?string $expression): string {
             // $expression comes from Blade compiler and is always a string or null
-            /** @var string|null $expression */
             if (null === $expression || '' === $expression) {
                 return '<?php echo app(' . JavaScriptHelper::class . '::class)->bladeDirective(null); ?>';
             }

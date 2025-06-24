@@ -195,6 +195,8 @@ final class AuthorizationServiceProvider extends ServiceProvider
                 }
 
                 $relation = str_replace('openfga:', '', $ability);
+
+                /** @var mixed $resource */
                 $resource = $arguments[0] ?? null;
 
                 // Guard against missing resource argument
@@ -202,16 +204,14 @@ final class AuthorizationServiceProvider extends ServiceProvider
                     throw new InvalidArgumentException('Missing resource argument');
                 }
 
-                $connection = (1 < count($arguments) && is_string($arguments[1])) ? $arguments[1] : null;
+                $connection = (1 < count($arguments) && isset($arguments[1]) && is_string($arguments[1])) ? $arguments[1] : null;
 
-                if (null !== $resource) {
-                    $manager = $this->app->make(OpenFgaManager::class);
+                $manager = $this->app->make(OpenFgaManager::class);
 
-                    $userId = $this->resolveUserId($user);
-                    $object = $this->resolveObject($resource);
+                $userId = $this->resolveUserId($user);
+                $object = $this->resolveObject($resource);
 
-                    return $manager->check($userId, $relation, $object, [], [], $connection);
-                }
+                return $manager->check($userId, $relation, $object, [], [], $connection);
             }
 
             return null; // Let other gates handle this

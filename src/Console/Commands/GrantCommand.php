@@ -140,7 +140,7 @@ final class GrantCommand extends Command
 
         $manager->write($writes, null, $connection);
 
-        $duration = round((float) ((microtime(true) - $startTime) * 1000), 2);
+        $duration = round((microtime(true) - $startTime) * 1000.0, 2);
 
         $jsonOption = $this->option('json');
 
@@ -205,7 +205,7 @@ final class GrantCommand extends Command
 
         $manager->grant($user, $relation, $object, $connection);
 
-        $duration = round((float) ((microtime(true) - $startTime) * 1000), 2);
+        $duration = round((microtime(true) - $startTime) * 1000.0, 2);
 
         $jsonOption = $this->option('json');
 

@@ -172,7 +172,7 @@ final class OpenFgaManager implements ManagerInterface
                 checks: new BatchCheckItems($batchItems),
             );
 
-            $batchResults = $this->handleResult($result, static function ($success) {
+            $batchResults = $this->handleResult($result, static function ($success): array {
                 if (method_exists($success, 'getResult')) {
                     /** @var array<mixed> */
                     $rawResult = $success->getResult();

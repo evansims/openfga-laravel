@@ -49,7 +49,7 @@ final class MakePermissionMigrationCommand extends GeneratorCommand
         $stub = parent::buildClass($name);
 
         // Add timestamp to migration name
-        date('Y_m_d_His');
+        // Placeholder for datetime generation if needed
         $className = class_basename($name);
 
         return str_replace(

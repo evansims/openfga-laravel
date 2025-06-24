@@ -80,7 +80,7 @@ final class CheckCommand extends Command
 
             $allowed = $manager->check($user, $relation, $object, $contextualTuples, $context, $connection);
 
-            $duration = round((float) ((microtime(true) - $startTime) * 1000), 2);
+            $duration = round((microtime(true) - $startTime) * 1000.0, 2);
 
             if (true === $this->option('json')) {
                 $jsonOutput = json_encode([
