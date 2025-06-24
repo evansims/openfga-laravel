@@ -25,9 +25,9 @@ Check if a user has a specific permission on an object.
 
 ```php
 public function check(
-    string $user, 
-    string $relation, 
-    string $object, 
+    string $user,
+    string $relation,
+    string $object,
     ?array $contextualTuples = null,
     ?array $context = null,
     ?string $connection = null
@@ -35,6 +35,7 @@ public function check(
 ```
 
 **Parameters:**
+
 - `$user` - User identifier (e.g., 'user:123' or '@me')
 - `$relation` - The relation to check (e.g., 'viewer', 'editor')
 - `$object` - Object identifier (e.g., 'document:456')
@@ -45,6 +46,7 @@ public function check(
 **Returns:** `bool` - Whether the user has the permission
 
 **Example:**
+
 ```php
 $allowed = OpenFga::check('user:123', 'editor', 'document:456');
 ```
@@ -55,20 +57,22 @@ Grant a permission to a user.
 
 ```php
 public function grant(
-    string $user, 
-    string $relation, 
+    string $user,
+    string $relation,
     string $object,
     ?string $connection = null
 ): void
 ```
 
 **Parameters:**
+
 - `$user` - User identifier
 - `$relation` - The relation to grant
 - `$object` - Object identifier
 - `$connection` - Optional connection name
 
 **Example:**
+
 ```php
 OpenFga::grant('user:123', 'editor', 'document:456');
 ```
@@ -79,20 +83,22 @@ Revoke a permission from a user.
 
 ```php
 public function revoke(
-    string $user, 
-    string $relation, 
+    string $user,
+    string $relation,
     string $object,
     ?string $connection = null
 ): void
 ```
 
 **Parameters:**
+
 - `$user` - User identifier
 - `$relation` - The relation to revoke
 - `$object` - Object identifier
 - `$connection` - Optional connection name
 
 **Example:**
+
 ```php
 OpenFga::revoke('user:123', 'editor', 'document:456');
 ```
@@ -103,18 +109,20 @@ Perform batch write operations.
 
 ```php
 public function writeBatch(
-    array $writes = [], 
+    array $writes = [],
     array $deletes = [],
     ?string $connection = null
 ): void
 ```
 
 **Parameters:**
+
 - `$writes` - Array of tuples to write `[user, relation, object]`
 - `$deletes` - Array of tuples to delete `[user, relation, object]`
 - `$connection` - Optional connection name
 
 **Example:**
+
 ```php
 OpenFga::writeBatch(
     writes: [
@@ -139,12 +147,14 @@ public function batchCheck(
 ```
 
 **Parameters:**
+
 - `$checks` - Array of checks `[user, relation, object]`
 - `$connection` - Optional connection name
 
 **Returns:** `array` - Array of boolean results
 
 **Example:**
+
 ```php
 $results = OpenFga::batchCheck([
     ['user:123', 'viewer', 'document:456'],
@@ -159,13 +169,14 @@ Expand a relation to see all users who have access.
 
 ```php
 public function expand(
-    string $object, 
+    string $object,
     string $relation,
     ?string $connection = null
 ): array
 ```
 
 **Parameters:**
+
 - `$object` - Object identifier
 - `$relation` - The relation to expand
 - `$connection` - Optional connection name
@@ -173,6 +184,7 @@ public function expand(
 **Returns:** `array` - Expansion result
 
 **Example:**
+
 ```php
 $result = OpenFga::expand('document:456', 'viewer');
 ```
@@ -183,8 +195,8 @@ List all objects a user has a specific permission for.
 
 ```php
 public function listObjects(
-    string $user, 
-    string $relation, 
+    string $user,
+    string $relation,
     string $type,
     ?array $contextualTuples = null,
     ?string $connection = null
@@ -192,6 +204,7 @@ public function listObjects(
 ```
 
 **Parameters:**
+
 - `$user` - User identifier
 - `$relation` - The relation to check
 - `$type` - Object type to filter
@@ -201,6 +214,7 @@ public function listObjects(
 **Returns:** `array` - Array of object identifiers
 
 **Example:**
+
 ```php
 $documents = OpenFga::listObjects('user:123', 'viewer', 'document');
 // Returns: ['document:456', 'document:789']
@@ -215,11 +229,13 @@ public function query(?string $connection = null): AuthorizationQuery
 ```
 
 **Parameters:**
+
 - `$connection` - Optional connection name
 
 **Returns:** `AuthorizationQuery` - Query builder instance
 
 **Example:**
+
 ```php
 $result = OpenFga::query()
     ->for('user:123')
@@ -237,11 +253,13 @@ public function connection(?string $name = null): self
 ```
 
 **Parameters:**
+
 - `$name` - Connection name (null for default)
 
 **Returns:** `self` - Manager instance using specified connection
 
 **Example:**
+
 ```php
 OpenFga::connection('secondary')->check($user, $relation, $object);
 ```
@@ -272,12 +290,13 @@ Add authorization capabilities to Eloquent models.
 
 ```php
 public function grant(
-    Model|string $user, 
+    Model|string $user,
     string $relation
 ): void
 ```
 
 **Example:**
+
 ```php
 $document->grant($user, 'editor');
 $document->grant('user:123', 'viewer');
@@ -287,12 +306,13 @@ $document->grant('user:123', 'viewer');
 
 ```php
 public function check(
-    Model|string $user, 
+    Model|string $user,
     string $relation
 ): bool
 ```
 
 **Example:**
+
 ```php
 if ($document->check($user, 'editor')) {
     // User can edit
@@ -303,12 +323,13 @@ if ($document->check($user, 'editor')) {
 
 ```php
 public function revoke(
-    Model|string $user, 
+    Model|string $user,
     string $relation
 ): void
 ```
 
 **Example:**
+
 ```php
 $document->revoke($user, 'editor');
 ```
@@ -320,6 +341,7 @@ public function revokeAll(Model|string $user): void
 ```
 
 **Example:**
+
 ```php
 $document->revokeAll($user);
 ```
@@ -331,6 +353,7 @@ public function revokeAllPermissions(): void
 ```
 
 **Example:**
+
 ```php
 $document->revokeAllPermissions();
 ```
@@ -342,6 +365,7 @@ public function getUsersWithPermission(string $relation): array
 ```
 
 **Example:**
+
 ```php
 $editors = $document->getUsersWithPermission('editor');
 ```
@@ -353,6 +377,7 @@ public function authorizationObject(): string
 ```
 
 **Example:**
+
 ```php
 $objectId = $document->authorizationObject();
 // Returns: "document:123"
@@ -367,6 +392,7 @@ protected function authorizationType(): string
 Override to customize the object type.
 
 **Example:**
+
 ```php
 protected function authorizationType(): string
 {
@@ -380,13 +406,14 @@ protected function authorizationType(): string
 
 ```php
 public function scopeWhereUserCan(
-    Builder $query, 
-    Model|string $user, 
+    Builder $query,
+    Model|string $user,
     string $relation
 ): Builder
 ```
 
 **Example:**
+
 ```php
 $documents = Document::whereUserCan($user, 'viewer')->get();
 ```
@@ -395,13 +422,14 @@ $documents = Document::whereUserCan($user, 'viewer')->get();
 
 ```php
 public function scopeWhereUserCanAny(
-    Builder $query, 
-    Model|string $user, 
+    Builder $query,
+    Model|string $user,
     array $relations
 ): Builder
 ```
 
 **Example:**
+
 ```php
 $documents = Document::whereUserCanAny($user, ['viewer', 'editor'])->get();
 ```
@@ -410,13 +438,14 @@ $documents = Document::whereUserCanAny($user, ['viewer', 'editor'])->get();
 
 ```php
 public function scopeWhereUserCanAll(
-    Builder $query, 
-    Model|string $user, 
+    Builder $query,
+    Model|string $user,
     array $relations
 ): Builder
 ```
 
 **Example:**
+
 ```php
 $documents = Document::whereUserCanAll($user, ['viewer', 'commenter'])->get();
 ```
@@ -431,12 +460,13 @@ Add OpenFGA authorization to Form Requests.
 
 ```php
 protected function checkPermission(
-    string $relation, 
+    string $relation,
     Model|string $object
 ): bool
 ```
 
 **Example:**
+
 ```php
 public function authorize(): bool
 {
@@ -448,12 +478,13 @@ public function authorize(): bool
 
 ```php
 protected function checkAnyPermission(
-    array $relations, 
+    array $relations,
     Model|string $object
 ): bool
 ```
 
 **Example:**
+
 ```php
 public function authorize(): bool
 {
@@ -465,12 +496,13 @@ public function authorize(): bool
 
 ```php
 protected function checkAllPermissions(
-    array $relations, 
+    array $relations,
     Model|string $object
 ): bool
 ```
 
 **Example:**
+
 ```php
 public function authorize(): bool
 {
@@ -491,6 +523,7 @@ protected function fakeOpenFga(): void
 ```
 
 **Example:**
+
 ```php
 protected function setUp(): void
 {
@@ -545,12 +578,14 @@ php artisan openfga:check {user} {relation} {object} [options]
 ```
 
 **Options:**
+
 - `--connection[=CONNECTION]` - The connection to use
 - `--json` - Output as JSON
 - `--contextual-tuple[=CONTEXTUAL-TUPLE]` - Contextual tuples (multiple allowed)
 - `--context[=CONTEXT]` - Context values as key=value (multiple allowed)
 
 **Example:**
+
 ```bash
 php artisan openfga:check user:123 editor document:456
 php artisan openfga:check user:123 viewer document:456 --json
@@ -565,10 +600,12 @@ php artisan openfga:grant {user} {relation} {object} [options]
 ```
 
 **Options:**
+
 - `--connection[=CONNECTION]` - The connection to use
 - `--batch` - Enable batch mode for multiple users
 
 **Example:**
+
 ```bash
 php artisan openfga:grant user:123 editor document:456
 php artisan openfga:grant user:123,user:456,user:789 viewer document:456 --batch
@@ -583,10 +620,12 @@ php artisan openfga:revoke {user} {relation} {object} [options]
 ```
 
 **Options:**
+
 - `--connection[=CONNECTION]` - The connection to use
 - `--all` - Revoke all permissions for the user on this object
 
 **Example:**
+
 ```bash
 php artisan openfga:revoke user:123 editor document:456
 php artisan openfga:revoke user:123 all document:456 --all
@@ -601,10 +640,12 @@ php artisan openfga:expand {object} {relation} [options]
 ```
 
 **Options:**
+
 - `--connection[=CONNECTION]` - The connection to use
 - `--json` - Output as JSON
 
 **Example:**
+
 ```bash
 php artisan openfga:expand document:456 viewer
 php artisan openfga:expand document:456 editor --json
@@ -619,10 +660,12 @@ php artisan openfga:list-objects {user} {relation} {type} [options]
 ```
 
 **Options:**
+
 - `--connection[=CONNECTION]` - The connection to use
 - `--json` - Output as JSON
 
 **Example:**
+
 ```bash
 php artisan openfga:list-objects user:123 viewer document
 php artisan openfga:list-objects user:123 editor folder --json
@@ -637,9 +680,11 @@ php artisan openfga:debug [options]
 ```
 
 **Options:**
+
 - `--connection[=CONNECTION]` - Test specific connection
 
 **Example:**
+
 ```bash
 php artisan openfga:debug
 php artisan openfga:debug --connection=secondary
@@ -654,10 +699,12 @@ php artisan openfga:stats [options]
 ```
 
 **Options:**
+
 - `--days[=DAYS]` - Number of days to show (default: 7)
 - `--json` - Output as JSON
 
 **Example:**
+
 ```bash
 php artisan openfga:stats
 php artisan openfga:stats --days=30
@@ -799,6 +846,7 @@ OpenFga::assertGranted(string $user, string $relation, string $object): void
 ```
 
 **Example:**
+
 ```php
 OpenFga::assertGranted('user:123', 'editor', 'document:456');
 ```
@@ -810,6 +858,7 @@ OpenFga::assertRevoked(string $user, string $relation, string $object): void
 ```
 
 **Example:**
+
 ```php
 OpenFga::assertRevoked('user:123', 'editor', 'document:456');
 ```
@@ -821,6 +870,7 @@ OpenFga::assertChecked(string $user, string $relation, string $object): void
 ```
 
 **Example:**
+
 ```php
 OpenFga::assertChecked('user:123', 'viewer', 'document:456');
 ```
@@ -832,6 +882,7 @@ OpenFga::assertNotChecked(string $user, string $relation, string $object): void
 ```
 
 **Example:**
+
 ```php
 OpenFga::assertNotChecked('user:123', 'admin', 'system:core');
 ```
@@ -843,6 +894,7 @@ OpenFga::assertNothingGranted(): void
 ```
 
 **Example:**
+
 ```php
 OpenFga::assertNothingGranted();
 ```
@@ -854,6 +906,7 @@ OpenFga::assertBatchWritten(array $expectedWrites, array $expectedDeletes = []):
 ```
 
 **Example:**
+
 ```php
 OpenFga::assertBatchWritten([
     ['user:123', 'viewer', 'document:456'],
@@ -867,14 +920,15 @@ OpenFga::assertBatchWritten([
 
 ```php
 OpenFga::shouldCheck(
-    string $user, 
-    string $relation, 
-    string $object, 
+    string $user,
+    string $relation,
+    string $object,
     bool $result
 ): void
 ```
 
 **Example:**
+
 ```php
 OpenFga::shouldCheck('user:123', 'editor', 'document:456', true);
 ```
@@ -883,19 +937,20 @@ OpenFga::shouldCheck('user:123', 'editor', 'document:456', true);
 
 ```php
 OpenFga::shouldListObjects(
-    string $user, 
-    string $relation, 
-    string $type, 
+    string $user,
+    string $relation,
+    string $type,
     array $objects
 ): void
 ```
 
 **Example:**
+
 ```php
 OpenFga::shouldListObjects(
-    'user:123', 
-    'viewer', 
-    'document', 
+    'user:123',
+    'viewer',
+    'document',
     ['document:456', 'document:789']
 );
 ```
@@ -907,6 +962,7 @@ OpenFga::shouldFail(string $message = 'Operation failed'): void
 ```
 
 **Example:**
+
 ```php
 OpenFga::shouldFail('Connection timeout');
 ```
@@ -918,6 +974,7 @@ OpenFga::shouldFailTimes(int $times, string $message = 'Operation failed'): void
 ```
 
 **Example:**
+
 ```php
 OpenFga::shouldFailTimes(2, 'Service unavailable');
 ```
@@ -1017,6 +1074,7 @@ function can(string $relation, string $object): bool
 ```
 
 **Example:**
+
 ```php
 if (can('editor', 'document:123')) {
     // Current user can edit
@@ -1030,6 +1088,7 @@ function cannot(string $relation, string $object): bool
 ```
 
 **Example:**
+
 ```php
 if (cannot('owner', 'document:123')) {
     // Current user is not owner
@@ -1043,6 +1102,7 @@ function canAny(array $relations, string $object): bool
 ```
 
 **Example:**
+
 ```php
 if (canAny(['viewer', 'editor'], 'document:123')) {
     // User has at least one permission
@@ -1056,6 +1116,7 @@ function canAll(array $relations, string $object): bool
 ```
 
 **Example:**
+
 ```php
 if (canAll(['member', 'active'], 'team:123')) {
     // User has all permissions

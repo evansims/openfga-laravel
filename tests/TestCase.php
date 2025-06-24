@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Tests;
 
+use Illuminate\Cache\CacheManager;
 use Illuminate\Config\Repository;
 use Illuminate\Container\Container;
 use Illuminate\Contracts\Config\Repository as ConfigContract;
 use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Events\Dispatcher;
 use Illuminate\Support\Facades\Facade;
 use OpenFGA\Laravel\OpenFgaServiceProvider;
 use PHPUnit\Framework\TestCase as BaseTestCase;
@@ -195,9 +197,26 @@ abstract class TestCase extends BaseTestCase
         // Set up configuration
         $this->app->singleton('config', fn () => new Repository([
             'openfga' => require dirname(__DIR__) . '/config/openfga.php',
+            'cache' => [
+                'default' => 'array',
+                'stores' => [
+                    'array' => [
+                        'driver' => 'array',
+                        'serialize' => false,
+                    ],
+                ],
+            ],
         ]));
 
         $this->app->bind(ConfigContract::class, 'config');
+
+        // Set up cache manager
+        $this->app->singleton('cache', fn ($app) => new CacheManager($app));
+
+        $this->app->singleton('cache.store', fn ($app) => $app['cache']->driver());
+
+        // Set up event dispatcher
+        $this->app->singleton('events', fn () => new Dispatcher($this->app));
 
         // Set container instance
         Container::setInstance($this->app);

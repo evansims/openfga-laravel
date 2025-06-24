@@ -5,33 +5,26 @@ declare(strict_types=1);
 namespace OpenFGA\Laravel\Authorization;
 
 use Illuminate\Auth\Access\Gate;
+use Illuminate\Container\Container;
 use Illuminate\Contracts\Auth\Access\Gate as GateContract;
+use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\ServiceProvider;
+use InvalidArgumentException;
+use OpenFGA\Laravel\Contracts\{AuthorizableUser, AuthorizationObject, AuthorizationType};
 use OpenFGA\Laravel\OpenFgaManager;
+use Override;
+
+use function gettype;
+use function is_object;
+use function is_string;
 
 /**
  * Service provider for OpenFGA authorization integration.
  */
-class AuthorizationServiceProvider extends ServiceProvider
+final class AuthorizationServiceProvider extends ServiceProvider
 {
-    /**
-     * Register services.
-     */
-    public function register(): void
-    {
-        // Register the OpenFGA Gate implementation
-        $this->app->singleton(GateContract::class, function ($app) {
-            return new OpenFgaGate(
-                $app[OpenFgaManager::class],
-                $app,
-                function () {
-                    return Auth::user();
-                }
-            );
-        });
-    }
-
     /**
      * Bootstrap services.
      */
@@ -42,154 +35,21 @@ class AuthorizationServiceProvider extends ServiceProvider
     }
 
     /**
-     * Register OpenFGA-specific gates.
+     * Register services.
      */
-    protected function registerOpenFgaGates(): void
+    #[Override]
+    public function register(): void
     {
-        $gate = $this->app[GateContract::class];
+        // Register the OpenFGA Gate implementation
+        $this->app->singleton(GateContract::class, static function (Container $app): OpenFgaGate {
+            $manager = $app->make(OpenFgaManager::class);
 
-        // Register a generic OpenFGA gate
-        $gate->define('openfga', function ($user, string $relation, $resource, ?string $connection = null) {
-            $manager = $this->app[OpenFgaManager::class];
-            
-            $userId = $this->resolveUserId($user);
-            $object = $this->resolveObject($resource);
-
-            return $manager->connection($connection)->check($userId, $relation, $object);
+            return new OpenFgaGate(
+                $manager,
+                $app,
+                static fn () => Auth::user(),
+            );
         });
-
-        // Register wildcard gate for OpenFGA permissions
-        $gate->before(function ($user, $ability, $arguments) {
-            // Check if this looks like an OpenFGA permission check
-            if (str_starts_with($ability, 'openfga:')) {
-                $relation = str_replace('openfga:', '', $ability);
-                $resource = $arguments[0] ?? null;
-                $connection = $arguments[1] ?? null;
-
-                if ($resource) {
-                    $manager = $this->app[OpenFgaManager::class];
-                    
-                    $userId = $this->resolveUserId($user);
-                    $object = $this->resolveObject($resource);
-
-                    return $manager->connection($connection)->check($userId, $relation, $object);
-                }
-            }
-
-            return null; // Let other gates handle this
-        });
-    }
-
-    /**
-     * Register global authorization helpers.
-     */
-    protected function registerGlobalHelpers(): void
-    {
-        if (!function_exists('openfga_can')) {
-            /**
-             * Check if the current user has the given OpenFGA permission.
-             *
-             * @param string      $relation
-             * @param mixed       $resource
-             * @param string|null $connection
-             *
-             * @return bool
-             */
-            function openfga_can(string $relation, $resource, ?string $connection = null): bool
-            {
-                if (!Auth::check()) {
-                    return false;
-                }
-
-                $manager = app(OpenFgaManager::class);
-                $provider = app(AuthorizationServiceProvider::class);
-                
-                $userId = $provider->resolveUserId(Auth::user());
-                $object = $provider->resolveObject($resource);
-
-                return $manager->connection($connection)->check($userId, $relation, $object);
-            }
-        }
-
-        if (!function_exists('openfga_cannot')) {
-            /**
-             * Check if the current user does NOT have the given OpenFGA permission.
-             *
-             * @param string      $relation
-             * @param mixed       $resource
-             * @param string|null $connection
-             *
-             * @return bool
-             */
-            function openfga_cannot(string $relation, $resource, ?string $connection = null): bool
-            {
-                return !openfga_can($relation, $resource, $connection);
-            }
-        }
-
-        if (!function_exists('openfga_can_any')) {
-            /**
-             * Check if the current user has any of the given OpenFGA permissions.
-             *
-             * @param array<string> $relations
-             * @param mixed         $resource
-             * @param string|null   $connection
-             *
-             * @return bool
-             */
-            function openfga_can_any(array $relations, $resource, ?string $connection = null): bool
-            {
-                foreach ($relations as $relation) {
-                    if (openfga_can($relation, $resource, $connection)) {
-                        return true;
-                    }
-                }
-
-                return false;
-            }
-        }
-
-        if (!function_exists('openfga_can_all')) {
-            /**
-             * Check if the current user has all of the given OpenFGA permissions.
-             *
-             * @param array<string> $relations
-             * @param mixed         $resource
-             * @param string|null   $connection
-             *
-             * @return bool
-             */
-            function openfga_can_all(array $relations, $resource, ?string $connection = null): bool
-            {
-                foreach ($relations as $relation) {
-                    if (!openfga_can($relation, $resource, $connection)) {
-                        return false;
-                    }
-                }
-
-                return true;
-            }
-        }
-    }
-
-    /**
-     * Resolve the user ID for OpenFGA.
-     *
-     * @param \Illuminate\Contracts\Auth\Authenticatable $user
-     *
-     * @return string
-     */
-    public function resolveUserId($user): string
-    {
-        if (method_exists($user, 'authorizationUser')) {
-            return $user->authorizationUser();
-        }
-
-        if (method_exists($user, 'getAuthorizationUserId')) {
-            return $user->getAuthorizationUserId();
-        }
-
-        return 'user:' . $user->getAuthIdentifier();
     }
 
     /**
@@ -197,7 +57,7 @@ class AuthorizationServiceProvider extends ServiceProvider
      *
      * @param mixed $resource
      *
-     * @return string
+     * @throws InvalidArgumentException
      */
     public function resolveObject($resource): string
     {
@@ -208,19 +68,133 @@ class AuthorizationServiceProvider extends ServiceProvider
 
         // Model with authorization support
         if (is_object($resource) && method_exists($resource, 'authorizationObject')) {
+            /** @var AuthorizationObject&object $resource */
             return $resource->authorizationObject();
         }
 
         // Model with authorization type method
         if (is_object($resource) && method_exists($resource, 'authorizationType') && method_exists($resource, 'getKey')) {
-            return $resource->authorizationType() . ':' . $resource->getKey();
+            /** @var AuthorizationType&Model&object $resource */
+            $type = $resource->authorizationType();
+            $key = $resource->getKey();
+
+            if (null === $key || (! is_string($key) && ! is_numeric($key))) {
+                throw new InvalidArgumentException('Model key must be string or numeric');
+            }
+
+            return $type . ':' . (string) $key;
         }
 
         // Eloquent model fallback
-        if (is_object($resource) && method_exists($resource, 'getTable') && method_exists($resource, 'getKey')) {
-            return $resource->getTable() . ':' . $resource->getKey();
+        if (is_object($resource)) {
+            /** @var object $resource */
+            if (method_exists($resource, 'getTable') && method_exists($resource, 'getKey')) {
+                /** @var Model $resource */
+                $table = $resource->getTable();
+                $key = $resource->getKey();
+
+                if (null === $key || (! is_string($key) && ! is_numeric($key))) {
+                    throw new InvalidArgumentException('Model key must be string or numeric');
+                }
+
+                return $table . ':' . (string) $key;
+            }
         }
 
-        throw new \InvalidArgumentException('Cannot resolve object identifier for: ' . gettype($resource));
+        throw new InvalidArgumentException('Cannot resolve object identifier for: ' . gettype($resource));
+    }
+
+    /**
+     * Resolve the user ID for OpenFGA.
+     *
+     * @param Authenticatable $user
+     * @throws InvalidArgumentException
+     */
+    public function resolveUserId($user): string
+    {
+        // Check if user implements our AuthorizableUser interface
+        if ($user instanceof AuthorizableUser) {
+            return $user->authorizationUser();
+        }
+
+        // Legacy support: check for method without interface
+        if (method_exists($user, 'authorizationUser')) {
+            $result = $user->authorizationUser();
+
+            if (is_string($result)) {
+                return $result;
+            }
+        }
+
+        if (method_exists($user, 'getAuthorizationUserId')) {
+            $result = $user->getAuthorizationUserId();
+
+            if (is_string($result)) {
+                return $result;
+            }
+        }
+
+        $identifier = $user->getAuthIdentifier();
+
+        if (null === $identifier || (! is_string($identifier) && ! is_numeric($identifier))) {
+            throw new InvalidArgumentException('User identifier must be string or numeric');
+        }
+
+        return 'user:' . (string) $identifier;
+    }
+
+    /**
+     * Register global authorization helpers.
+     */
+    private function registerGlobalHelpers(): void
+    {
+        // Global helper functions are defined in Helpers.php
+        // This method is kept for backwards compatibility
+    }
+
+    /**
+     * Register OpenFGA-specific gates.
+     *
+     * @throws \Illuminate\Contracts\Container\BindingResolutionException
+     */
+    private function registerOpenFgaGates(): void
+    {
+        $gate = $this->app->make(GateContract::class);
+
+        // Register a generic OpenFGA gate
+        $gate->define('openfga', function (Authenticatable $user, string $relation, mixed $resource, ?string $connection = null): bool {
+            $manager = $this->app->make(OpenFgaManager::class);
+
+            $userId = $this->resolveUserId($user);
+            $object = $this->resolveObject($resource);
+
+            return $manager->check($userId, $relation, $object, [], [], $connection);
+        });
+
+        // Register wildcard gate for OpenFGA permissions
+        $gate->before(function (?Authenticatable $user, string $ability, array $arguments): ?bool {
+            // Check if this looks like an OpenFGA permission check
+            if (str_starts_with($ability, 'openfga:')) {
+                if (! $user instanceof Authenticatable) {
+                    return false; // Not authenticated
+                }
+
+                $relation = str_replace('openfga:', '', $ability);
+                $resource = $arguments[0] ?? null;
+                /** @var string|null $connection */
+                $connection = is_string($arguments[1] ?? null) ? $arguments[1] : null;
+
+                if (null !== $resource) {
+                    $manager = $this->app->make(OpenFgaManager::class);
+
+                    $userId = $this->resolveUserId($user);
+                    $object = $this->resolveObject($resource);
+
+                    return $manager->check($userId, $relation, $object, [], [], $connection);
+                }
+            }
+
+            return null; // Let other gates handle this
+        });
     }
 }

@@ -115,6 +115,22 @@ return [
         'store' => env('OPENFGA_CACHE_STORE'), // null = use default cache store
         'ttl' => env('OPENFGA_CACHE_TTL', 300), // 5 minutes
         'prefix' => 'openfga',
+
+        // Read-through cache settings
+        'read_through' => env('OPENFGA_CACHE_READ_THROUGH', true),
+        'negative_ttl' => env('OPENFGA_CACHE_NEGATIVE_TTL', 60), // Cache negative results for 1 minute
+        'error_ttl' => env('OPENFGA_CACHE_ERROR_TTL', 10), // Cache errors for 10 seconds
+        'log_misses' => env('OPENFGA_CACHE_LOG_MISSES', false),
+
+        // Cache metrics
+        'metrics' => [
+            'enabled' => env('OPENFGA_CACHE_METRICS_ENABLED', false),
+        ],
+
+        // Tagged cache support (for stores that support tagging)
+        'tags' => [
+            'enabled' => env('OPENFGA_CACHE_TAGS_ENABLED', true),
+        ],
     ],
 
     /*

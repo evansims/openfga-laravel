@@ -4,111 +4,19 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Testing;
 
+use function array_slice;
+use function in_array;
+use function sprintf;
+
 /**
  * Trait for creating common permission test data scenarios.
  */
-trait CreatesPermissionData
+trait CreatesPermissionData // @phpstan-ignore trait.unused
 {
     /**
-     * Create a simple document hierarchy with owner, editor, and viewer roles.
-     */
-    protected function createDocumentHierarchy(FakeOpenFga $fake): array
-    {
-        $data = [
-            'users' => [
-                'owner' => 'user:owner',
-                'editor' => 'user:editor', 
-                'viewer' => 'user:viewer',
-                'admin' => 'user:admin',
-            ],
-            'documents' => [
-                'doc1' => 'document:1',
-                'doc2' => 'document:2',
-                'doc3' => 'document:3',
-            ],
-            'folders' => [
-                'folder1' => 'folder:1',
-                'folder2' => 'folder:2',
-            ],
-        ];
-
-        // Document ownership
-        $fake->grant($data['users']['owner'], 'owner', $data['documents']['doc1']);
-        $fake->grant($data['users']['admin'], 'owner', $data['documents']['doc2']);
-
-        // Document editing
-        $fake->grant($data['users']['editor'], 'editor', $data['documents']['doc1']);
-        $fake->grant($data['users']['owner'], 'editor', $data['documents']['doc1']); // owners can edit
-        $fake->grant($data['users']['editor'], 'editor', $data['documents']['doc2']);
-
-        // Document viewing
-        $fake->grant($data['users']['viewer'], 'viewer', $data['documents']['doc1']);
-        $fake->grant($data['users']['editor'], 'viewer', $data['documents']['doc1']); // editors can view
-        $fake->grant($data['users']['owner'], 'viewer', $data['documents']['doc1']); // owners can view
-        $fake->grant($data['users']['viewer'], 'viewer', $data['documents']['doc2']);
-
-        // Folder permissions
-        $fake->grant($data['users']['admin'], 'admin', $data['folders']['folder1']);
-        $fake->grant($data['users']['owner'], 'member', $data['folders']['folder1']);
-        $fake->grant($data['users']['editor'], 'member', $data['folders']['folder1']);
-
-        return $data;
-    }
-
-    /**
-     * Create an organization with departments and roles.
-     */
-    protected function createOrganizationStructure(FakeOpenFga $fake): array
-    {
-        $data = [
-            'users' => [
-                'ceo' => 'user:ceo',
-                'hr_manager' => 'user:hr_manager',
-                'it_manager' => 'user:it_manager', 
-                'developer' => 'user:developer',
-                'designer' => 'user:designer',
-                'intern' => 'user:intern',
-            ],
-            'organization' => 'organization:company',
-            'departments' => [
-                'hr' => 'department:hr',
-                'it' => 'department:it',
-                'design' => 'department:design',
-            ],
-            'projects' => [
-                'project1' => 'project:1',
-                'project2' => 'project:2',
-            ],
-        ];
-
-        // Organization roles
-        $fake->grant($data['users']['ceo'], 'admin', $data['organization']);
-
-        // Department management
-        $fake->grant($data['users']['hr_manager'], 'manager', $data['departments']['hr']);
-        $fake->grant($data['users']['it_manager'], 'manager', $data['departments']['it']);
-
-        // Department membership
-        $fake->grant($data['users']['hr_manager'], 'member', $data['departments']['hr']);
-        $fake->grant($data['users']['it_manager'], 'member', $data['departments']['it']);
-        $fake->grant($data['users']['developer'], 'member', $data['departments']['it']);
-        $fake->grant($data['users']['designer'], 'member', $data['departments']['design']);
-        $fake->grant($data['users']['intern'], 'member', $data['departments']['it']);
-
-        // Project access
-        $fake->grant($data['users']['it_manager'], 'lead', $data['projects']['project1']);
-        $fake->grant($data['users']['developer'], 'contributor', $data['projects']['project1']);
-        $fake->grant($data['users']['designer'], 'contributor', $data['projects']['project1']);
-        $fake->grant($data['users']['intern'], 'observer', $data['projects']['project1']);
-
-        $fake->grant($data['users']['designer'], 'lead', $data['projects']['project2']);
-        $fake->grant($data['users']['developer'], 'contributor', $data['projects']['project2']);
-
-        return $data;
-    }
-
-    /**
      * Create a blog system with authors, editors, and subscribers.
+     *
+     * @param FakeOpenFga $fake
      */
     protected function createBlogSystem(FakeOpenFga $fake): array
     {
@@ -159,7 +67,130 @@ trait CreatesPermissionData
     }
 
     /**
+     * Create a simple document hierarchy with owner, editor, and viewer roles.
+     *
+     * @param FakeOpenFga $fake
+     */
+    protected function createDocumentHierarchy(FakeOpenFga $fake): array
+    {
+        $data = [
+            'users' => [
+                'owner' => 'user:owner',
+                'editor' => 'user:editor',
+                'viewer' => 'user:viewer',
+                'admin' => 'user:admin',
+            ],
+            'documents' => [
+                'doc1' => 'document:1',
+                'doc2' => 'document:2',
+                'doc3' => 'document:3',
+            ],
+            'folders' => [
+                'folder1' => 'folder:1',
+                'folder2' => 'folder:2',
+            ],
+        ];
+
+        // Document ownership
+        $fake->grant($data['users']['owner'], 'owner', $data['documents']['doc1']);
+        $fake->grant($data['users']['admin'], 'owner', $data['documents']['doc2']);
+
+        // Document editing
+        $fake->grant($data['users']['editor'], 'editor', $data['documents']['doc1']);
+        $fake->grant($data['users']['owner'], 'editor', $data['documents']['doc1']); // owners can edit
+        $fake->grant($data['users']['editor'], 'editor', $data['documents']['doc2']);
+
+        // Document viewing
+        $fake->grant($data['users']['viewer'], 'viewer', $data['documents']['doc1']);
+        $fake->grant($data['users']['editor'], 'viewer', $data['documents']['doc1']); // editors can view
+        $fake->grant($data['users']['owner'], 'viewer', $data['documents']['doc1']); // owners can view
+        $fake->grant($data['users']['viewer'], 'viewer', $data['documents']['doc2']);
+
+        // Folder permissions
+        $fake->grant($data['users']['admin'], 'admin', $data['folders']['folder1']);
+        $fake->grant($data['users']['owner'], 'member', $data['folders']['folder1']);
+        $fake->grant($data['users']['editor'], 'member', $data['folders']['folder1']);
+
+        return $data;
+    }
+
+    /**
+     * Create an e-commerce system with customers, orders, and products.
+     *
+     * @param FakeOpenFga $fake
+     */
+    protected function createEcommerceSystem(FakeOpenFga $fake): array
+    {
+        $data = [
+            'users' => [
+                'admin' => 'user:admin',
+                'vendor1' => 'user:vendor1',
+                'vendor2' => 'user:vendor2',
+                'customer1' => 'user:customer1',
+                'customer2' => 'user:customer2',
+                'support' => 'user:support',
+            ],
+            'store' => 'store:main',
+            'products' => [
+                'product1' => 'product:1',
+                'product2' => 'product:2',
+                'product3' => 'product:3',
+            ],
+            'orders' => [
+                'order1' => 'order:1',
+                'order2' => 'order:2',
+                'order3' => 'order:3',
+            ],
+            'categories' => [
+                'electronics' => 'category:electronics',
+                'books' => 'category:books',
+            ],
+        ];
+
+        // Store administration
+        $fake->grant($data['users']['admin'], 'admin', $data['store']);
+
+        // Vendor permissions
+        $fake->grant($data['users']['vendor1'], 'vendor', $data['store']);
+        $fake->grant($data['users']['vendor2'], 'vendor', $data['store']);
+
+        // Product ownership
+        $fake->grant($data['users']['vendor1'], 'owner', $data['products']['product1']);
+        $fake->grant($data['users']['vendor1'], 'owner', $data['products']['product2']);
+        $fake->grant($data['users']['vendor2'], 'owner', $data['products']['product3']);
+
+        // Product management
+        $fake->grant($data['users']['vendor1'], 'manage', $data['products']['product1']);
+        $fake->grant($data['users']['vendor1'], 'manage', $data['products']['product2']);
+        $fake->grant($data['users']['vendor2'], 'manage', $data['products']['product3']);
+
+        // Customer orders
+        $fake->grant($data['users']['customer1'], 'owner', $data['orders']['order1']);
+        $fake->grant($data['users']['customer1'], 'owner', $data['orders']['order2']);
+        $fake->grant($data['users']['customer2'], 'owner', $data['orders']['order3']);
+
+        // Order viewing
+        $fake->grant($data['users']['customer1'], 'view', $data['orders']['order1']);
+        $fake->grant($data['users']['customer1'], 'view', $data['orders']['order2']);
+        $fake->grant($data['users']['customer2'], 'view', $data['orders']['order3']);
+
+        // Support access
+        $fake->grant($data['users']['support'], 'support', $data['store']);
+        $fake->grant($data['users']['support'], 'view', $data['orders']['order1']);
+        $fake->grant($data['users']['support'], 'view', $data['orders']['order2']);
+        $fake->grant($data['users']['support'], 'view', $data['orders']['order3']);
+
+        // Category management
+        $fake->grant($data['users']['admin'], 'manage', $data['categories']['electronics']);
+        $fake->grant($data['users']['admin'], 'manage', $data['categories']['books']);
+
+        return $data;
+    }
+
+    /**
      * Create a file system structure with folders and files.
+     *
+     * @param FakeOpenFga $fake
      */
     protected function createFileSystem(FakeOpenFga $fake): array
     {
@@ -233,78 +264,115 @@ trait CreatesPermissionData
     }
 
     /**
-     * Create an e-commerce system with customers, orders, and products.
+     * Create a complex nested hierarchy for testing inheritance.
+     *
+     * @param FakeOpenFga $fake
      */
-    protected function createEcommerceSystem(FakeOpenFga $fake): array
+    protected function createNestedHierarchy(FakeOpenFga $fake): array
     {
         $data = [
             'users' => [
-                'admin' => 'user:admin',
-                'vendor1' => 'user:vendor1',
-                'vendor2' => 'user:vendor2',
-                'customer1' => 'user:customer1',
-                'customer2' => 'user:customer2',
-                'support' => 'user:support',
+                'super_admin' => 'user:super_admin',
+                'org_admin' => 'user:org_admin',
+                'dept_manager' => 'user:dept_manager',
+                'team_lead' => 'user:team_lead',
+                'employee' => 'user:employee',
+                'contractor' => 'user:contractor',
             ],
-            'store' => 'store:main',
-            'products' => [
-                'product1' => 'product:1',
-                'product2' => 'product:2',
-                'product3' => 'product:3',
-            ],
-            'orders' => [
-                'order1' => 'order:1',
-                'order2' => 'order:2',
-                'order3' => 'order:3',
-            ],
-            'categories' => [
-                'electronics' => 'category:electronics',
-                'books' => 'category:books',
+            'hierarchy' => [
+                'company' => 'company:acme',
+                'division' => 'division:engineering',
+                'department' => 'department:backend',
+                'team' => 'team:platform',
+                'project' => 'project:api_v2',
             ],
         ];
 
-        // Store administration
-        $fake->grant($data['users']['admin'], 'admin', $data['store']);
+        // Company level
+        $fake->grant($data['users']['super_admin'], 'super_admin', $data['hierarchy']['company']);
+        $fake->grant($data['users']['org_admin'], 'admin', $data['hierarchy']['company']);
 
-        // Vendor permissions
-        $fake->grant($data['users']['vendor1'], 'vendor', $data['store']);
-        $fake->grant($data['users']['vendor2'], 'vendor', $data['store']);
+        // Division level
+        $fake->grant($data['users']['org_admin'], 'admin', $data['hierarchy']['division']);
 
-        // Product ownership
-        $fake->grant($data['users']['vendor1'], 'owner', $data['products']['product1']);
-        $fake->grant($data['users']['vendor1'], 'owner', $data['products']['product2']);
-        $fake->grant($data['users']['vendor2'], 'owner', $data['products']['product3']);
+        // Department level
+        $fake->grant($data['users']['dept_manager'], 'manager', $data['hierarchy']['department']);
+        $fake->grant($data['users']['org_admin'], 'admin', $data['hierarchy']['department']);
 
-        // Product management
-        $fake->grant($data['users']['vendor1'], 'manage', $data['products']['product1']);
-        $fake->grant($data['users']['vendor1'], 'manage', $data['products']['product2']);
-        $fake->grant($data['users']['vendor2'], 'manage', $data['products']['product3']);
+        // Team level
+        $fake->grant($data['users']['team_lead'], 'lead', $data['hierarchy']['team']);
+        $fake->grant($data['users']['dept_manager'], 'manager', $data['hierarchy']['team']);
 
-        // Customer orders
-        $fake->grant($data['users']['customer1'], 'owner', $data['orders']['order1']);
-        $fake->grant($data['users']['customer1'], 'owner', $data['orders']['order2']);
-        $fake->grant($data['users']['customer2'], 'owner', $data['orders']['order3']);
+        // Project level
+        $fake->grant($data['users']['employee'], 'contributor', $data['hierarchy']['project']);
+        $fake->grant($data['users']['contractor'], 'contributor', $data['hierarchy']['project']);
+        $fake->grant($data['users']['team_lead'], 'lead', $data['hierarchy']['project']);
 
-        // Order viewing
-        $fake->grant($data['users']['customer1'], 'view', $data['orders']['order1']);
-        $fake->grant($data['users']['customer1'], 'view', $data['orders']['order2']);
-        $fake->grant($data['users']['customer2'], 'view', $data['orders']['order3']);
+        // Cross-cutting concerns
+        $fake->grant($data['users']['employee'], 'employee', $data['hierarchy']['company']);
+        $fake->grant($data['users']['contractor'], 'contractor', $data['hierarchy']['company']);
 
-        // Support access
-        $fake->grant($data['users']['support'], 'support', $data['store']);
-        $fake->grant($data['users']['support'], 'view', $data['orders']['order1']);
-        $fake->grant($data['users']['support'], 'view', $data['orders']['order2']);
-        $fake->grant($data['users']['support'], 'view', $data['orders']['order3']);
+        return $data;
+    }
 
-        // Category management
-        $fake->grant($data['users']['admin'], 'manage', $data['categories']['electronics']);
-        $fake->grant($data['users']['admin'], 'manage', $data['categories']['books']);
+    /**
+     * Create an organization with departments and roles.
+     *
+     * @param FakeOpenFga $fake
+     */
+    protected function createOrganizationStructure(FakeOpenFga $fake): array
+    {
+        $data = [
+            'users' => [
+                'ceo' => 'user:ceo',
+                'hr_manager' => 'user:hr_manager',
+                'it_manager' => 'user:it_manager',
+                'developer' => 'user:developer',
+                'designer' => 'user:designer',
+                'intern' => 'user:intern',
+            ],
+            'organization' => 'organization:company',
+            'departments' => [
+                'hr' => 'department:hr',
+                'it' => 'department:it',
+                'design' => 'department:design',
+            ],
+            'projects' => [
+                'project1' => 'project:1',
+                'project2' => 'project:2',
+            ],
+        ];
+
+        // Organization roles
+        $fake->grant($data['users']['ceo'], 'admin', $data['organization']);
+
+        // Department management
+        $fake->grant($data['users']['hr_manager'], 'manager', $data['departments']['hr']);
+        $fake->grant($data['users']['it_manager'], 'manager', $data['departments']['it']);
+
+        // Department membership
+        $fake->grant($data['users']['hr_manager'], 'member', $data['departments']['hr']);
+        $fake->grant($data['users']['it_manager'], 'member', $data['departments']['it']);
+        $fake->grant($data['users']['developer'], 'member', $data['departments']['it']);
+        $fake->grant($data['users']['designer'], 'member', $data['departments']['design']);
+        $fake->grant($data['users']['intern'], 'member', $data['departments']['it']);
+
+        // Project access
+        $fake->grant($data['users']['it_manager'], 'lead', $data['projects']['project1']);
+        $fake->grant($data['users']['developer'], 'contributor', $data['projects']['project1']);
+        $fake->grant($data['users']['designer'], 'contributor', $data['projects']['project1']);
+        $fake->grant($data['users']['intern'], 'observer', $data['projects']['project1']);
+
+        $fake->grant($data['users']['designer'], 'lead', $data['projects']['project2']);
+        $fake->grant($data['users']['developer'], 'contributor', $data['projects']['project2']);
 
         return $data;
     }
 
     /**
      * Create a team-based project management system.
+     *
+     * @param FakeOpenFga $fake
      */
     protected function createProjectManagementSystem(FakeOpenFga $fake): array
     {
@@ -385,10 +453,11 @@ trait CreatesPermissionData
     /**
      * Create random permission data for stress testing.
      *
-     * @param int $userCount Number of users to create
-     * @param int $objectCount Number of objects to create  
-     * @param int $relationCount Number of different relations
-     * @param int $tupleCount Number of permission tuples to create
+     * @param int         $userCount     Number of users to create
+     * @param int         $objectCount   Number of objects to create
+     * @param int         $relationCount Number of different relations
+     * @param int         $tupleCount    Number of permission tuples to create
+     * @param FakeOpenFga $fake
      */
     protected function createRandomPermissions(FakeOpenFga $fake, int $userCount = 10, int $objectCount = 20, int $relationCount = 5, int $tupleCount = 100): array
     {
@@ -403,78 +472,29 @@ trait CreatesPermissionData
         ];
 
         // Generate users
-        for ($i = 1; $i <= $userCount; $i++) {
-            $data['users'][] = "user:{$i}";
+        for ($i = 1; $i <= $userCount; ++$i) {
+            $data['users'][] = 'user:' . $i;
         }
 
         // Generate objects
-        for ($i = 1; $i <= $objectCount; $i++) {
-            $data['objects'][] = "object:{$i}";
+        for ($i = 1; $i <= $objectCount; ++$i) {
+            $data['objects'][] = 'object:' . $i;
         }
 
         // Generate random tuples
-        for ($i = 0; $i < $tupleCount; $i++) {
+        for ($i = 0; $i < $tupleCount; ++$i) {
             $user = $data['users'][array_rand($data['users'])];
             $relation = $relations[array_rand($relations)];
             $object = $data['objects'][array_rand($data['objects'])];
 
             // Avoid duplicates
-            $tupleKey = "{$user}#{$relation}@{$object}";
-            if (!in_array($tupleKey, $data['tuples'])) {
+            $tupleKey = sprintf('%s#%s@%s', $user, $relation, $object);
+
+            if (! in_array($tupleKey, $data['tuples'], true)) {
                 $fake->grant($user, $relation, $object);
                 $data['tuples'][] = $tupleKey;
             }
         }
-
-        return $data;
-    }
-
-    /**
-     * Create a complex nested hierarchy for testing inheritance.
-     */
-    protected function createNestedHierarchy(FakeOpenFga $fake): array
-    {
-        $data = [
-            'users' => [
-                'super_admin' => 'user:super_admin',
-                'org_admin' => 'user:org_admin',
-                'dept_manager' => 'user:dept_manager',
-                'team_lead' => 'user:team_lead',
-                'employee' => 'user:employee',
-                'contractor' => 'user:contractor',
-            ],
-            'hierarchy' => [
-                'company' => 'company:acme',
-                'division' => 'division:engineering',
-                'department' => 'department:backend',
-                'team' => 'team:platform',
-                'project' => 'project:api_v2',
-            ],
-        ];
-
-        // Company level
-        $fake->grant($data['users']['super_admin'], 'super_admin', $data['hierarchy']['company']);
-        $fake->grant($data['users']['org_admin'], 'admin', $data['hierarchy']['company']);
-
-        // Division level
-        $fake->grant($data['users']['org_admin'], 'admin', $data['hierarchy']['division']);
-
-        // Department level
-        $fake->grant($data['users']['dept_manager'], 'manager', $data['hierarchy']['department']);
-        $fake->grant($data['users']['org_admin'], 'admin', $data['hierarchy']['department']);
-
-        // Team level
-        $fake->grant($data['users']['team_lead'], 'lead', $data['hierarchy']['team']);
-        $fake->grant($data['users']['dept_manager'], 'manager', $data['hierarchy']['team']);
-
-        // Project level
-        $fake->grant($data['users']['employee'], 'contributor', $data['hierarchy']['project']);
-        $fake->grant($data['users']['contractor'], 'contributor', $data['hierarchy']['project']);
-        $fake->grant($data['users']['team_lead'], 'lead', $data['hierarchy']['project']);
-
-        // Cross-cutting concerns
-        $fake->grant($data['users']['employee'], 'employee', $data['hierarchy']['company']);
-        $fake->grant($data['users']['contractor'], 'contractor', $data['hierarchy']['company']);
 
         return $data;
     }

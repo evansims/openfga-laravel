@@ -9,7 +9,7 @@ use OpenFGA\Laravel\OpenFgaManager;
 /**
  * Trait for faking OpenFGA in tests.
  */
-trait FakesOpenFga
+trait FakesOpenFga // @phpstan-ignore trait.unused
 {
     /**
      * The fake OpenFGA instance.
@@ -17,15 +17,110 @@ trait FakesOpenFga
     protected ?FakeOpenFga $fakeOpenFga = null;
 
     /**
+     * Assert that no permission checks were performed.
+     *
+     * @param ?string $message
+     */
+    protected function assertNoPermissionChecks(?string $message = null): void
+    {
+        $this->assertPermissionCheckCount(0, $message);
+    }
+
+    /**
+     * Assert the number of permission checks performed.
+     *
+     * @param int     $count
+     * @param ?string $message
+     */
+    protected function assertPermissionCheckCount(int $count, ?string $message = null): void
+    {
+        if (! $this->fakeOpenFga) {
+            $this->fail('OpenFGA fake is not active. Call fakeOpenFga() first.');
+        }
+
+        $this->fakeOpenFga->assertCheckCount($count, $message);
+    }
+
+    /**
+     * Assert that a permission check was performed.
+     *
+     * @param string  $user
+     * @param string  $relation
+     * @param string  $object
+     * @param ?string $message
+     */
+    protected function assertPermissionChecked(string $user, string $relation, string $object, ?string $message = null): void
+    {
+        if (! $this->fakeOpenFga) {
+            $this->fail('OpenFGA fake is not active. Call fakeOpenFga() first.');
+        }
+
+        $this->fakeOpenFga->assertChecked($user, $relation, $object, $message);
+    }
+
+    /**
+     * Assert that a permission was granted.
+     *
+     * @param string  $user
+     * @param string  $relation
+     * @param string  $object
+     * @param ?string $message
+     */
+    protected function assertPermissionGranted(string $user, string $relation, string $object, ?string $message = null): void
+    {
+        if (! $this->fakeOpenFga) {
+            $this->fail('OpenFGA fake is not active. Call fakeOpenFga() first.');
+        }
+
+        $this->fakeOpenFga->assertGranted($user, $relation, $object, $message);
+    }
+
+    /**
+     * Assert that a permission check was not performed.
+     *
+     * @param string  $user
+     * @param string  $relation
+     * @param string  $object
+     * @param ?string $message
+     */
+    protected function assertPermissionNotChecked(string $user, string $relation, string $object, ?string $message = null): void
+    {
+        if (! $this->fakeOpenFga) {
+            $this->fail('OpenFGA fake is not active. Call fakeOpenFga() first.');
+        }
+
+        $this->fakeOpenFga->assertNotChecked($user, $relation, $object, $message);
+    }
+
+    /**
+     * Assert that a permission was not granted.
+     *
+     * @param string  $user
+     * @param string  $relation
+     * @param string  $object
+     * @param ?string $message
+     */
+    protected function assertPermissionNotGranted(string $user, string $relation, string $object, ?string $message = null): void
+    {
+        if (! $this->fakeOpenFga) {
+            $this->fail('OpenFGA fake is not active. Call fakeOpenFga() first.');
+        }
+
+        $this->fakeOpenFga->assertNotGranted($user, $relation, $object, $message);
+    }
+
+    /**
      * Replace the OpenFGA manager with a fake implementation.
      */
     protected function fakeOpenFga(): FakeOpenFga
     {
-        $this->fakeOpenFga = new FakeOpenFga();
+        $this->fakeOpenFga = new FakeOpenFga;
 
         // Create a wrapper manager that delegates to our fake
         $fakeManager = new class($this->fakeOpenFga) {
-            public function __construct(private FakeOpenFga $fake) {}
+            public function __construct(private readonly FakeOpenFga $fake)
+            {
+            }
 
             public function check(string $user, string $relation, string $object, array $contextualTuples = [], array $context = [], ?string $connection = null): bool
             {
@@ -62,30 +157,37 @@ trait FakesOpenFga
                 return $this;
             }
 
-            public function query(?string $connection = null)
+            public function query(?string $connection = null): object
             {
                 return new class($this->fake) {
-                    public function __construct(private FakeOpenFga $fake) {}
+                    public function __construct(private readonly FakeOpenFga $fake)
+                    {
+                    }
 
                     private ?string $user = null;
+
                     private ?string $relation = null;
+
                     private ?string $object = null;
 
                     public function for(string $user)
                     {
                         $this->user = $user;
+
                         return $this;
                     }
 
                     public function can(string $relation)
                     {
                         $this->relation = $relation;
+
                         return $this;
                     }
 
                     public function on(string $object)
                     {
                         $this->object = $object;
+
                         return $this;
                     }
 
@@ -110,73 +212,5 @@ trait FakesOpenFga
     protected function getFakeOpenFga(): ?FakeOpenFga
     {
         return $this->fakeOpenFga;
-    }
-
-    /**
-     * Assert that a permission was granted.
-     */
-    protected function assertPermissionGranted(string $user, string $relation, string $object, ?string $message = null): void
-    {
-        if (!$this->fakeOpenFga) {
-            $this->fail('OpenFGA fake is not active. Call fakeOpenFga() first.');
-        }
-
-        $this->fakeOpenFga->assertGranted($user, $relation, $object, $message);
-    }
-
-    /**
-     * Assert that a permission was not granted.
-     */
-    protected function assertPermissionNotGranted(string $user, string $relation, string $object, ?string $message = null): void
-    {
-        if (!$this->fakeOpenFga) {
-            $this->fail('OpenFGA fake is not active. Call fakeOpenFga() first.');
-        }
-
-        $this->fakeOpenFga->assertNotGranted($user, $relation, $object, $message);
-    }
-
-    /**
-     * Assert that a permission check was performed.
-     */
-    protected function assertPermissionChecked(string $user, string $relation, string $object, ?string $message = null): void
-    {
-        if (!$this->fakeOpenFga) {
-            $this->fail('OpenFGA fake is not active. Call fakeOpenFga() first.');
-        }
-
-        $this->fakeOpenFga->assertChecked($user, $relation, $object, $message);
-    }
-
-    /**
-     * Assert that a permission check was not performed.
-     */
-    protected function assertPermissionNotChecked(string $user, string $relation, string $object, ?string $message = null): void
-    {
-        if (!$this->fakeOpenFga) {
-            $this->fail('OpenFGA fake is not active. Call fakeOpenFga() first.');
-        }
-
-        $this->fakeOpenFga->assertNotChecked($user, $relation, $object, $message);
-    }
-
-    /**
-     * Assert the number of permission checks performed.
-     */
-    protected function assertPermissionCheckCount(int $count, ?string $message = null): void
-    {
-        if (!$this->fakeOpenFga) {
-            $this->fail('OpenFGA fake is not active. Call fakeOpenFga() first.');
-        }
-
-        $this->fakeOpenFga->assertCheckCount($count, $message);
-    }
-
-    /**
-     * Assert that no permission checks were performed.
-     */
-    protected function assertNoPermissionChecks(?string $message = null): void
-    {
-        $this->assertPermissionCheckCount(0, $message);
     }
 }

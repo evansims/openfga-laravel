@@ -5,22 +5,31 @@ declare(strict_types=1);
 namespace OpenFGA\Laravel\Http\Middleware;
 
 use Closure;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use OpenFGA\Laravel\OpenFgaManager;
+use OpenFGA\Laravel\Traits\{ResolvesAuthorizationObject, ResolvesAuthorizationUser};
 use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Middleware for batch loading permissions to optimize multiple checks.
  */
-class LoadPermissions
+final readonly class LoadPermissions
 {
+    use ResolvesAuthorizationObject;
+
+    use ResolvesAuthorizationUser;
+
     /**
      * Create a new middleware instance.
+     *
+     * @param OpenFgaManager $manager
      */
     public function __construct(
-        protected OpenFgaManager $manager
-    ) {}
+        private OpenFgaManager $manager,
+    ) {
+    }
 
     /**
      * Handle an incoming request by pre-loading permissions.
@@ -28,19 +37,17 @@ class LoadPermissions
      * @param Request                      $request
      * @param Closure(Request): (Response) $next
      * @param string                       ...$relations Relations to pre-load
-     * 
-     * @return Response
      */
     public function handle(Request $request, Closure $next, string ...$relations): Response
     {
-        if (!Auth::check() || empty($relations)) {
+        if (! Auth::check() || [] === $relations) {
             return $next($request);
         }
 
         $user = $this->resolveUser($request);
         $objects = $this->resolveObjects($request);
 
-        if (empty($objects)) {
+        if ([] === $objects) {
             return $next($request);
         }
 
@@ -51,57 +58,50 @@ class LoadPermissions
     }
 
     /**
-     * Resolve the user identifier from the request.
+     * Pre-load permissions for the given user, relations, and objects.
      *
-     * @param Request $request
-     * 
-     * @return string
+     * @param string        $user
+     * @param array<string> $relations
+     * @param array<string> $objects
      */
-    protected function resolveUser(Request $request): string
+    private function preloadPermissions(string $user, array $relations, array $objects): void
     {
-        $user = $request->user();
-        
-        if (!$user) {
-            return '';
+        // Use the manager's batch check functionality
+        $checks = [];
+
+        foreach ($relations as $relation) {
+            foreach ($objects as $object) {
+                $checks[] = [
+                    'user' => $user,
+                    'relation' => $relation,
+                    'object' => $object,
+                ];
+            }
         }
 
-        if (method_exists($user, 'authorizationUser')) {
-            return $user->authorizationUser();
-        }
-
-        if (method_exists($user, 'getAuthorizationUserId')) {
-            return $user->getAuthorizationUserId();
-        }
-
-        return 'user:' . $user->getAuthIdentifier();
+        $this->manager->batchCheck($checks);
     }
 
     /**
      * Resolve objects from the request context.
      *
-     * @param Request $request
-     * 
+     * @param  Request       $request
      * @return array<string>
      */
-    protected function resolveObjects(Request $request): array
+    private function resolveObjects(Request $request): array
     {
+        /** @var array<string> $objects */
         $objects = [];
         $route = $request->route();
-        
-        if (!$route) {
+
+        if (null === $route) {
             return $objects;
         }
 
         // Extract objects from route parameters
         foreach ($route->parameters() as $value) {
-            if ($value instanceof \Illuminate\Database\Eloquent\Model) {
-                if (method_exists($value, 'authorizationObject')) {
-                    $objects[] = $value->authorizationObject();
-                } elseif (method_exists($value, 'authorizationType')) {
-                    $objects[] = $value->authorizationType() . ':' . $value->getKey();
-                } else {
-                    $objects[] = $value->getTable() . ':' . $value->getKey();
-                }
+            if ($value instanceof Model) {
+                $objects[] = $this->getAuthorizationObjectFromModel($value);
             }
         }
 
@@ -109,36 +109,18 @@ class LoadPermissions
     }
 
     /**
-     * Pre-load permissions for the given user, relations, and objects.
+     * Resolve the user identifier from the request.
      *
-     * @param string        $user
-     * @param array<string> $relations
-     * @param array<string> $objects
+     * @param Request $request
      */
-    protected function preloadPermissions(string $user, array $relations, array $objects): void
+    private function resolveUser(Request $request): string
     {
-        // Use the manager's batch check functionality if available
-        if (method_exists($this->manager, 'batchCheck')) {
-            $checks = [];
-            
-            foreach ($relations as $relation) {
-                foreach ($objects as $object) {
-                    $checks[] = [
-                        'user' => $user,
-                        'relation' => $relation,
-                        'object' => $object,
-                    ];
-                }
-            }
-            
-            $this->manager->batchCheck($checks);
-        } else {
-            // Fall back to individual checks (which should be cached)
-            foreach ($relations as $relation) {
-                foreach ($objects as $object) {
-                    $this->manager->check($user, $relation, $object);
-                }
-            }
+        $user = $request->user();
+
+        if (null === $user) {
+            return '';
         }
+
+        return $this->resolveUserIdentifier($user);
     }
 }

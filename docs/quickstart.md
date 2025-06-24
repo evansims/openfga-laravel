@@ -1,4 +1,4 @@
-# Quick Start Tutorial
+# Quickstart Tutorial
 
 This tutorial will get you up and running with OpenFGA Laravel in just a few minutes. We'll build a simple document management system where users can have different permissions on documents.
 

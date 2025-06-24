@@ -8,23 +8,29 @@ use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
+use function count;
+
 /**
  * Event fired when objects are listed for a user.
  */
-class ObjectsListed
+final class ObjectsListed
 {
-    use Dispatchable, InteractsWithSockets, SerializesModels;
+    use Dispatchable;
+
+    use InteractsWithSockets;
+
+    use SerializesModels;
 
     /**
      * Create a new event instance.
      *
-     * @param string $user The user identifier
-     * @param string $relation The relation being queried
-     * @param string $type The object type
-     * @param array<string> $objects The objects found
-     * @param string|null $connection The connection used
-     * @param float $duration The duration of the operation in seconds
-     * @param array<string, mixed> $context Additional context
+     * @param string               $user       The user identifier
+     * @param string               $relation   The relation being queried
+     * @param string               $type       The object type
+     * @param array<string>        $objects    The objects found
+     * @param string|null          $connection The connection used
+     * @param float                $duration   The duration of the operation in seconds
+     * @param array<string, mixed> $context    Additional context
      */
     public function __construct(
         public readonly string $user,
@@ -33,7 +39,7 @@ class ObjectsListed
         public readonly array $objects,
         public readonly ?string $connection = null,
         public readonly float $duration = 0.0,
-        public readonly array $context = []
+        public readonly array $context = [],
     ) {
     }
 

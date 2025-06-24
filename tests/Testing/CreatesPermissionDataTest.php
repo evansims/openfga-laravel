@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Tests\Testing;
 
-use OpenFGA\Laravel\Testing\CreatesPermissionData;
-use OpenFGA\Laravel\Testing\FakeOpenFga;
+use OpenFGA\Laravel\Testing\{CreatesPermissionData, FakeOpenFga};
 use OpenFGA\Laravel\Tests\TestCase;
 
-class CreatesPermissionDataTest extends TestCase
+use function count;
+
+final class CreatesPermissionDataTest extends TestCase
 {
     use CreatesPermissionData;
 
@@ -17,40 +18,41 @@ class CreatesPermissionDataTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->fake = new FakeOpenFga();
+        $this->fake = new FakeOpenFga;
     }
 
-    public function test_it_creates_document_hierarchy(): void
+    public function test_factories_can_be_combined(): void
     {
-        $data = $this->createDocumentHierarchy($this->fake);
+        // Create multiple systems in the same fake
+        $doc_data = $this->createDocumentHierarchy($this->fake);
+        $blog_data = $this->createBlogSystem($this->fake);
 
-        // Test structure
-        $this->assertArrayHasKey('users', $data);
-        $this->assertArrayHasKey('documents', $data);
-        $this->assertArrayHasKey('folders', $data);
+        // Test that both systems work
+        $this->assertTrue($this->fake->check($doc_data['users']['owner'], 'owner', $doc_data['documents']['doc1']));
+        $this->assertTrue($this->fake->check($blog_data['users']['admin'], 'admin', $blog_data['blog']));
 
-        // Test permissions
-        $this->assertTrue($this->fake->check($data['users']['owner'], 'owner', $data['documents']['doc1']));
-        $this->assertTrue($this->fake->check($data['users']['editor'], 'editor', $data['documents']['doc1']));
-        $this->assertTrue($this->fake->check($data['users']['viewer'], 'viewer', $data['documents']['doc1']));
-        $this->assertFalse($this->fake->check($data['users']['viewer'], 'editor', $data['documents']['doc1']));
+        // Test that they're independent
+        $this->assertFalse($this->fake->check($doc_data['users']['owner'], 'admin', $blog_data['blog']));
+        $this->assertFalse($this->fake->check($blog_data['users']['admin'], 'owner', $doc_data['documents']['doc1']));
     }
 
-    public function test_it_creates_organization_structure(): void
+    public function test_factories_produce_different_data(): void
     {
-        $data = $this->createOrganizationStructure($this->fake);
+        $fake1 = new FakeOpenFga;
+        $fake2 = new FakeOpenFga;
 
-        // Test structure
-        $this->assertArrayHasKey('users', $data);
-        $this->assertArrayHasKey('organization', $data);
-        $this->assertArrayHasKey('departments', $data);
-        $this->assertArrayHasKey('projects', $data);
+        $doc_data = $this->createDocumentHierarchy($fake1);
+        $org_data = $this->createOrganizationStructure($fake2);
 
-        // Test permissions
-        $this->assertTrue($this->fake->check($data['users']['ceo'], 'admin', $data['organization']));
-        $this->assertTrue($this->fake->check($data['users']['hr_manager'], 'manager', $data['departments']['hr']));
-        $this->assertTrue($this->fake->check($data['users']['developer'], 'contributor', $data['projects']['project1']));
-        $this->assertTrue($this->fake->check($data['users']['intern'], 'observer', $data['projects']['project1']));
+        // Verify they have different structure
+        $this->assertNotEquals($doc_data['users'], $org_data['users']);
+        $this->assertArrayHasKey('documents', $doc_data);
+        $this->assertArrayNotHasKey('documents', $org_data);
+        $this->assertArrayHasKey('departments', $org_data);
+        $this->assertArrayNotHasKey('departments', $doc_data);
+
+        // Verify different permissions were created
+        $this->assertNotEquals($fake1->getTuples(), $fake2->getTuples());
     }
 
     public function test_it_creates_blog_system(): void
@@ -71,21 +73,20 @@ class CreatesPermissionDataTest extends TestCase
         $this->assertFalse($this->fake->check($data['users']['guest'], 'reader', $data['posts']['post2'])); // private post
     }
 
-    public function test_it_creates_file_system(): void
+    public function test_it_creates_document_hierarchy(): void
     {
-        $data = $this->createFileSystem($this->fake);
+        $data = $this->createDocumentHierarchy($this->fake);
 
         // Test structure
         $this->assertArrayHasKey('users', $data);
+        $this->assertArrayHasKey('documents', $data);
         $this->assertArrayHasKey('folders', $data);
-        $this->assertArrayHasKey('files', $data);
 
         // Test permissions
-        $this->assertTrue($this->fake->check($data['users']['root'], 'owner', $data['folders']['root']));
-        $this->assertTrue($this->fake->check($data['users']['user1'], 'owner', $data['folders']['user1_home']));
-        $this->assertTrue($this->fake->check($data['users']['user1'], 'read', $data['files']['shared_file']));
-        $this->assertTrue($this->fake->check($data['users']['guest'], 'read', $data['files']['shared_file']));
-        $this->assertFalse($this->fake->check($data['users']['user2'], 'read', $data['files']['user1_doc']));
+        $this->assertTrue($this->fake->check($data['users']['owner'], 'owner', $data['documents']['doc1']));
+        $this->assertTrue($this->fake->check($data['users']['editor'], 'editor', $data['documents']['doc1']));
+        $this->assertTrue($this->fake->check($data['users']['viewer'], 'viewer', $data['documents']['doc1']));
+        $this->assertFalse($this->fake->check($data['users']['viewer'], 'editor', $data['documents']['doc1']));
     }
 
     public function test_it_creates_ecommerce_system(): void
@@ -104,6 +105,56 @@ class CreatesPermissionDataTest extends TestCase
         $this->assertTrue($this->fake->check($data['users']['customer1'], 'owner', $data['orders']['order1']));
         $this->assertTrue($this->fake->check($data['users']['support'], 'view', $data['orders']['order1']));
         $this->assertFalse($this->fake->check($data['users']['customer1'], 'view', $data['orders']['order3']));
+    }
+
+    public function test_it_creates_file_system(): void
+    {
+        $data = $this->createFileSystem($this->fake);
+
+        // Test structure
+        $this->assertArrayHasKey('users', $data);
+        $this->assertArrayHasKey('folders', $data);
+        $this->assertArrayHasKey('files', $data);
+
+        // Test permissions
+        $this->assertTrue($this->fake->check($data['users']['root'], 'owner', $data['folders']['root']));
+        $this->assertTrue($this->fake->check($data['users']['user1'], 'owner', $data['folders']['user1_home']));
+        $this->assertTrue($this->fake->check($data['users']['user1'], 'read', $data['files']['shared_file']));
+        $this->assertTrue($this->fake->check($data['users']['guest'], 'read', $data['files']['shared_file']));
+        $this->assertFalse($this->fake->check($data['users']['user2'], 'read', $data['files']['user1_doc']));
+    }
+
+    public function test_it_creates_nested_hierarchy(): void
+    {
+        $data = $this->createNestedHierarchy($this->fake);
+
+        // Test structure
+        $this->assertArrayHasKey('users', $data);
+        $this->assertArrayHasKey('hierarchy', $data);
+
+        // Test permissions
+        $this->assertTrue($this->fake->check($data['users']['super_admin'], 'super_admin', $data['hierarchy']['company']));
+        $this->assertTrue($this->fake->check($data['users']['org_admin'], 'admin', $data['hierarchy']['company']));
+        $this->assertTrue($this->fake->check($data['users']['dept_manager'], 'manager', $data['hierarchy']['department']));
+        $this->assertTrue($this->fake->check($data['users']['team_lead'], 'lead', $data['hierarchy']['team']));
+        $this->assertTrue($this->fake->check($data['users']['employee'], 'contributor', $data['hierarchy']['project']));
+    }
+
+    public function test_it_creates_organization_structure(): void
+    {
+        $data = $this->createOrganizationStructure($this->fake);
+
+        // Test structure
+        $this->assertArrayHasKey('users', $data);
+        $this->assertArrayHasKey('organization', $data);
+        $this->assertArrayHasKey('departments', $data);
+        $this->assertArrayHasKey('projects', $data);
+
+        // Test permissions
+        $this->assertTrue($this->fake->check($data['users']['ceo'], 'admin', $data['organization']));
+        $this->assertTrue($this->fake->check($data['users']['hr_manager'], 'manager', $data['departments']['hr']));
+        $this->assertTrue($this->fake->check($data['users']['developer'], 'contributor', $data['projects']['project1']));
+        $this->assertTrue($this->fake->check($data['users']['intern'], 'observer', $data['projects']['project1']));
     }
 
     public function test_it_creates_project_management_system(): void
@@ -143,55 +194,5 @@ class CreatesPermissionDataTest extends TestCase
 
         // Test that some permissions were created
         $this->assertGreaterThan(0, count($this->fake->getTuples()));
-    }
-
-    public function test_it_creates_nested_hierarchy(): void
-    {
-        $data = $this->createNestedHierarchy($this->fake);
-
-        // Test structure
-        $this->assertArrayHasKey('users', $data);
-        $this->assertArrayHasKey('hierarchy', $data);
-
-        // Test permissions
-        $this->assertTrue($this->fake->check($data['users']['super_admin'], 'super_admin', $data['hierarchy']['company']));
-        $this->assertTrue($this->fake->check($data['users']['org_admin'], 'admin', $data['hierarchy']['company']));
-        $this->assertTrue($this->fake->check($data['users']['dept_manager'], 'manager', $data['hierarchy']['department']));
-        $this->assertTrue($this->fake->check($data['users']['team_lead'], 'lead', $data['hierarchy']['team']));
-        $this->assertTrue($this->fake->check($data['users']['employee'], 'contributor', $data['hierarchy']['project']));
-    }
-
-    public function test_factories_produce_different_data(): void
-    {
-        $fake1 = new FakeOpenFga();
-        $fake2 = new FakeOpenFga();
-
-        $doc_data = $this->createDocumentHierarchy($fake1);
-        $org_data = $this->createOrganizationStructure($fake2);
-
-        // Verify they have different structure
-        $this->assertNotEquals($doc_data['users'], $org_data['users']);
-        $this->assertArrayHasKey('documents', $doc_data);
-        $this->assertArrayNotHasKey('documents', $org_data);
-        $this->assertArrayHasKey('departments', $org_data);
-        $this->assertArrayNotHasKey('departments', $doc_data);
-
-        // Verify different permissions were created
-        $this->assertNotEquals($fake1->getTuples(), $fake2->getTuples());
-    }
-
-    public function test_factories_can_be_combined(): void
-    {
-        // Create multiple systems in the same fake
-        $doc_data = $this->createDocumentHierarchy($this->fake);
-        $blog_data = $this->createBlogSystem($this->fake);
-
-        // Test that both systems work
-        $this->assertTrue($this->fake->check($doc_data['users']['owner'], 'owner', $doc_data['documents']['doc1']));
-        $this->assertTrue($this->fake->check($blog_data['users']['admin'], 'admin', $blog_data['blog']));
-
-        // Test that they're independent
-        $this->assertFalse($this->fake->check($doc_data['users']['owner'], 'admin', $blog_data['blog']));
-        $this->assertFalse($this->fake->check($blog_data['users']['admin'], 'owner', $doc_data['documents']['doc1']));
     }
 }

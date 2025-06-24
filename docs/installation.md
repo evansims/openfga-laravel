@@ -4,8 +4,8 @@ This guide will walk you through installing and configuring the OpenFGA Laravel 
 
 ## Requirements
 
-- PHP 8.1 or higher
-- Laravel 10.0 or higher
+- PHP 8.3 or higher
+- Laravel 12.0 or higher
 - OpenFGA server (self-hosted or cloud)
 - Composer
 

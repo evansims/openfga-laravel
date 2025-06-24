@@ -4,29 +4,32 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Jobs;
 
+use DateTimeImmutable;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
-use Illuminate\Queue\InteractsWithQueue;
-use Illuminate\Queue\SerializesModels;
-use OpenFGA\Laravel\Events\BatchWriteCompleted;
-use OpenFGA\Laravel\Events\BatchWriteFailed;
+use Illuminate\Queue\{InteractsWithQueue, SerializesModels};
+use OpenFGA\Laravel\Events\{BatchWriteCompleted, BatchWriteFailed};
 use OpenFGA\Laravel\OpenFgaManager;
+use OpenFGA\Models\Collections\TupleKeys;
+use OpenFGA\Models\TupleKey;
 use Throwable;
+
+use function count;
+use function is_string;
 
 /**
  * Queueable job for batch write operations.
  */
-class BatchWriteJob implements ShouldQueue
+final class BatchWriteJob implements ShouldQueue
 {
-    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+    use Dispatchable;
 
-    /**
-     * The number of times the job may be attempted.
-     *
-     * @var int
-     */
-    public $tries = 3;
+    use InteractsWithQueue;
+
+    use Queueable;
+
+    use SerializesModels;
 
     /**
      * The maximum number of unhandled exceptions to allow before failing.
@@ -36,13 +39,6 @@ class BatchWriteJob implements ShouldQueue
     public $maxExceptions = 3;
 
     /**
-     * The number of seconds the job can run before timing out.
-     *
-     * @var int
-     */
-    public $timeout = 120;
-
-    /**
      * Indicate if the job should be encrypted.
      *
      * @var bool
@@ -50,86 +46,48 @@ class BatchWriteJob implements ShouldQueue
     public $shouldBeEncrypted = true;
 
     /**
+     * The number of seconds the job can run before timing out.
+     *
+     * @var int
+     */
+    public $timeout = 120;
+
+    /**
+     * The number of times the job may be attempted.
+     *
+     * @var int
+     */
+    public $tries = 3;
+
+    /**
      * Create a new job instance.
      *
      * @param array<array{user: string, relation: string, object: string}> $writes
      * @param array<array{user: string, relation: string, object: string}> $deletes
-     * @param string|null $openfgaConnection
-     * @param array<string, mixed> $options
+     * @param string|null                                                  $openfgaConnection
+     * @param array<string, mixed>                                         $options
      */
     public function __construct(
         private array $writes = [],
         private array $deletes = [],
         private ?string $openfgaConnection = null,
-        private array $options = []
+        private array $options = [],
     ) {
         // Set queue configuration
-        if (config('openfga.queue.enabled')) {
-            $this->onConnection(config('openfga.queue.connection'))
-                ->onQueue(config('openfga.queue.queue'));
+        $queueEnabled = config('openfga.queue.enabled');
+
+        if (true === $queueEnabled) {
+            $connection = config('openfga.queue.connection');
+            $queue = config('openfga.queue.queue');
+
+            if (is_string($connection)) {
+                $this->onConnection($connection);
+            }
+
+            if (is_string($queue)) {
+                $this->onQueue($queue);
+            }
         }
-    }
-
-    /**
-     * Execute the job.
-     */
-    public function handle(OpenFgaManager $manager): void
-    {
-        $startTime = microtime(true);
-        
-        try {
-            // Perform the batch write operation
-            $manager->connection($this->openfgaConnection)
-                ->writeBatch($this->writes, $this->deletes);
-
-            $duration = microtime(true) - $startTime;
-
-            // Dispatch completion event
-            event(new BatchWriteCompleted(
-                $this->writes,
-                $this->deletes,
-                $this->openfgaConnection,
-                $duration,
-                $this->options
-            ));
-        } catch (Throwable $exception) {
-            // Re-throw to trigger failed() method
-            throw $exception;
-        }
-    }
-
-    /**
-     * Handle a job failure.
-     */
-    public function failed(Throwable $exception): void
-    {
-        // Dispatch failure event
-        event(new BatchWriteFailed(
-            $this->writes,
-            $this->deletes,
-            $this->openfgaConnection,
-            $exception,
-            $this->options
-        ));
-    }
-
-    /**
-     * Get the tags that should be assigned to the job.
-     *
-     * @return array<string>
-     */
-    public function tags(): array
-    {
-        $tags = ['openfga', 'batch-write'];
-
-        if ($this->openfgaConnection) {
-            $tags[] = 'connection:' . $this->openfgaConnection;
-        }
-
-        $tags[] = 'writes:' . count($this->writes);
-        $tags[] = 'deletes:' . count($this->deletes);
-
-        return $tags;
     }
 
     /**
@@ -143,10 +101,88 @@ class BatchWriteJob implements ShouldQueue
     }
 
     /**
+     * Handle a job failure.
+     *
+     * @param Throwable $exception
+     */
+    public function failed(Throwable $exception): void
+    {
+        // Dispatch failure event
+        event(new BatchWriteFailed(
+            $this->writes,
+            $this->deletes,
+            $this->openfgaConnection,
+            $exception,
+            $this->options,
+        ));
+    }
+
+    /**
+     * Execute the job.
+     *
+     * @param OpenFgaManager $manager
+     */
+    public function handle(OpenFgaManager $manager): void
+    {
+        $startTime = microtime(true);
+        $manager->write(
+            writes: [] !== $this->writes ? new TupleKeys(
+                array_map(
+                    static fn ($write): TupleKey => new TupleKey(
+                        user: $write['user'],
+                        relation: $write['relation'],
+                        object: $write['object'],
+                    ),
+                    $this->writes,
+                ),
+            ) : null,
+            deletes: [] !== $this->deletes ? new TupleKeys(
+                array_map(
+                    static fn ($delete): TupleKey => new TupleKey(
+                        user: $delete['user'],
+                        relation: $delete['relation'],
+                        object: $delete['object'],
+                    ),
+                    $this->deletes,
+                ),
+            ) : null,
+            connection: $this->openfgaConnection,
+        );
+        $duration = microtime(true) - $startTime;
+        // Dispatch completion event
+        event(new BatchWriteCompleted(
+            $this->writes,
+            $this->deletes,
+            $this->openfgaConnection,
+            $duration,
+            $this->options,
+        ));
+    }
+
+    /**
      * Determine the time at which the job should timeout.
      */
-    public function retryUntil(): \DateTime
+    public function retryUntil(): DateTimeImmutable
     {
-        return now()->addMinutes(15);
+        return new DateTimeImmutable(now()->addMinutes(15)->toDateTimeString());
+    }
+
+    /**
+     * Get the tags that should be assigned to the job.
+     *
+     * @return array<string>
+     */
+    public function tags(): array
+    {
+        $tags = ['openfga', 'batch-write'];
+
+        if (null !== $this->openfgaConnection) {
+            $tags[] = 'connection:' . $this->openfgaConnection;
+        }
+
+        $tags[] = 'writes:' . count($this->writes);
+        $tags[] = 'deletes:' . count($this->deletes);
+
+        return $tags;
     }
 }

@@ -5,13 +5,21 @@ declare(strict_types=1);
 namespace OpenFGA\Laravel\Tests\Jobs;
 
 use OpenFGA\Laravel\Jobs\BatchWriteJob;
-use OpenFGA\Laravel\OpenFgaManager;
 use OpenFGA\Laravel\Testing\FakesOpenFga;
 use OpenFGA\Laravel\Tests\TestCase;
 
-class BatchWriteJobTest extends TestCase
+final class BatchWriteJobTest extends TestCase
 {
     use FakesOpenFga;
+
+    public function test_batch_write_job_backoff_strategy(): void
+    {
+        $job = new BatchWriteJob;
+
+        $backoff = $job->backoff();
+
+        $this->assertEquals([1, 5, 10], $backoff);
+    }
 
     public function test_batch_write_job_can_be_instantiated(): void
     {
@@ -54,22 +62,13 @@ class BatchWriteJobTest extends TestCase
         $this->assertContains('deletes:1', $tags);
     }
 
-    public function test_batch_write_job_backoff_strategy(): void
-    {
-        $job = new BatchWriteJob();
-
-        $backoff = $job->backoff();
-
-        $this->assertEquals([1, 5, 10], $backoff);
-    }
-
     public function test_batch_write_job_retry_until(): void
     {
-        $job = new BatchWriteJob();
+        $job = new BatchWriteJob;
 
         $retryUntil = $job->retryUntil();
 
-        $this->assertInstanceOf(\DateTime::class, $retryUntil);
+        $this->assertInstanceOf(\DateTimeImmutable::class, $retryUntil);
         $this->assertGreaterThan(now(), $retryUntil);
     }
 }

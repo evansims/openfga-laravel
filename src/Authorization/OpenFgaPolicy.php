@@ -5,7 +5,15 @@ declare(strict_types=1);
 namespace OpenFGA\Laravel\Authorization;
 
 use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Database\Eloquent\Model;
+use InvalidArgumentException;
+use OpenFGA\Laravel\Contracts\{AuthorizationObject, AuthorizationType};
 use OpenFGA\Laravel\OpenFgaManager;
+
+use function gettype;
+use function is_object;
+use function is_scalar;
+use function is_string;
 
 /**
  * Base policy class that provides OpenFGA integration.
@@ -14,64 +22,42 @@ abstract class OpenFgaPolicy
 {
     /**
      * Create a new policy instance.
+     *
+     * @param OpenFgaManager $manager
      */
     public function __construct(
-        protected OpenFgaManager $manager
-    ) {}
+        protected OpenFgaManager $manager,
+    ) {
+    }
 
     /**
      * Check if the user has the given permission on the resource.
      *
-     * @param \Illuminate\Contracts\Auth\Authenticatable $user
-     * @param string                                      $relation
-     * @param mixed                                       $resource
-     * @param string|null                                 $connection
-     *
-     * @return bool
+     * @param Authenticatable $user
+     * @param string          $relation
+     * @param mixed           $resource
+     * @param string|null     $connection
+     * @throws \Psr\SimpleCache\InvalidArgumentException
+     * @throws \Illuminate\Contracts\Container\BindingResolutionException
+     * @throws \OpenFGA\Exceptions\ClientThrowable
+     * @throws \Exception
+     * @throws \InvalidArgumentException
      */
     protected function can(Authenticatable $user, string $relation, $resource, ?string $connection = null): bool
     {
         $userId = $this->resolveUserId($user);
         $object = $this->resolveObject($resource);
 
-        return $this->manager
-            ->connection($connection)
-            ->check($userId, $relation, $object);
-    }
-
-    /**
-     * Check if the user has any of the given permissions on the resource.
-     *
-     * @param \Illuminate\Contracts\Auth\Authenticatable $user
-     * @param array<string>                               $relations
-     * @param mixed                                       $resource
-     * @param string|null                                 $connection
-     *
-     * @return bool
-     */
-    protected function canAny(Authenticatable $user, array $relations, $resource, ?string $connection = null): bool
-    {
-        $userId = $this->resolveUserId($user);
-        $object = $this->resolveObject($resource);
-
-        foreach ($relations as $relation) {
-            if ($this->manager->connection($connection)->check($userId, $relation, $object)) {
-                return true;
-            }
-        }
-
-        return false;
+        return $this->manager->check($userId, $relation, $object, [], [], $connection);
     }
 
     /**
      * Check if the user has all of the given permissions on the resource.
      *
-     * @param \Illuminate\Contracts\Auth\Authenticatable $user
-     * @param array<string>                               $relations
-     * @param mixed                                       $resource
-     * @param string|null                                 $connection
-     *
-     * @return bool
+     * @param Authenticatable $user
+     * @param array<string>   $relations
+     * @param mixed           $resource
+     * @param string|null     $connection
      */
     protected function canAll(Authenticatable $user, array $relations, $resource, ?string $connection = null): bool
     {
@@ -79,7 +65,7 @@ abstract class OpenFgaPolicy
         $object = $this->resolveObject($resource);
 
         foreach ($relations as $relation) {
-            if (!$this->manager->connection($connection)->check($userId, $relation, $object)) {
+            if (! $this->manager->check($userId, $relation, $object, [], [], $connection)) {
                 return false;
             }
         }
@@ -88,31 +74,70 @@ abstract class OpenFgaPolicy
     }
 
     /**
-     * Resolve the user ID for OpenFGA.
+     * Check if the user has any of the given permissions on the resource.
      *
-     * @param \Illuminate\Contracts\Auth\Authenticatable $user
-     *
-     * @return string
+     * @param Authenticatable $user
+     * @param array<string>   $relations
+     * @param mixed           $resource
+     * @param string|null     $connection
      */
-    protected function resolveUserId(Authenticatable $user): string
+    protected function canAny(Authenticatable $user, array $relations, $resource, ?string $connection = null): bool
     {
-        if (method_exists($user, 'authorizationUser')) {
-            return $user->authorizationUser();
+        $userId = $this->resolveUserId($user);
+        $object = $this->resolveObject($resource);
+
+        foreach ($relations as $relation) {
+            if ($this->manager->check($userId, $relation, $object, [], [], $connection)) {
+                return true;
+            }
         }
 
-        if (method_exists($user, 'getAuthorizationUserId')) {
-            return $user->getAuthorizationUserId();
+        return false;
+    }
+
+    /**
+     * Get the default resource type for this policy.
+     * Override this method to customize the resource type.
+     */
+    protected function getResourceType(): string
+    {
+        return $this->inferResourceType();
+    }
+
+    /**
+     * Infer the resource type from the policy class name.
+     */
+    protected function inferResourceType(): string
+    {
+        $className = class_basename(static::class);
+
+        // Remove 'Policy' suffix and convert to snake_case
+        $type = str_replace('Policy', '', $className);
+
+        $result = preg_replace('/([a-z])([A-Z])/', '$1_$2', $type);
+
+        return strtolower($result ?? $type);
+    }
+
+    /**
+     * Create an object identifier for the given ID.
+     *
+     * @param mixed $id
+     * @throws InvalidArgumentException
+     */
+    protected function objectId($id): string
+    {
+        if (is_scalar($id) || (is_object($id) && method_exists($id, '__toString'))) {
+            return $this->getResourceType() . ':' . (string) $id;
         }
 
-        return 'user:' . $user->getAuthIdentifier();
+        throw new InvalidArgumentException('ID must be a scalar value or implement __toString()');
     }
 
     /**
      * Resolve the object identifier for OpenFGA.
      *
      * @param mixed $resource
-     *
-     * @return string
      */
     protected function resolveObject($resource): string
     {
@@ -123,63 +148,86 @@ abstract class OpenFgaPolicy
 
         // Model with authorization support
         if (is_object($resource) && method_exists($resource, 'authorizationObject')) {
-            return $resource->authorizationObject();
+            /** @var AuthorizationObject&object $resource */
+            return (string) $resource->authorizationObject();
         }
 
         // Model with authorization type method
         if (is_object($resource) && method_exists($resource, 'authorizationType') && method_exists($resource, 'getKey')) {
-            return $resource->authorizationType() . ':' . $resource->getKey();
+            /** @var AuthorizationType&Model&object $resource */
+            $type = $resource->authorizationType();
+            $key = $resource->getKey();
+
+            if (! is_string($type) && ! is_numeric($type)) {
+                throw new InvalidArgumentException('Authorization type must be string or numeric');
+            }
+
+            if (null === $key || (! is_string($key) && ! is_numeric($key))) {
+                throw new InvalidArgumentException('Model key must be string or numeric');
+            }
+
+            return (string) $type . ':' . (string) $key;
         }
 
         // Eloquent model fallback
-        if (is_object($resource) && method_exists($resource, 'getTable') && method_exists($resource, 'getKey')) {
-            return $resource->getTable() . ':' . $resource->getKey();
+        if (is_object($resource)) {
+            /** @var object $resource */
+            if (method_exists($resource, 'getTable') && method_exists($resource, 'getKey')) {
+                /** @var Model $resource */
+                $table = $resource->getTable();
+                $key = $resource->getKey();
+
+                if (! is_string($table)) {
+                    throw new InvalidArgumentException('Table name must be string');
+                }
+
+                if (null === $key || (! is_string($key) && ! is_numeric($key))) {
+                    throw new InvalidArgumentException('Model key must be string or numeric');
+                }
+
+                return $table . ':' . (string) $key;
+            }
         }
 
         // Numeric ID - try to infer type from policy class name
         if (is_numeric($resource)) {
             $type = $this->inferResourceType();
+
             return $type . ':' . $resource;
         }
 
-        throw new \InvalidArgumentException('Cannot resolve object identifier for: ' . gettype($resource));
+        throw new InvalidArgumentException('Cannot resolve object identifier for: ' . gettype($resource));
     }
 
     /**
-     * Infer the resource type from the policy class name.
+     * Resolve the user ID for OpenFGA.
      *
-     * @return string
+     * @param Authenticatable $user
      */
-    protected function inferResourceType(): string
+    protected function resolveUserId(Authenticatable $user): string
     {
-        $className = class_basename(static::class);
-        
-        // Remove 'Policy' suffix and convert to snake_case
-        $type = str_replace('Policy', '', $className);
-        
-        return strtolower(preg_replace('/([a-z])([A-Z])/', '$1_$2', $type));
-    }
+        if (method_exists($user, 'authorizationUser')) {
+            /** @var Authenticatable&object $userObj */
+            $userObj = $user;
 
-    /**
-     * Get the default resource type for this policy.
-     * Override this method to customize the resource type.
-     *
-     * @return string
-     */
-    protected function getResourceType(): string
-    {
-        return $this->inferResourceType();
-    }
+            /* @phpstan-ignore-next-line */
+            return (string) $userObj->authorizationUser();
+        }
 
-    /**
-     * Create an object identifier for the given ID.
-     *
-     * @param mixed $id
-     *
-     * @return string
-     */
-    protected function objectId($id): string
-    {
-        return $this->getResourceType() . ':' . $id;
+        if (method_exists($user, 'getAuthorizationUserId')) {
+            /** @var Authenticatable&object $userObj */
+            $userObj = $user;
+
+            /* @phpstan-ignore-next-line */
+            return (string) $userObj->getAuthorizationUserId();
+        }
+
+        $identifier = $user->getAuthIdentifier();
+
+        if (null === $identifier || (! is_string($identifier) && ! is_numeric($identifier))) {
+            throw new InvalidArgumentException('User identifier must be string or numeric');
+        }
+
+        return 'user:' . (string) $identifier;
     }
 }

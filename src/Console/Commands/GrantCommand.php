@@ -4,14 +4,28 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Console\Commands;
 
+use Exception;
 use Illuminate\Console\Command;
 use OpenFGA\Laravel\OpenFgaManager;
+use OpenFGA\Models\Collections\TupleKeys;
+use OpenFGA\Models\TupleKey;
+
+use function count;
+use function is_string;
+use function sprintf;
 
 /**
  * Command to grant a permission to a user.
  */
-class GrantCommand extends Command
+final class GrantCommand extends Command
 {
+    /**
+     * The console command description.
+     *
+     * @var string|null
+     */
+    protected $description = 'Grant a permission to a user on an object';
+
     /**
      * The name and signature of the console command.
      *
@@ -23,34 +37,41 @@ class GrantCommand extends Command
                             {--batch : Read additional tuples from stdin for batch operation}';
 
     /**
-     * The console command description.
-     *
-     * @var string
-     */
-    protected $description = 'Grant a permission to a user on an object';
-
-    /**
      * Execute the console command.
+     *
+     * @param OpenFgaManager $manager
+     * @throws \OpenFGA\Exceptions\ClientThrowable
+     * @throws \InvalidArgumentException
+     * @throws \ReflectionException
+     * @throws \Illuminate\Contracts\Container\BindingResolutionException
      */
     public function handle(OpenFgaManager $manager): int
     {
-        $connection = $this->option('connection');
-        $manager = $manager->connection($connection);
+        $connectionOption = $this->option('connection');
+        $connection = is_string($connectionOption) ? $connectionOption : null;
 
         try {
-            if ($this->option('batch')) {
-                return $this->handleBatch($manager);
+            $batchOption = $this->option('batch');
+
+            if (true === $batchOption) {
+                return $this->handleBatch($manager, $connection);
             }
 
-            return $this->handleSingle($manager);
-        } catch (\Exception $e) {
-            if ($this->option('json')) {
-                $this->output->writeln(json_encode([
+            return $this->handleSingle($manager, $connection);
+        } catch (Exception $exception) {
+            $jsonOption = $this->option('json');
+
+            if (true === $jsonOption) {
+                $jsonOutput = json_encode([
                     'error' => true,
-                    'message' => $e->getMessage(),
-                ], JSON_PRETTY_PRINT));
+                    'message' => $exception->getMessage(),
+                ], JSON_PRETTY_PRINT);
+
+                if (false !== $jsonOutput) {
+                    $this->output->writeln($jsonOutput);
+                }
             } else {
-                $this->error("Error: " . $e->getMessage());
+                $this->error('Error: ' . $exception->getMessage());
             }
 
             return Command::FAILURE;
@@ -58,59 +79,28 @@ class GrantCommand extends Command
     }
 
     /**
-     * Handle a single grant operation.
-     */
-    protected function handleSingle(OpenFgaManager $manager): int
-    {
-        $user = $this->argument('user');
-        $relation = $this->argument('relation');
-        $object = $this->argument('object');
-
-        $startTime = microtime(true);
-        
-        $manager->grant($user, $relation, $object);
-        
-        $duration = round((microtime(true) - $startTime) * 1000, 2);
-
-        if ($this->option('json')) {
-            $this->output->writeln(json_encode([
-                'success' => true,
-                'operation' => 'grant',
-                'user' => $user,
-                'relation' => $relation,
-                'object' => $object,
-                'duration_ms' => $duration,
-            ], JSON_PRETTY_PRINT));
-        } else {
-            $this->info("✅ Permission granted successfully");
-            
-            $this->table(
-                ['Field', 'Value'],
-                [
-                    ['User', $user],
-                    ['Relation', $relation],
-                    ['Object', $object],
-                    ['Duration', "{$duration}ms"],
-                ]
-            );
-        }
-
-        return Command::SUCCESS;
-    }
-
-    /**
      * Handle batch grant operations.
+     *
+     * @param OpenFgaManager $manager
+     * @param string|null    $connection
      */
-    protected function handleBatch(OpenFgaManager $manager): int
+    private function handleBatch(OpenFgaManager $manager, ?string $connection): int
     {
-        $this->info("Reading tuples from stdin (format: user:relation:object per line, empty line to finish)...");
+        $this->info('Reading tuples from stdin (format: user:relation:object per line, empty line to finish)...');
 
         $tuples = [];
-        while ($line = trim(fgets(STDIN))) {
+
+        while (($input = fgets(STDIN)) !== false) {
+            $line = trim($input);
+
+            if ('' === $line) {
+                break;
+            }
             $parts = explode(':', $line, 3);
-            
-            if (count($parts) !== 3) {
-                $this->warn("Skipping invalid tuple format: {$line}. Expected format: user:relation:object");
+
+            if (3 !== count($parts)) {
+                $this->warn(sprintf('Skipping invalid tuple format: %s. Expected format: user:relation:object', $line));
+
                 continue;
             }
 
@@ -121,44 +111,124 @@ class GrantCommand extends Command
             ];
         }
 
-        if (empty($tuples)) {
-            $this->warn("No valid tuples provided");
+        if ([] === $tuples) {
+            $this->warn('No valid tuples provided');
+
             return Command::FAILURE;
         }
 
-        $this->info("Processing " . count($tuples) . " tuples...");
+        $this->info('Processing ' . count($tuples) . ' tuples...');
 
         $startTime = microtime(true);
-        
-        $manager->writeBatch($tuples);
-        
+
+        // Convert tuples to TupleKey objects for writing
+        $writeKeys = [];
+
+        foreach ($tuples as $tuple) {
+            $writeKeys[] = new TupleKey(
+                user: $tuple['user'],
+                relation: $tuple['relation'],
+                object: $tuple['object'],
+            );
+        }
+        $writes = new TupleKeys($writeKeys);
+
+        $manager->write($writes, null, $connection);
+
         $duration = round((microtime(true) - $startTime) * 1000, 2);
 
-        if ($this->option('json')) {
-            $this->output->writeln(json_encode([
+        $jsonOption = $this->option('json');
+
+        if (true === $jsonOption) {
+            $jsonOutput = json_encode([
                 'success' => true,
                 'operation' => 'grant_batch',
                 'tuples_count' => count($tuples),
                 'tuples' => $tuples,
                 'duration_ms' => $duration,
-            ], JSON_PRETTY_PRINT));
+            ], JSON_PRETTY_PRINT);
+
+            if (false !== $jsonOutput) {
+                $this->output->writeln($jsonOutput);
+            }
         } else {
-            $this->info("✅ Batch grant completed successfully");
-            
+            $this->info('✅ Batch grant completed successfully');
+
             $this->table(
                 ['Field', 'Value'],
                 [
                     ['Tuples Granted', count($tuples)],
-                    ['Duration', "{$duration}ms"],
-                ]
+                    ['Duration', $duration . 'ms'],
+                ],
             );
 
             if ($this->output->isVerbose()) {
                 $this->info("\nGranted tuples:");
+
                 foreach ($tuples as $tuple) {
-                    $this->line("  - {$tuple['user']}#{$tuple['relation']}@{$tuple['object']}");
+                    $this->line(sprintf('  - %s#%s@%s', $tuple['user'], $tuple['relation'], $tuple['object']));
                 }
             }
+        }
+
+        return Command::SUCCESS;
+    }
+
+    /**
+     * Handle a single grant operation.
+     *
+     * @param OpenFgaManager $manager
+     * @param string|null    $connection
+     */
+    private function handleSingle(OpenFgaManager $manager, ?string $connection): int
+    {
+        $userArg = $this->argument('user');
+        $relationArg = $this->argument('relation');
+        $objectArg = $this->argument('object');
+
+        if (! is_string($userArg) || ! is_string($relationArg) || ! is_string($objectArg)) {
+            $this->error('Invalid arguments provided');
+
+            return Command::FAILURE;
+        }
+
+        $user = $userArg;
+        $relation = $relationArg;
+        $object = $objectArg;
+
+        $startTime = microtime(true);
+
+        $manager->grant($user, $relation, $object, $connection);
+
+        $duration = round((microtime(true) - $startTime) * 1000, 2);
+
+        $jsonOption = $this->option('json');
+
+        if (true === $jsonOption) {
+            $jsonOutput = json_encode([
+                'success' => true,
+                'operation' => 'grant',
+                'user' => $user,
+                'relation' => $relation,
+                'object' => $object,
+                'duration_ms' => $duration,
+            ], JSON_PRETTY_PRINT);
+
+            if (false !== $jsonOutput) {
+                $this->output->writeln($jsonOutput);
+            }
+        } else {
+            $this->info('✅ Permission granted successfully');
+
+            $this->table(
+                ['Field', 'Value'],
+                [
+                    ['User', $user],
+                    ['Relation', $relation],
+                    ['Object', $object],
+                    ['Duration', $duration . 'ms'],
+                ],
+            );
         }
 
         return Command::SUCCESS;

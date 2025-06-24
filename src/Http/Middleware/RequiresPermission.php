@@ -10,22 +10,26 @@ use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Middleware that requires a specific permission.
- * Extends the base OpenFgaMiddleware with a simpler interface.
+ * This is an alias for OpenFgaMiddleware for better naming consistency.
  */
-class RequiresPermission extends OpenFgaMiddleware
+final readonly class RequiresPermission
 {
+    public function __construct(
+        private OpenFgaMiddleware $middleware,
+    ) {
+    }
+
     /**
      * Handle an incoming request with simplified permission checking.
      *
      * @param Request                      $request
      * @param Closure(Request): (Response) $next
-     * @param string                       $relation The required relation/permission
-     * @param string|null                  $object   The object to check permissions against (optional)
-     * 
-     * @return Response
+     * @param string                       $relation   The required relation/permission
+     * @param string|null                  $object     The object to check permissions against (optional)
+     * @param string|null                  $connection The OpenFGA connection to use (optional)
      */
-    public function handle(Request $request, Closure $next, string $relation, ?string $object = null): Response
+    public function handle(Request $request, Closure $next, string $relation, ?string $object = null, ?string $connection = null): Response
     {
-        return parent::handle($request, $next, $relation, $object);
+        return $this->middleware->handle($request, $next, $relation, $object, $connection);
     }
 }

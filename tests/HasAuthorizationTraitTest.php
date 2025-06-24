@@ -2,67 +2,75 @@
 
 declare(strict_types=1);
 
+namespace OpenFGA\Laravel\Tests;
+
 use Illuminate\Container\Container;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\App;
+use InvalidArgumentException;
 use OpenFGA\Laravel\OpenFgaManager;
 use OpenFGA\Laravel\Traits\HasAuthorization;
+use ReflectionClass;
 
 // Test model that uses the trait
-class TestDocument extends Model
+final class TestDocument extends Model
 {
     use HasAuthorization;
-    
-    protected $table = 'documents';
-    protected $guarded = [];
+
     public $exists = true;
-    
+
+    protected $guarded = [];
+
+    protected $table = 'documents';
+
     public function __construct(array $attributes = [])
     {
         // Skip parent constructor to avoid database setup
         $this->fill($attributes);
     }
-    
+
     // Override for testing
     public function getKey()
     {
         return $this->id ?? 123;
     }
-    
+
     public function getKeyName()
     {
         return 'id';
     }
-    
+
     // Override to avoid database calls
-    protected static function registerModelEvent($event, $callback)
+    protected static function registerModelEvent($event, $callback): void
     {
         // Do nothing
     }
 }
 
 // Test user model
-class TestUser extends Model
+final class TestUser extends Model
 {
     use HasAuthorization;
-    
-    protected $table = 'users';
-    protected $guarded = [];
+
     public $exists = true;
-    
+
+    protected $guarded = [];
+
+    protected $table = 'users';
+
     public function __construct(array $attributes = [])
     {
         // Skip parent constructor to avoid database setup
         $this->fill($attributes);
     }
-    
+
     public function getKey()
     {
         return $this->id ?? 456;
     }
-    
+
     // Override to avoid database calls
-    protected static function registerModelEvent($event, $callback)
+    protected static function registerModelEvent($event, $callback): void
     {
         // Do nothing
     }
@@ -73,18 +81,20 @@ describe('HasAuthorization Trait', function (): void {
         $this->container = new Container;
         Container::setInstance($this->container);
         App::setFacadeApplication($this->container);
-        
+
         // Mock config for tests
         $this->container->instance('config', new class {
-            public function get($key, $default = null) {
+            public function get($key, $default = null)
+            {
                 $configs = [
                     'openfga.cleanup_on_delete' => true,
                     'openfga.replicate_permissions' => false,
                 ];
+
                 return $configs[$key] ?? $default;
             }
         });
-        
+
         $this->config = [
             'default' => 'main',
             'connections' => [
@@ -98,10 +108,10 @@ describe('HasAuthorization Trait', function (): void {
                 ],
             ],
         ];
-        
+
         $this->manager = new OpenFgaManager($this->container, $this->config);
         $this->container->instance(OpenFgaManager::class, $this->manager);
-        
+
         $this->document = new TestDocument(['id' => 123]);
         $this->user = new TestUser(['id' => 456]);
     });
@@ -125,7 +135,7 @@ describe('HasAuthorization Trait', function (): void {
             $reflection = new ReflectionClass($this->document);
             $method = $reflection->getMethod('resolveUserId');
             $method->setAccessible(true);
-            
+
             expect($method->invoke($this->document, $this->user))->toBe('test_user:456');
         });
 
@@ -133,7 +143,7 @@ describe('HasAuthorization Trait', function (): void {
             $reflection = new ReflectionClass($this->document);
             $method = $reflection->getMethod('resolveUserId');
             $method->setAccessible(true);
-            
+
             expect($method->invoke($this->document, 'user:789'))->toBe('user:789');
         });
 
@@ -141,7 +151,7 @@ describe('HasAuthorization Trait', function (): void {
             $reflection = new ReflectionClass($this->document);
             $method = $reflection->getMethod('resolveUserId');
             $method->setAccessible(true);
-            
+
             expect($method->invoke($this->document, 999))->toBe('user:999');
         });
 
@@ -149,7 +159,7 @@ describe('HasAuthorization Trait', function (): void {
             $reflection = new ReflectionClass($this->document);
             $method = $reflection->getMethod('resolveUserId');
             $method->setAccessible(true);
-            
+
             expect(fn () => $method->invoke($this->document, []))
                 ->toThrow(InvalidArgumentException::class, 'User must be a Model, string, or integer');
         });
@@ -213,7 +223,7 @@ describe('HasAuthorization Trait', function (): void {
             $reflection = new ReflectionClass($this->document);
             $method = $reflection->getMethod('shouldCleanupPermissionsOnDelete');
             $method->setAccessible(true);
-            
+
             expect($method->invoke($this->document))->toBe(true);
         });
 
@@ -221,7 +231,7 @@ describe('HasAuthorization Trait', function (): void {
             $reflection = new ReflectionClass($this->document);
             $method = $reflection->getMethod('shouldReplicatePermissions');
             $method->setAccessible(true);
-            
+
             expect($method->invoke($this->document))->toBe(false);
         });
     });

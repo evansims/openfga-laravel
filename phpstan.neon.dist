@@ -28,6 +28,10 @@ parameters:
         - '#Call to function method_exists\(\) with .* will always evaluate to false#'
         # Trait is provided for users to apply to their models
         - '#Trait OpenFGA\\Laravel\\Traits\\HasAuthorization is used zero times and is not analysed#'
+        # Laravel wrapper proxies expand method with different signature
+        - '#Parameter \#2 \$tuple of method OpenFGA\\ClientInterface::expand\(\) expects OpenFGA\\Models\\TupleKeyInterface, string given#'
+        # Laravel wrapper proxies check method with different signature
+        - '#Parameter \#3 \$tuple of method OpenFGA\\ClientInterface::check\(\) expects OpenFGA\\Models\\TupleKeyInterface, string given#'
 
     paths:
         - src

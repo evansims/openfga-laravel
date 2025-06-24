@@ -12,13 +12,15 @@ use Illuminate\Support\ServiceProvider;
 use InvalidArgumentException;
 use LogicException;
 use OpenFGA\{Client, ClientInterface};
-use OpenFGA\Laravel\Console;
+use OpenFGA\Laravel\View\{JavaScriptHelper, MenuBuilder};
 use Override;
+use RuntimeException;
 
 use function gettype;
 use function in_array;
 use function is_array;
 use function is_int;
+use function is_object;
 use function is_string;
 use function sprintf;
 
@@ -36,7 +38,7 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
             $this->publishes([
                 __DIR__ . '/../config/openfga.php' => config_path('openfga.php'),
             ], 'openfga-config');
-            
+
             $this->commands([
                 Console\Commands\MakePermissionMigrationCommand::class,
                 Console\Commands\MakePermissionSeederCommand::class,
@@ -47,6 +49,9 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
                 Console\Commands\ListObjectsCommand::class,
                 Console\Commands\DebugCommand::class,
                 Console\Commands\StatsCommand::class,
+                Console\Commands\WarmCacheCommand::class,
+                Console\Commands\ClearCacheCommand::class,
+                Console\Commands\CacheStatsCommand::class,
             ]);
         }
 
@@ -90,17 +95,78 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
     }
 
     /**
-     * Register view helper services.
+     * Load Blade components.
+     *
+     * @param array<string, string> $components
      */
-    private function registerViewHelpers(): void
+    private function loadBladeComponentsFrom(array $components): void
     {
-        $this->app->singleton(View\JavaScriptHelper::class, function ($app) {
-            return new View\JavaScriptHelper($app[OpenFgaManager::class]);
-        });
+        if (! $this->app->bound('blade.compiler')) {
+            return;
+        }
 
-        $this->app->bind(View\MenuBuilder::class, function ($app) {
-            return new View\MenuBuilder($app[OpenFgaManager::class]);
-        });
+        try {
+            $bladeCompiler = $this->app->make('blade.compiler');
+        } catch (BindingResolutionException) {
+            return;
+        }
+
+        if (! is_object($bladeCompiler) || ! method_exists($bladeCompiler, 'component')) {
+            return;
+        }
+
+        foreach ($components as $alias => $class) {
+            $bladeCompiler->component($class, $alias);
+        }
+    }
+
+    /**
+     * Load helper functions.
+     */
+    private function loadHelpers(): void
+    {
+        if (file_exists(__DIR__ . '/Helpers.php')) {
+            require_once __DIR__ . '/Helpers.php';
+        }
+    }
+
+    /**
+     * Register OpenFGA authorization integration.
+     */
+    private function registerAuthorizationIntegration(): void
+    {
+        // Register the authorization service provider
+        $this->app->register(Authorization\AuthorizationServiceProvider::class);
+    }
+
+    /**
+     * Register Blade components.
+     */
+    private function registerBladeComponents(): void
+    {
+        if (method_exists($this->app, 'make') && $this->app->bound('blade.compiler')) {
+            $this->loadBladeComponentsFrom([
+                'openfga-can' => View\Components\Can::class,
+                'openfga-cannot' => View\Components\Cannot::class,
+                'openfga-can-any' => View\Components\CanAny::class,
+                'openfga-can-all' => View\Components\CanAll::class,
+            ]);
+        }
+    }
+
+    /**
+     * Register OpenFGA Blade integration.
+     */
+    private function registerBladeIntegration(): void
+    {
+        // Register the Blade service provider
+        $this->app->register(View\BladeServiceProvider::class);
+
+        // Register Blade components
+        $this->registerBladeComponents();
+
+        // Register view paths
+        $this->loadViewsFrom(__DIR__ . '/../resources/views', 'openfga');
     }
 
     /**
@@ -145,11 +211,19 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
      */
     private function registerMiddleware(): void
     {
-        if (!$this->app->bound('router')) {
+        if (! $this->app->bound('router')) {
             return;
         }
-        
-        $router = $this->app['router'];
+
+        try {
+            $router = $this->app->make('router');
+        } catch (BindingResolutionException) {
+            return;
+        }
+
+        if (! is_object($router) || ! method_exists($router, 'aliasMiddleware')) {
+            return;
+        }
 
         $router->aliasMiddleware('openfga', Http\Middleware\OpenFgaMiddleware::class);
         $router->aliasMiddleware('openfga.permission', Http\Middleware\RequiresPermission::class);
@@ -159,64 +233,37 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
     }
 
     /**
-     * Register OpenFGA authorization integration.
+     * Register view helper services.
      */
-    private function registerAuthorizationIntegration(): void
+    private function registerViewHelpers(): void
     {
-        // Register the authorization service provider
-        $this->app->register(Authorization\AuthorizationServiceProvider::class);
-    }
+        $this->app->singleton(JavaScriptHelper::class, static function ($app): JavaScriptHelper {
+            if (! is_object($app) || ! method_exists($app, 'get')) {
+                throw new RuntimeException('Container does not support get() method');
+            }
 
-    /**
-     * Register OpenFGA Blade integration.
-     */
-    private function registerBladeIntegration(): void
-    {
-        // Register the Blade service provider
-        $this->app->register(View\BladeServiceProvider::class);
+            $manager = $app->get(OpenFgaManager::class);
 
-        // Register Blade components
-        $this->registerBladeComponents();
+            if (! $manager instanceof OpenFgaManager) {
+                throw new RuntimeException('Failed to resolve OpenFgaManager from container');
+            }
 
-        // Register view paths
-        $this->loadViewsFrom(__DIR__ . '/../resources/views', 'openfga');
-    }
+            return new JavaScriptHelper($manager);
+        });
 
-    /**
-     * Register Blade components.
-     */
-    private function registerBladeComponents(): void
-    {
-        if (method_exists($this->app, 'make') && $this->app->bound('blade.compiler')) {
-            $this->loadBladeComponentsFrom([
-                'openfga-can' => View\Components\Can::class,
-                'openfga-cannot' => View\Components\Cannot::class,
-                'openfga-can-any' => View\Components\CanAny::class,
-                'openfga-can-all' => View\Components\CanAll::class,
-            ]);
-        }
-    }
+        $this->app->bind(MenuBuilder::class, static function ($app): MenuBuilder {
+            if (! is_object($app) || ! method_exists($app, 'get')) {
+                throw new RuntimeException('Container does not support get() method');
+            }
 
-    /**
-     * Load Blade components.
-     *
-     * @param array<string, string> $components
-     */
-    private function loadBladeComponentsFrom(array $components): void
-    {
-        foreach ($components as $alias => $class) {
-            $this->app['blade.compiler']->component($class, $alias);
-        }
-    }
+            $manager = $app->get(OpenFgaManager::class);
 
-    /**
-     * Load helper functions.
-     */
-    private function loadHelpers(): void
-    {
-        if (file_exists(__DIR__ . '/helpers.php')) {
-            require_once __DIR__ . '/helpers.php';
-        }
+            if (! $manager instanceof OpenFgaManager) {
+                throw new RuntimeException('Failed to resolve OpenFgaManager from container');
+            }
+
+            return new MenuBuilder($manager);
+        });
     }
 
     /**

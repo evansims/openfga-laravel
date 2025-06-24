@@ -8,24 +8,30 @@ use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
+use function sprintf;
+
 /**
  * Event fired when a permission check is performed.
  */
-class PermissionChecked
+final class PermissionChecked
 {
-    use Dispatchable, InteractsWithSockets, SerializesModels;
+    use Dispatchable;
+
+    use InteractsWithSockets;
+
+    use SerializesModels;
 
     /**
      * Create a new event instance.
      *
-     * @param string $user The user identifier
-     * @param string $relation The relation being checked
-     * @param string $object The object identifier
-     * @param bool $allowed Whether the permission was granted
-     * @param string|null $connection The connection used
-     * @param float $duration The duration of the check in seconds
-     * @param bool $cached Whether the result was from cache
-     * @param array<string, mixed> $context Additional context
+     * @param string               $user       The user identifier
+     * @param string               $relation   The relation being checked
+     * @param string               $object     The object identifier
+     * @param bool                 $allowed    Whether the permission was granted
+     * @param string|null          $connection The connection used
+     * @param float                $duration   The duration of the check in seconds
+     * @param bool                 $cached     Whether the result was from cache
+     * @param array<string, mixed> $context    Additional context
      */
     public function __construct(
         public readonly string $user,
@@ -35,7 +41,7 @@ class PermissionChecked
         public readonly ?string $connection = null,
         public readonly float $duration = 0.0,
         public readonly bool $cached = false,
-        public readonly array $context = []
+        public readonly array $context = [],
     ) {
     }
 
@@ -49,7 +55,7 @@ class PermissionChecked
             $this->user,
             $this->relation,
             $this->object,
-            $this->allowed ? 'allowed' : 'denied'
+            $this->allowed ? 'allowed' : 'denied',
         );
     }
 }

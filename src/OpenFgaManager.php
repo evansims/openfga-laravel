@@ -14,6 +14,8 @@ use InvalidArgumentException;
 use OpenFGA\Authentication\{AuthenticationInterface, ClientCredentialAuthentication, TokenAuthentication};
 use OpenFGA\{Client, ClientInterface};
 use OpenFGA\Exceptions\ClientThrowable;
+use OpenFGA\Laravel\Cache\{ReadThroughCache, TaggedCache};
+use OpenFGA\Laravel\Contracts\ManagerInterface;
 use OpenFGA\Laravel\Query\AuthorizationQuery;
 use OpenFGA\Models\{BatchCheckItem, TupleKey, UserTypeFilter};
 use OpenFGA\Models\Collections\{BatchCheckItems, TupleKeys, TupleKeysInterface, UserTypeFilters};
@@ -32,7 +34,7 @@ use function sprintf;
  * Manages multiple OpenFGA connections and provides a fluent API
  * for interacting with OpenFGA services.
  */
-final class OpenFgaManager
+final class OpenFgaManager implements ManagerInterface
 {
     /**
      * The active connection instances.
@@ -40,6 +42,16 @@ final class OpenFgaManager
      * @var array<string, ClientInterface>
      */
     private array $connections = [];
+
+    /**
+     * Read-through cache instance.
+     */
+    private ?ReadThroughCache $readThroughCache = null;
+
+    /**
+     * Tagged cache instance.
+     */
+    private ?TaggedCache $taggedCache = null;
 
     /**
      * Whether to throw exceptions instead of returning Result pattern.
@@ -56,6 +68,7 @@ final class OpenFgaManager
         private readonly Container $container,
         private array $config,
     ) {
+        $this->initializeCaching();
     }
 
     /**
@@ -99,13 +112,23 @@ final class OpenFgaManager
 
             // Check cache first
             if ($this->cacheEnabled()) {
-                $cacheKey = $this->getCacheKey('check', $user, $check['relation'], $check['object']);
-                $cached = $this->getCache()->get($cacheKey);
+                if ($this->taggedCacheEnabled()) {
+                    $cached = $this->getTaggedCache()->getPermission($user, $check['relation'], $check['object']);
 
-                if (null !== $cached) {
-                    $results[$key] = (bool) $cached;
+                    if (null !== $cached) {
+                        $results[$key] = $cached;
 
-                    continue;
+                        continue;
+                    }
+                } else {
+                    $cacheKey = $this->getCacheKey('check', $user, $check['relation'], $check['object']);
+                    $cached = $this->getCache()->get($cacheKey);
+
+                    if (null !== $cached) {
+                        $results[$key] = (bool) $cached;
+
+                        continue;
+                    }
                 }
             }
 
@@ -147,9 +170,9 @@ final class OpenFgaManager
             );
 
             $batchResults = $this->handleResult($result, static function ($success) {
-                if (method_exists($success, 'getResults')) {
+                if (method_exists($success, 'getResult')) {
                     /** @var array<object> */
-                    return $success->getResults();
+                    return $success->getResult();
                 }
 
                 return [];
@@ -192,12 +215,12 @@ final class OpenFgaManager
     /**
      * Check if a user has a specific permission.
      *
-     * @param string                                                            $user             User identifier (supports @me for current user)
-     * @param string                                                            $relation         The relation to check
-     * @param string                                                            $object           The object to check against
-     * @param array<int, array{user: string, relation: string, object: string}> $contextualTuples Optional contextual tuples
-     * @param object|null                                                       $context          Optional context
-     * @param string|null                                                       $connection       Optional connection name
+     * @param string                                                                $user             User identifier (supports @me for current user)
+     * @param string                                                                $relation         The relation to check
+     * @param string                                                                $object           The object to check against
+     * @param array<array{user: string, relation: string, object: string}|TupleKey> $contextualTuples Optional contextual tuples
+     * @param array<string, mixed>                                                  $context          Optional context
+     * @param string|null                                                           $connection       Optional connection name
      *
      * @throws \Psr\SimpleCache\InvalidArgumentException
      * @throws BindingResolutionException
@@ -210,7 +233,7 @@ final class OpenFgaManager
         string $relation,
         string $object,
         array $contextualTuples = [],
-        ?object $context = null,
+        array $context = [],
         ?string $connection = null,
     ): bool {
         // Auto-resolve user from auth if needed
@@ -218,13 +241,25 @@ final class OpenFgaManager
 
         // Check cache first if enabled
         if ($this->cacheEnabled()) {
-            $cacheKey = $this->getCacheKey('check', $user, $relation, $object);
-            $cached = $this->getCache()->get($cacheKey);
+            // Try tagged cache first if available
+            if ($this->taggedCacheEnabled()) {
+                $cached = $this->getTaggedCache()->getPermission($user, $relation, $object);
 
-            if (null !== $cached) {
-                $this->logCacheHit('check', $cacheKey);
+                if (null !== $cached) {
+                    $this->logCacheHit('check', sprintf('tagged:%s:%s:%s', $user, $relation, $object));
 
-                return (bool) $cached;
+                    return $cached;
+                }
+            } else {
+                // Fallback to regular cache
+                $cacheKey = $this->getCacheKey('check', $user, $relation, $object);
+                $cached = $this->getCache()->get($cacheKey);
+
+                if (null !== $cached) {
+                    $this->logCacheHit('check', $cacheKey);
+
+                    return (bool) $cached;
+                }
             }
         }
 
@@ -242,11 +277,16 @@ final class OpenFgaManager
             $tuples = [];
 
             foreach ($contextualTuples as $contextualTuple) {
-                $tuples[] = new TupleKey(
-                    user: $this->resolveUserId($contextualTuple['user']),
-                    relation: $contextualTuple['relation'],
-                    object: $contextualTuple['object'],
-                );
+                if ($contextualTuple instanceof TupleKey) {
+                    $tuples[] = $contextualTuple;
+                } else {
+                    // Support legacy array format
+                    $tuples[] = new TupleKey(
+                        user: $this->resolveUserId($contextualTuple['user']),
+                        relation: $contextualTuple['relation'],
+                        object: $contextualTuple['object'],
+                    );
+                }
             }
             $contextualTuplesCollection = new TupleKeys($tuples);
         }
@@ -270,12 +310,19 @@ final class OpenFgaManager
             throw new InvalidArgumentException('model_id not configured');
         }
 
+        // Convert context array to object if needed
+        $contextObject = null;
+
+        if ([] !== $context) {
+            $contextObject = (object) $context;
+        }
+
         // Perform check
         $result = $this->connection($connection)->check(
             store: $storeId,
             model: $modelId,
             tuple: $tupleKey,
-            context: $context,
+            context: $contextObject,
             contextualTuples: $contextualTuplesCollection,
         );
 
@@ -291,8 +338,12 @@ final class OpenFgaManager
 
         // Cache the result if enabled
         if ($this->cacheEnabled() && null !== $allowed) {
-            $cacheKey = $this->getCacheKey('check', $user, $relation, $object);
-            $this->getCache()->put($cacheKey, $allowed, $this->getCacheTtl());
+            if ($this->taggedCacheEnabled()) {
+                $this->getTaggedCache()->putPermission($user, $relation, $object, $allowed, $this->getCacheTtl());
+            } else {
+                $cacheKey = $this->getCacheKey('check', $user, $relation, $object);
+                $this->getCache()->put($cacheKey, $allowed, $this->getCacheTtl());
+            }
         }
 
         return true === $allowed;
@@ -355,6 +406,29 @@ final class OpenFgaManager
     }
 
     /**
+     * Get the read-through cache instance.
+     */
+    public function getReadThroughCache(): ReadThroughCache
+    {
+        $cacheConfig = $this->config['cache'] ?? [];
+        $readThroughEnabled = true;
+
+        if (is_array($cacheConfig) && isset($cacheConfig['read_through'])) {
+            $readThroughEnabled = (bool) $cacheConfig['read_through'];
+        }
+
+        if (! $this->readThroughCache instanceof ReadThroughCache && $readThroughEnabled) {
+            $this->readThroughCache = new ReadThroughCache($this, $cacheConfig);
+        }
+
+        if (! $this->readThroughCache instanceof ReadThroughCache) {
+            throw new RuntimeException('Read-through cache is not enabled');
+        }
+
+        return $this->readThroughCache;
+    }
+
+    /**
      * Grant permission(s) to user(s).
      *
      * @param array<string>|string $users      User identifier(s)
@@ -387,16 +461,6 @@ final class OpenFgaManager
         $writes = new TupleKeys($tuples);
 
         return $this->write($writes, null, $connection);
-    }
-
-    /**
-     * Create a new query builder instance.
-     *
-     * @param string|null $connection Optional connection name
-     */
-    public function query(?string $connection = null): AuthorizationQuery
-    {
-        return new AuthorizationQuery($this, $connection);
     }
 
     /**
@@ -452,12 +516,12 @@ final class OpenFgaManager
     /**
      * List all objects a user has a specific relation with.
      *
-     * @param string                                                            $user             User identifier
-     * @param string                                                            $relation         The relation to check
-     * @param string                                                            $type             The object type
-     * @param array<int, array{user: string, relation: string, object: string}> $contextualTuples Optional contextual tuples
-     * @param object|null                                                       $context          Optional context
-     * @param string|null                                                       $connection       Optional connection name
+     * @param string                                                                $user             User identifier
+     * @param string                                                                $relation         The relation to check
+     * @param string                                                                $type             The object type
+     * @param array<array{user: string, relation: string, object: string}|TupleKey> $contextualTuples Optional contextual tuples
+     * @param array<string, mixed>                                                  $context          Optional context
+     * @param string|null                                                           $connection       Optional connection name
      *
      * @throws BindingResolutionException
      * @throws ClientThrowable
@@ -471,7 +535,7 @@ final class OpenFgaManager
         string $relation,
         string $type,
         array $contextualTuples = [],
-        ?object $context = null,
+        array $context = [],
         ?string $connection = null,
     ): array {
         $user = $this->resolveUserId($user);
@@ -488,11 +552,16 @@ final class OpenFgaManager
             $tuples = [];
 
             foreach ($contextualTuples as $contextualTuple) {
-                $tuples[] = new TupleKey(
-                    user: $this->resolveUserId($contextualTuple['user']),
-                    relation: $contextualTuple['relation'],
-                    object: $contextualTuple['object'],
-                );
+                if ($contextualTuple instanceof TupleKey) {
+                    $tuples[] = $contextualTuple;
+                } else {
+                    // Support legacy array format
+                    $tuples[] = new TupleKey(
+                        user: $this->resolveUserId($contextualTuple['user']),
+                        relation: $contextualTuple['relation'],
+                        object: $contextualTuple['object'],
+                    );
+                }
             }
             $contextualTuplesCollection = new TupleKeys($tuples);
         }
@@ -508,13 +577,20 @@ final class OpenFgaManager
             throw new InvalidArgumentException('model_id not configured');
         }
 
+        // Convert context array to object if needed
+        $contextObject = null;
+
+        if ([] !== $context) {
+            $contextObject = (object) $context;
+        }
+
         $result = $this->connection($connection)->listObjects(
             store: $storeId,
             model: $modelId,
             type: $type,
             relation: $relation,
             user: $user,
-            context: $context,
+            context: $contextObject,
             contextualTuples: $contextualTuplesCollection,
         );
 
@@ -531,14 +607,57 @@ final class OpenFgaManager
     }
 
     /**
+     * List all relations a user has with an object.
+     *
+     * @param string                                                                $user             User identifier
+     * @param string                                                                $object           The object
+     * @param array<string>                                                         $relations        Optional relation filters
+     * @param array<array{user: string, relation: string, object: string}|TupleKey> $contextualTuples Optional contextual tuples
+     * @param array<string, mixed>                                                  $context          Optional context
+     * @param string|null                                                           $connection       Optional connection name
+     *
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception                  If throwExceptions is true and an error occurs
+     * @throws InvalidArgumentException
+     *
+     * @return array<string, bool> Relations mapped to whether the user has them
+     */
+    public function listRelations(
+        string $user,
+        string $object,
+        array $relations = [],
+        array $contextualTuples = [],
+        array $context = [],
+        ?string $connection = null,
+    ): array {
+        $user = $this->resolveUserId($user);
+
+        // If no specific relations provided, we need to check all possible relations
+        // In a real implementation, you might want to get these from the authorization model
+        if ([] === $relations) {
+            throw new InvalidArgumentException('Relations array cannot be empty');
+        }
+
+        $results = [];
+
+        // Check each relation
+        foreach ($relations as $relation) {
+            $results[$relation] = $this->check($user, $relation, $object, $contextualTuples, $context, $connection);
+        }
+
+        return $results;
+    }
+
+    /**
      * List all users who have a specific relation with an object.
      *
-     * @param string                                                            $object           The object
-     * @param string                                                            $relation         The relation to check
-     * @param array<string>                                                     $userTypes        Optional user type filters
-     * @param array<int, array{user: string, relation: string, object: string}> $contextualTuples Optional contextual tuples
-     * @param object|null                                                       $context          Optional context
-     * @param string|null                                                       $connection       Optional connection name
+     * @param string                                                                $object           The object
+     * @param string                                                                $relation         The relation to check
+     * @param array<string>                                                         $userTypes        Optional user type filters
+     * @param array<array{user: string, relation: string, object: string}|TupleKey> $contextualTuples Optional contextual tuples
+     * @param array<string, mixed>                                                  $context          Optional context
+     * @param string|null                                                           $connection       Optional connection name
      *
      * @throws BindingResolutionException
      * @throws ClientThrowable
@@ -552,7 +671,7 @@ final class OpenFgaManager
         string $relation,
         array $userTypes = [],
         array $contextualTuples = [],
-        ?object $context = null,
+        array $context = [],
         ?string $connection = null,
     ): array {
         $connectionConfig = $this->configuration($connection ?? $this->getDefaultConnection());
@@ -572,11 +691,16 @@ final class OpenFgaManager
             $tuples = [];
 
             foreach ($contextualTuples as $contextualTuple) {
-                $tuples[] = new TupleKey(
-                    user: $this->resolveUserId($contextualTuple['user']),
-                    relation: $contextualTuple['relation'],
-                    object: $contextualTuple['object'],
-                );
+                if ($contextualTuple instanceof TupleKey) {
+                    $tuples[] = $contextualTuple;
+                } else {
+                    // Support legacy array format
+                    $tuples[] = new TupleKey(
+                        user: $this->resolveUserId($contextualTuple['user']),
+                        relation: $contextualTuple['relation'],
+                        object: $contextualTuple['object'],
+                    );
+                }
             }
             $contextualTuplesCollection = new TupleKeys($tuples);
         }
@@ -592,13 +716,20 @@ final class OpenFgaManager
             throw new InvalidArgumentException('model_id not configured');
         }
 
+        // Convert context array to object if needed
+        $contextObject = null;
+
+        if ([] !== $context) {
+            $contextObject = (object) $context;
+        }
+
         $result = $this->connection($connection)->listUsers(
             store: $storeId,
             model: $modelId,
             object: $object,
             relation: $relation,
             userFilters: $userFilters,
-            context: $context,
+            context: $contextObject,
             contextualTuples: $contextualTuplesCollection,
         );
 
@@ -615,46 +746,13 @@ final class OpenFgaManager
     }
 
     /**
-     * List all relations a user has with an object.
+     * Create a new query builder instance.
      *
-     * @param string                                                            $user             User identifier
-     * @param string                                                            $object           The object
-     * @param array<string>                                                     $relations        Optional relation filters
-     * @param array<int, array{user: string, relation: string, object: string}> $contextualTuples Optional contextual tuples
-     * @param object|null                                                       $context          Optional context
-     * @param string|null                                                       $connection       Optional connection name
-     *
-     * @throws BindingResolutionException
-     * @throws ClientThrowable
-     * @throws Exception                  If throwExceptions is true and an error occurs
-     * @throws InvalidArgumentException
-     *
-     * @return array<string, bool> Relations mapped to whether the user has them
+     * @param string|null $connection Optional connection name
      */
-    public function listRelations(
-        string $user,
-        string $object,
-        array $relations = [],
-        array $contextualTuples = [],
-        ?object $context = null,
-        ?string $connection = null,
-    ): array {
-        $user = $this->resolveUserId($user);
-        
-        // If no specific relations provided, we need to check all possible relations
-        // In a real implementation, you might want to get these from the authorization model
-        if (count($relations) === 0) {
-            throw new InvalidArgumentException('Relations array cannot be empty');
-        }
-        
-        $results = [];
-        
-        // Check each relation
-        foreach ($relations as $relation) {
-            $results[$relation] = $this->check($user, $relation, $object, $contextualTuples, $context, $connection);
-        }
-        
-        return $results;
+    public function query(?string $connection = null): AuthorizationQuery
+    {
+        return new AuthorizationQuery($this, $connection);
     }
 
     /**
@@ -1106,6 +1204,18 @@ final class OpenFgaManager
     }
 
     /**
+     * Get the tagged cache instance.
+     */
+    private function getTaggedCache(): TaggedCache
+    {
+        if (! $this->taggedCache instanceof TaggedCache) {
+            $this->taggedCache = new TaggedCache($this->config['cache'] ?? []);
+        }
+
+        return $this->taggedCache;
+    }
+
+    /**
      * Handle result from SDK, converting between Result pattern and exceptions.
      *
      * @template T
@@ -1142,27 +1252,79 @@ final class OpenFgaManager
     }
 
     /**
-     * Invalidate cache for affected tuples.
+     * Initialize caching components.
+     */
+    private function initializeCaching(): void
+    {
+        $cacheConfig = $this->config['cache'] ?? [];
+
+        // Initialize read-through cache if enabled
+        $readThroughEnabled = true;
+
+        if (is_array($cacheConfig) && isset($cacheConfig['read_through'])) {
+            $readThroughEnabled = (bool) $cacheConfig['read_through'];
+        }
+
+        if ($readThroughEnabled) {
+            $this->readThroughCache = new ReadThroughCache($this, $cacheConfig);
+        }
+
+        // Initialize tagged cache if tags are enabled
+        $tagsEnabled = true;
+
+        if (is_array($cacheConfig) && isset($cacheConfig['tags']) && is_array($cacheConfig['tags']) && isset($cacheConfig['tags']['enabled'])) {
+            $tagsEnabled = (bool) $cacheConfig['tags']['enabled'];
+        }
+
+        if ($tagsEnabled) {
+            $this->taggedCache = new TaggedCache($cacheConfig);
+        }
+    }
+
+    /**
+     * Invalidate cache entries for the given tuples.
      *
-     * @param TupleKeysInterface|null $writes
-     * @param TupleKeysInterface|null $deletes
-     *
-     * @throws BindingResolutionException
+     * @param ?TupleKeysInterface $writes
+     * @param ?TupleKeysInterface $deletes
      */
     private function invalidateCache(?TupleKeysInterface $writes, ?TupleKeysInterface $deletes): void
     {
-        $cache = $this->getCache();
+        if (! $this->cacheEnabled()) {
+            return;
+        }
+
+        $tuplesToInvalidate = [];
 
         if ($writes instanceof TupleKeysInterface) {
             foreach ($writes as $write) {
-                $cacheKey = $this->getCacheKey('check', $write->getUser(), $write->getRelation(), $write->getObject());
-                $cache->forget($cacheKey);
+                if ($write instanceof TupleKey) {
+                    $tuplesToInvalidate[] = $write;
+                }
             }
         }
 
         if ($deletes instanceof TupleKeysInterface) {
             foreach ($deletes as $delete) {
-                $cacheKey = $this->getCacheKey('check', $delete->getUser(), $delete->getRelation(), $delete->getObject());
+                if ($delete instanceof TupleKey) {
+                    $tuplesToInvalidate[] = $delete;
+                }
+            }
+        }
+
+        if ($this->taggedCacheEnabled()) {
+            $taggedCache = $this->getTaggedCache();
+
+            foreach ($tuplesToInvalidate as $tupleToInvalidate) {
+                // Invalidate by user and object to clear all relations
+                $taggedCache->invalidateUser($tupleToInvalidate->getUser());
+                $taggedCache->invalidateObject($tupleToInvalidate->getObject());
+            }
+        } else {
+            // Invalidate regular cache entries
+            $cache = $this->getCache();
+
+            foreach ($tuplesToInvalidate as $tupleToInvalidate) {
+                $cacheKey = $this->getCacheKey('check', $tupleToInvalidate->getUser(), $tupleToInvalidate->getRelation(), $tupleToInvalidate->getObject());
                 $cache->forget($cacheKey);
             }
         }
@@ -1267,5 +1429,31 @@ final class OpenFgaManager
         }
 
         return $user;
+    }
+
+    /**
+     * Check if tagged cache is enabled.
+     */
+    private function taggedCacheEnabled(): bool
+    {
+        if (! $this->cacheEnabled()) {
+            return false;
+        }
+
+        $cacheConfig = $this->config['cache'] ?? [];
+
+        if (! is_array($cacheConfig)) {
+            return false;
+        }
+
+        $tagsConfig = $cacheConfig['tags'] ?? [];
+
+        if (! is_array($tagsConfig)) {
+            return false;
+        }
+
+        $enabled = $tagsConfig['enabled'] ?? false;
+
+        return true === $enabled;
     }
 }

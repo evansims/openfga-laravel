@@ -9,41 +9,41 @@ use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 use Throwable;
 
+use function count;
+
 /**
  * Event fired when a batch write operation fails.
  */
-class BatchWriteFailed
+final class BatchWriteFailed
 {
-    use Dispatchable, InteractsWithSockets, SerializesModels;
+    use Dispatchable;
+
+    use InteractsWithSockets;
+
+    use SerializesModels;
 
     /**
      * Create a new event instance.
      *
      * @param array<array{user: string, relation: string, object: string}> $writes
      * @param array<array{user: string, relation: string, object: string}> $deletes
-     * @param string|null $connection The connection used
-     * @param Throwable $exception The exception that caused the failure
-     * @param array<string, mixed> $options Additional options
+     * @param string|null                                                  $connection The connection used
+     * @param Throwable                                                    $exception  The exception that caused the failure
+     * @param array<string, mixed>                                         $options    Additional options
      */
     public function __construct(
         public readonly array $writes,
         public readonly array $deletes,
         public readonly ?string $connection,
         public readonly Throwable $exception,
-        public readonly array $options = []
+        public readonly array $options = [],
     ) {
     }
 
     /**
-     * Get the total number of operations that failed.
-     */
-    public function getTotalOperations(): int
-    {
-        return count($this->writes) + count($this->deletes);
-    }
-
-    /**
      * Get a summary of the failed batch operation.
+     *
+     * @return array{writes: int, deletes: int, total: int, connection: string|null, error: string, exception_class: class-string}
      */
     public function getSummary(): array
     {
@@ -53,7 +53,15 @@ class BatchWriteFailed
             'total' => $this->getTotalOperations(),
             'connection' => $this->connection,
             'error' => $this->exception->getMessage(),
-            'exception_class' => get_class($this->exception),
+            'exception_class' => $this->exception::class,
         ];
+    }
+
+    /**
+     * Get the total number of operations that failed.
+     */
+    public function getTotalOperations(): int
+    {
+        return count($this->writes) + count($this->deletes);
     }
 }

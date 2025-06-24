@@ -4,41 +4,60 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\View;
 
+use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use OpenFGA\Laravel\Contracts\{AuthorizationUser, AuthorizationUserId};
 use OpenFGA\Laravel\OpenFgaManager;
+use RuntimeException;
+
+use function is_int;
+use function is_object;
+use function is_string;
 
 /**
  * Builder class for creating permission-based menus.
  */
-class MenuBuilder
+final readonly class MenuBuilder
 {
     /**
      * Menu items collection.
      *
-     * @var Collection<int, array>
+     * @var Collection<int, array<string, mixed>>
      */
-    protected Collection $items;
+    private Collection $items;
 
     /**
      * Create a new menu builder instance.
+     *
+     * @param OpenFgaManager $manager
+     * @param ?string        $connection
      */
     public function __construct(
-        protected OpenFgaManager $manager,
-        protected ?string $connection = null
+        private OpenFgaManager $manager,
+        private ?string $connection = null,
     ) {
         $this->items = collect();
     }
 
     /**
+     * Create a new menu builder instance.
+     *
+     * @param string|null $connection
+     */
+    public static function make(?string $connection = null): static
+    {
+        return new self(app(OpenFgaManager::class), $connection);
+    }
+
+    /**
      * Add a menu item with permission check.
      *
-     * @param string      $label
-     * @param string      $url
-     * @param string|null $relation
-     * @param mixed       $object
-     * @param array<string, mixed> $attributes
-     *
+     * @param  string               $label
+     * @param  string               $url
+     * @param  string|null          $relation
+     * @param  mixed                $object
+     * @param  array<string, mixed> $attributes
      * @return $this
      */
     public function add(string $label, string $url, ?string $relation = null, $object = null, array $attributes = []): self
@@ -58,12 +77,11 @@ class MenuBuilder
     /**
      * Add a menu item that requires a specific permission.
      *
-     * @param string      $label
-     * @param string      $url
-     * @param string      $relation
-     * @param mixed       $object
-     * @param array<string, mixed> $attributes
-     *
+     * @param  string               $label
+     * @param  string               $url
+     * @param  string               $relation
+     * @param  mixed                $object
+     * @param  array<string, mixed> $attributes
      * @return $this
      */
     public function addIfCan(string $label, string $url, string $relation, $object, array $attributes = []): self
@@ -72,31 +90,13 @@ class MenuBuilder
     }
 
     /**
-     * Add a submenu.
+     * Build the menu and filter items based on permissions.
      *
-     * @param string   $label
-     * @param callable $callback
-     * @param string|null $relation
-     * @param mixed    $object
-     * @param array<string, mixed> $attributes
-     *
-     * @return $this
+     * @return Collection<int, array<string, mixed>>
      */
-    public function submenu(string $label, callable $callback, ?string $relation = null, $object = null, array $attributes = []): self
+    public function build(): Collection
     {
-        $submenu = new static($this->manager, $this->connection);
-        $callback($submenu);
-
-        $this->items->push([
-            'label' => $label,
-            'url' => null,
-            'relation' => $relation,
-            'object' => $object,
-            'attributes' => $attributes,
-            'children' => $submenu->items,
-        ]);
-
-        return $this;
+        return $this->filterItems($this->items);
     }
 
     /**
@@ -120,66 +120,86 @@ class MenuBuilder
     }
 
     /**
-     * Build the menu and filter items based on permissions.
+     * Render the menu as HTML.
      *
-     * @return Collection<int, array>
+     * @param string               $view
+     * @param array<string, mixed> $data
      */
-    public function build(): Collection
+    public function render(string $view = 'openfga::menu', array $data = []): string
     {
-        return $this->filterItems($this->items);
+        $items = $this->build();
+
+        return view($view, array_merge($data, ['items' => $items]))->render();
+    }
+
+    /**
+     * Add a submenu.
+     *
+     * @param  string               $label
+     * @param  callable(self): void $callback
+     * @param  string|null          $relation
+     * @param  mixed                $object
+     * @param  array<string, mixed> $attributes
+     * @return $this
+     */
+    public function submenu(string $label, callable $callback, ?string $relation = null, $object = null, array $attributes = []): self
+    {
+        $submenu = new self($this->manager, $this->connection);
+        $callback($submenu);
+
+        $this->items->push([
+            'label' => $label,
+            'url' => null,
+            'relation' => $relation,
+            'object' => $object,
+            'attributes' => $attributes,
+            'children' => $submenu->items,
+        ]);
+
+        return $this;
     }
 
     /**
      * Build the menu as an array.
      *
-     * @return array<int, array>
+     * @return array<int, array<string, mixed>>
      */
     public function toArray(): array
     {
+        /** @var array<int, array<string, mixed>> */
         return $this->build()->toArray();
-    }
-
-    /**
-     * Render the menu as HTML.
-     *
-     * @param string $view
-     * @param array<string, mixed> $data
-     *
-     * @return string
-     */
-    public function render(string $view = 'openfga::menu', array $data = []): string
-    {
-        $items = $this->build();
-        
-        return view($view, array_merge($data, ['items' => $items]))->render();
     }
 
     /**
      * Filter menu items based on permissions.
      *
-     * @param Collection<int, array> $items
-     *
-     * @return Collection<int, array>
+     * @param  Collection<int, array<string, mixed>> $items
+     * @return Collection<int, array<string, mixed>>
      */
-    protected function filterItems(Collection $items): Collection
+    private function filterItems(Collection $items): Collection
     {
-        return $items->filter(function ($item) {
+        /** @var Collection<int, array<string, mixed>> */
+        return $items->filter(function (array $item): bool {
             // Always show dividers
-            if (isset($item['type']) && $item['type'] === 'divider') {
+            if (isset($item['type']) && 'divider' === $item['type']) {
                 return true;
             }
 
             // Check permission if specified
-            if ($item['relation'] && $item['object']) {
-                if (!$this->hasPermission($item['relation'], $item['object'])) {
-                    return false;
-                }
+            $relation = $item['relation'] ?? null;
+            $object = $item['object'] ?? null;
+
+            if (is_string($relation) && null !== $object && ! $this->hasPermission($relation, $object)) {
+                return false;
             }
 
             // Filter children recursively
-            if ($item['children'] && $item['children']->isNotEmpty()) {
-                $item['children'] = $this->filterItems($item['children']);
-                
+            $children = $item['children'] ?? null;
+
+            if ($children instanceof Collection && $children->isNotEmpty()) {
+                /** @var Collection<int, array<string, mixed>> $children */
+                $item['children'] = $this->filterItems($children);
+
                 // Hide parent if all children are hidden
                 if ($item['children']->isEmpty()) {
                     return false;
@@ -195,12 +215,10 @@ class MenuBuilder
      *
      * @param string $relation
      * @param mixed  $object
-     *
-     * @return bool
      */
-    protected function hasPermission(string $relation, $object): bool
+    private function hasPermission(string $relation, $object): bool
     {
-        if (!Auth::check()) {
+        if (! Auth::check()) {
             return false;
         }
 
@@ -208,52 +226,46 @@ class MenuBuilder
         $userId = $this->resolveUserId($user);
         $objectId = $this->resolveObject($object);
 
-        return $this->manager
-            ->connection($this->connection)
-            ->check($userId, $relation, $objectId);
-    }
-
-    /**
-     * Resolve the user ID for OpenFGA.
-     *
-     * @param mixed $user
-     *
-     * @return string
-     */
-    protected function resolveUserId($user): string
-    {
-        if (method_exists($user, 'authorizationUser')) {
-            return $user->authorizationUser();
-        }
-
-        if (method_exists($user, 'getAuthorizationUserId')) {
-            return $user->getAuthorizationUserId();
-        }
-
-        return 'user:' . $user->getAuthIdentifier();
+        return $this->manager->check($userId, $relation, $objectId, [], [], $this->connection);
     }
 
     /**
      * Resolve the object identifier for OpenFGA.
      *
      * @param mixed $object
-     *
-     * @return string
      */
-    protected function resolveObject($object): string
+    private function resolveObject($object): string
     {
         return openfga_resolve_object($object);
     }
 
     /**
-     * Create a new menu builder instance.
+     * Resolve the user ID for OpenFGA.
      *
-     * @param string|null $connection
-     *
-     * @return static
+     * @param Authenticatable|null $user
      */
-    public static function make(?string $connection = null): static
+    private function resolveUserId($user): string
     {
-        return new static(app(OpenFgaManager::class), $connection);
+        if (null === $user) {
+            throw new RuntimeException('User is null');
+        }
+
+        if (is_object($user) && method_exists($user, 'authorizationUser')) {
+            /** @var Authenticatable&AuthorizationUser $user */
+            return (string) $user->authorizationUser();
+        }
+
+        if (is_object($user) && method_exists($user, 'getAuthorizationUserId')) {
+            /** @var Authenticatable&AuthorizationUserId $user */
+            return (string) $user->getAuthorizationUserId();
+        }
+
+        $identifier = $user->getAuthIdentifier();
+
+        if (! is_string($identifier) && ! is_int($identifier)) {
+            throw new RuntimeException('User identifier must be string or int');
+        }
+
+        return 'user:' . (string) $identifier;
     }
 }

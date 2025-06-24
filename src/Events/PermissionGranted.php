@@ -8,22 +8,28 @@ use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
+use function sprintf;
+
 /**
  * Event fired when a permission is granted.
  */
-class PermissionGranted
+final class PermissionGranted
 {
-    use Dispatchable, InteractsWithSockets, SerializesModels;
+    use Dispatchable;
+
+    use InteractsWithSockets;
+
+    use SerializesModels;
 
     /**
      * Create a new event instance.
      *
-     * @param string $user The user identifier
-     * @param string $relation The relation being granted
-     * @param string $object The object identifier
-     * @param string|null $connection The connection used
-     * @param float $duration The duration of the operation in seconds
-     * @param array<string, mixed> $context Additional context
+     * @param string               $user       The user identifier
+     * @param string               $relation   The relation being granted
+     * @param string               $object     The object identifier
+     * @param string|null          $connection The connection used
+     * @param float                $duration   The duration of the operation in seconds
+     * @param array<string, mixed> $context    Additional context
      */
     public function __construct(
         public readonly string $user,
@@ -31,7 +37,7 @@ class PermissionGranted
         public readonly string $object,
         public readonly ?string $connection = null,
         public readonly float $duration = 0.0,
-        public readonly array $context = []
+        public readonly array $context = [],
     ) {
     }
 
@@ -44,7 +50,7 @@ class PermissionGranted
             'Granted: %s#%s@%s',
             $this->user,
             $this->relation,
-            $this->object
+            $this->object,
         );
     }
 }

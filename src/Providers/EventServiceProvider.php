@@ -5,18 +5,18 @@ declare(strict_types=1);
 namespace OpenFGA\Laravel\Providers;
 
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
-use OpenFGA\Laravel\Events;
-use OpenFGA\Laravel\Listeners;
+use OpenFGA\Laravel\{Events, Listeners};
+use Override;
 
 /**
  * Event service provider for OpenFGA events and listeners.
  */
-class EventServiceProvider extends ServiceProvider
+final class EventServiceProvider extends ServiceProvider
 {
     /**
      * The event listener mappings for the application.
      *
-     * @var array<class-string, array<int, class-string>>
+     * @var array<string, array<int, string>>
      */
     protected $listen = [
         Events\PermissionChecked::class => [
@@ -47,9 +47,9 @@ class EventServiceProvider extends ServiceProvider
     /**
      * The subscribers to register.
      *
-     * @var array<int, class-string>
+     * @var array
      */
-    protected $subscribe = [
+    protected $subscribe = [ // @phpstan-ignore missingType.iterableValue
         Listeners\AuditPermissionChanges::class,
         Listeners\MonitorPerformance::class,
     ];
@@ -57,6 +57,7 @@ class EventServiceProvider extends ServiceProvider
     /**
      * Register any events for your application.
      */
+    #[Override]
     public function boot(): void
     {
         parent::boot();
@@ -65,6 +66,7 @@ class EventServiceProvider extends ServiceProvider
     /**
      * Determine if events and listeners should be automatically discovered.
      */
+    #[Override]
     public function shouldDiscoverEvents(): bool
     {
         return false;

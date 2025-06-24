@@ -4,14 +4,29 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Console\Commands;
 
+use Exception;
 use Illuminate\Console\Command;
 use OpenFGA\Laravel\OpenFgaManager;
+
+use function array_slice;
+use function count;
+use function is_array;
+use function is_scalar;
+use function is_string;
+use function sprintf;
 
 /**
  * Command to list objects that a user has a specific relation to.
  */
-class ListObjectsCommand extends Command
+final class ListObjectsCommand extends Command
 {
+    /**
+     * The console command description.
+     *
+     * @var string|null
+     */
+    protected $description = 'List objects that a user has a specific relation to';
+
     /**
      * The name and signature of the console command.
      *
@@ -25,48 +40,58 @@ class ListObjectsCommand extends Command
                             {--limit=100 : Maximum number of objects to return}';
 
     /**
-     * The console command description.
-     *
-     * @var string
-     */
-    protected $description = 'List objects that a user has a specific relation to';
-
-    /**
      * Execute the console command.
+     *
+     * @param OpenFgaManager $manager
      */
     public function handle(OpenFgaManager $manager): int
     {
-        $user = $this->argument('user');
-        $relation = $this->argument('relation');
-        $type = $this->argument('type');
+        $userArg = $this->argument('user');
+        $relationArg = $this->argument('relation');
+        $typeArg = $this->argument('type');
+
+        if (! is_string($userArg) || ! is_string($relationArg) || ! is_string($typeArg)) {
+            $this->error('Invalid arguments provided');
+
+            return Command::FAILURE;
+        }
+
+        $user = $userArg;
+        $relation = $relationArg;
+        $type = $typeArg;
         $connection = $this->option('connection');
+        $connection = is_string($connection) ? $connection : null;
+
         $limit = (int) $this->option('limit');
 
         // Parse contextual tuples
-        $contextualTuples = $this->parseContextualTuples($this->option('contextual-tuple'));
-        
+        $contextualTupleOption = $this->option('contextual-tuple');
+        $ctOptionArray = is_array($contextualTupleOption) ? array_filter($contextualTupleOption, 'is_string') : [];
+        $contextualTuples = $this->parseContextualTuples($ctOptionArray);
+
         // Parse context
-        $context = $this->parseContext($this->option('context'));
+        $contextOption = $this->option('context');
+        $ctxOptionArray = is_array($contextOption) ? array_filter($contextOption, 'is_string') : [];
+        $context = $this->parseContext($ctxOptionArray);
 
         try {
             $startTime = microtime(true);
-            
-            $objects = $manager
-                ->connection($connection)
-                ->listObjects($user, $relation, $type, $contextualTuples, $context);
-            
+
+            $objects = $manager->listObjects($user, $relation, $type, $contextualTuples, $context, $connection);
+
             $duration = round((microtime(true) - $startTime) * 1000, 2);
 
             // Apply limit if specified
-            if ($limit > 0 && count($objects) > $limit) {
+
+            if (0 < $limit && count($objects) > $limit) {
                 $truncated = true;
                 $objects = array_slice($objects, 0, $limit);
             } else {
                 $truncated = false;
             }
 
-            if ($this->option('json')) {
-                $this->output->writeln(json_encode([
+            if (true === $this->option('json')) {
+                $jsonOutput = json_encode([
                     'success' => true,
                     'user' => $user,
                     'relation' => $relation,
@@ -76,34 +101,46 @@ class ListObjectsCommand extends Command
                     'truncated' => $truncated,
                     'duration_ms' => $duration,
                     'connection' => $connection ?? 'default',
-                ], JSON_PRETTY_PRINT));
+                ], JSON_PRETTY_PRINT);
+
+                if (false !== $jsonOutput) {
+                    $this->output->writeln($jsonOutput);
+                }
             } else {
                 $this->displayResults($objects, $user, $relation, $type, $duration, $truncated);
 
-                if (!empty($contextualTuples)) {
+                if ([] !== $contextualTuples) {
                     $this->info("\nContextual Tuples:");
-                    foreach ($contextualTuples as $tuple) {
-                        $this->line("  - {$tuple['user']}#{$tuple['relation']}@{$tuple['object']}");
+
+                    foreach ($contextualTuples as $contextualTuple) {
+                        $this->line(sprintf('  - %s#%s@%s', $contextualTuple['user'], $contextualTuple['relation'], $contextualTuple['object']));
                     }
                 }
 
-                if (!empty($context)) {
+                if ([] !== $context) {
                     $this->info("\nContext:");
+
                     foreach ($context as $key => $value) {
-                        $this->line("  - {$key}: {$value}");
+                        $keyStr = (string) $key;
+                        $valueStr = is_scalar($value) ? (string) $value : json_encode($value);
+                        $this->line(sprintf('  - %s: %s', $keyStr, $valueStr));
                     }
                 }
             }
 
             return Command::SUCCESS;
-        } catch (\Exception $e) {
-            if ($this->option('json')) {
-                $this->output->writeln(json_encode([
+        } catch (Exception $exception) {
+            if (true === $this->option('json')) {
+                $jsonError = json_encode([
                     'error' => true,
-                    'message' => $e->getMessage(),
-                ], JSON_PRETTY_PRINT));
+                    'message' => $exception->getMessage(),
+                ], JSON_PRETTY_PRINT);
+
+                if (false !== $jsonError) {
+                    $this->output->writeln($jsonError);
+                }
             } else {
-                $this->error("Error: " . $e->getMessage());
+                $this->error('Error: ' . $exception->getMessage());
             }
 
             return Command::FAILURE;
@@ -114,37 +151,44 @@ class ListObjectsCommand extends Command
      * Display the results in a formatted table.
      *
      * @param array<string> $objects
+     * @param string        $user
+     * @param string        $relation
+     * @param string        $type
+     * @param float         $duration
+     * @param bool          $truncated
      */
-    protected function displayResults(
+    private function displayResults(
         array $objects,
         string $user,
         string $relation,
         string $type,
         float $duration,
-        bool $truncated
+        bool $truncated,
     ): void {
-        if (empty($objects)) {
-            $this->warn("No objects found where {$user} has {$relation} permission on type {$type}");
+        if ([] === $objects) {
+            $this->warn(sprintf('No objects found where %s has %s permission on type %s', $user, $relation, $type));
+
             return;
         }
 
-        $this->info("Objects where {$user} has {$relation} permission:");
+        $this->info(sprintf('Objects where %s has %s permission:', $user, $relation));
         $this->newLine();
 
         // Group objects by type prefix if they have different types
         $grouped = $this->groupObjectsByType($objects);
 
-        if (count($grouped) === 1) {
+        if (1 === count($grouped)) {
             // All objects are of the same type
             foreach ($objects as $object) {
-                $this->line("  - {$object}");
+                $this->line('  - ' . $object);
             }
         } else {
             // Objects have different types, group them
             foreach ($grouped as $objectType => $objectList) {
-                $this->info("  {$objectType}:");
+                $this->info(sprintf('  %s:', $objectType));
+
                 foreach ($objectList as $object) {
-                    $this->line("    - {$object}");
+                    $this->line('    - ' . $object);
                 }
             }
         }
@@ -154,30 +198,30 @@ class ListObjectsCommand extends Command
             ['Metric', 'Value'],
             [
                 ['Total Objects', count($objects) . ($truncated ? ' (truncated)' : '')],
-                ['Duration', "{$duration}ms"],
+                ['Duration', $duration . 'ms'],
                 ['Connection', $this->option('connection') ?? 'default'],
-            ]
+            ],
         );
     }
 
     /**
      * Group objects by their type prefix.
      *
-     * @param array<string> $objects
+     * @param  array<string>                $objects
      * @return array<string, array<string>>
      */
-    protected function groupObjectsByType(array $objects): array
+    private function groupObjectsByType(array $objects): array
     {
         $grouped = [];
 
         foreach ($objects as $object) {
             $parts = explode(':', $object, 2);
-            $type = count($parts) === 2 ? $parts[0] : 'unknown';
-            
-            if (!isset($grouped[$type])) {
+            $type = 2 === count($parts) ? $parts[0] : 'unknown';
+
+            if (! isset($grouped[$type])) {
                 $grouped[$type] = [];
             }
-            
+
             $grouped[$type][] = $object;
         }
 
@@ -185,20 +229,46 @@ class ListObjectsCommand extends Command
     }
 
     /**
+     * Parse context values from command options.
+     *
+     * @param  array<string>        $contextValues
+     * @return array<string, mixed>
+     */
+    private function parseContext(array $contextValues): array
+    {
+        $context = [];
+
+        foreach ($contextValues as $contextValue) {
+            $parts = explode('=', $contextValue, 2);
+
+            if (2 !== count($parts)) {
+                $this->warn(sprintf('Invalid context format: %s. Expected format: key=value', $contextValue));
+
+                continue;
+            }
+
+            $context[$parts[0]] = $parts[1];
+        }
+
+        return $context;
+    }
+
+    /**
      * Parse contextual tuples from command options.
      *
-     * @param array<string> $tuples
+     * @param  array<string>                                                $tuples
      * @return array<array{user: string, relation: string, object: string}>
      */
-    protected function parseContextualTuples(array $tuples): array
+    private function parseContextualTuples(array $tuples): array
     {
         $parsed = [];
 
         foreach ($tuples as $tuple) {
             $parts = explode(':', $tuple, 3);
-            
-            if (count($parts) !== 3) {
-                $this->warn("Invalid contextual tuple format: {$tuple}. Expected format: user:relation:object");
+
+            if (3 !== count($parts)) {
+                $this->warn(sprintf('Invalid contextual tuple format: %s. Expected format: user:relation:object', $tuple));
+
                 continue;
             }
 
@@ -210,29 +280,5 @@ class ListObjectsCommand extends Command
         }
 
         return $parsed;
-    }
-
-    /**
-     * Parse context values from command options.
-     *
-     * @param array<string> $contextValues
-     * @return array<string, mixed>
-     */
-    protected function parseContext(array $contextValues): array
-    {
-        $context = [];
-
-        foreach ($contextValues as $value) {
-            $parts = explode('=', $value, 2);
-            
-            if (count($parts) !== 2) {
-                $this->warn("Invalid context format: {$value}. Expected format: key=value");
-                continue;
-            }
-
-            $context[$parts[0]] = $parts[1];
-        }
-
-        return $context;
     }
 }
