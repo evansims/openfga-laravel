@@ -43,60 +43,37 @@ OPENFGA_STORE_ID=your-store-id
 
 <p><br /></p>
 
-## Why OpenFGA Laravel?
+## Usage Patterns
 
-- **✅ With OpenFGA Laravel (Centralized & Expressive)**
+```php
+// Controllers
+if (cannot('edit', $document)) {
+    abort(403);
+}
 
-  ```php
-  // In your controller - Just ask!
-  if (cannot('edit', $document)) {
-      abort(403);
-  }
+// Middleware
+Route::put('/documents/{document}', [DocumentController::class, 'update'])
+    ->middleware('openfga:editor,document:{document}');
 
-  // Or use middleware
-  Route::put('/documents/{document}', [DocumentController::class, 'update'])
-      ->middleware('openfga:editor,document:{document}');
+// Blade Views
+@can('edit', 'document:' . $document->id)
+    <button>Edit</button>
+@endcan
 
-  // In your Blade views
-  @can('edit', 'document:' . $document->id)
-      <button>Edit</button>
-  @endcan
+// Eloquent Models
+$document->grant($user, 'editor');  // Grant permission
+$document->check($user, 'editor');  // Check permission
+$document->revoke($user, 'editor'); // Revoke permission
 
-  // Even better with Eloquent models
-  $document->grant($user, 'editor');  // Grant permission
-  $document->check($user, 'editor');  // Check permission
-  $document->revoke($user, 'editor'); // Revoke permission
-
-  // Query by permissions
-  $myDocuments = Document::whereUserCan($user, 'edit')->get();
-  ```
-
-- **🚫 Without OpenFGA (Scattered Authorization)**
-
-  ```php
-  // In your controller
-  if ($request->user()->id === $document->user_id ||
-      $request->user()->isAdmin() ||
-      $request->user()->teams()->where('documents.id', $document->id)->exists()) {
-      // Can edit...
-  }
-
-  // In your middleware
-  if (!$user->hasRole('editor') && !$user->department->canAccessResource($resource)) {
-      abort(403);
-  }
-
-  // In your Blade views
-  @if($user->id === $post->user_id || $user->isModerator())
-      <button>Edit</button>
-  @endif
-  ```
+// Query by permissions
+$myDocuments = Document::whereUserCan($user, 'edit')->get();
+```
 
 <p><br /></p>
 
 ## Quickstart
 
-Let's impliment a simple document sharing system.
+Let's implement a simple document sharing system.
 
 ```php
 use App\Models\Document;
