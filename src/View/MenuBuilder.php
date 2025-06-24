@@ -7,12 +7,15 @@ namespace OpenFGA\Laravel\View;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use InvalidArgumentException;
 use OpenFGA\Laravel\Contracts\{AuthorizationUser, AuthorizationUserId};
 use OpenFGA\Laravel\OpenFgaManager;
 use RuntimeException;
 
+use function gettype;
 use function is_int;
 use function is_object;
+use function is_scalar;
 use function is_string;
 
 /**
@@ -230,13 +233,72 @@ final readonly class MenuBuilder
     }
 
     /**
-     * Resolve the object identifier for OpenFGA.
+     * Resolve an object identifier for OpenFGA.
      *
      * @param mixed $object
+     *
+     * @throws InvalidArgumentException
      */
     private function resolveObject($object): string
     {
-        return openfga_resolve_object($object);
+        // String in object:id format
+        if (is_string($object)) {
+            return $object;
+        }
+
+        // Model with authorization support
+        if (is_object($object) && method_exists($object, 'authorizationObject')) {
+            $result = $object->authorizationObject();
+
+            if (is_string($result)) {
+                return $result;
+            }
+
+            if (is_scalar($result) || (is_object($result) && method_exists($result, '__toString'))) {
+                return (string) $result;
+            }
+
+            throw new InvalidArgumentException('authorizationObject() must return a string or stringable value');
+        }
+
+        // Model with authorization type method
+        if (is_object($object) && method_exists($object, 'authorizationType') && method_exists($object, 'getKey')) {
+            $type = $object->authorizationType();
+            $key = $object->getKey();
+
+            if (null === $type || (! is_string($type) && ! is_numeric($type))) {
+                throw new InvalidArgumentException('Authorization type must be string or numeric');
+            }
+
+            if (null === $key || (! is_string($key) && ! is_numeric($key))) {
+                throw new InvalidArgumentException('Model key must be string or numeric');
+            }
+
+            return (string) $type . ':' . (string) $key;
+        }
+
+        // Eloquent model fallback
+        if (is_object($object) && method_exists($object, 'getTable') && method_exists($object, 'getKey')) {
+            $table = $object->getTable();
+            $key = $object->getKey();
+
+            if (! is_string($table)) {
+                throw new InvalidArgumentException('Table name must be string');
+            }
+
+            if (null === $key || (! is_string($key) && ! is_numeric($key))) {
+                throw new InvalidArgumentException('Model key must be string or numeric');
+            }
+
+            return $table . ':' . (string) $key;
+        }
+
+        // Numeric ID - use 'menu-item' as default type
+        if (is_numeric($object)) {
+            return 'menu-item:' . (string) $object;
+        }
+
+        throw new InvalidArgumentException('Cannot resolve object identifier for: ' . gettype($object));
     }
 
     /**

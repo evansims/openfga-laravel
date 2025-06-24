@@ -6,7 +6,9 @@ namespace OpenFGA\Laravel\Console\Commands;
 
 use Exception;
 use Illuminate\Console\Command;
+use OpenFGA\Exceptions\ClientThrowable;
 use OpenFGA\Laravel\OpenFgaManager;
+use Psr\SimpleCache\InvalidArgumentException;
 
 use function count;
 use function is_array;
@@ -41,8 +43,9 @@ final class CheckCommand extends Command
      * Execute the console command.
      *
      * @param OpenFgaManager $manager
-     * @throws \Psr\SimpleCache\InvalidArgumentException
-     * @throws \OpenFGA\Exceptions\ClientThrowable
+     *
+     * @throws ClientThrowable
+     * @throws InvalidArgumentException
      */
     public function handle(OpenFgaManager $manager): int
     {

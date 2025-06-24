@@ -162,7 +162,6 @@ final class BladeServiceProvider extends ServiceProvider
 
         // @openfgacannot directive (opposite of @openfgacan)
         Blade::if('openfgacannot', function (string $relation, $object, ?string $connection = null): bool {
-            /** @var BladeServiceProvider $provider */
             $provider = $this->app->make(BladeServiceProvider::class);
 
             return ! $provider->checkBladePermission($relation, $object, $connection);
@@ -179,7 +178,6 @@ final class BladeServiceProvider extends ServiceProvider
                     continue;
                 }
 
-                /** @var BladeServiceProvider $provider */
                 $provider = $this->app->make(BladeServiceProvider::class);
 
                 if ($provider->checkBladePermission($relation, $object, $connection)) {
@@ -201,7 +199,6 @@ final class BladeServiceProvider extends ServiceProvider
                     return false;
                 }
 
-                /** @var BladeServiceProvider $provider */
                 $provider = $this->app->make(BladeServiceProvider::class);
 
                 if (! $provider->checkBladePermission($relation, $object, $connection)) {
@@ -224,7 +221,6 @@ final class BladeServiceProvider extends ServiceProvider
                 return false;
             }
 
-            /** @var BladeServiceProvider $provider */
             $provider = $this->app->make(BladeServiceProvider::class);
             $currentUserId = $provider->resolveUserId($user);
 
@@ -257,7 +253,6 @@ final class BladeServiceProvider extends ServiceProvider
 
             // If it looks like an OpenFGA permission check (object contains ':')
             if (is_string($arguments) && str_contains($arguments, ':')) {
-                /** @var BladeServiceProvider $provider */
                 $provider = $this->app->make(BladeServiceProvider::class);
 
                 return $provider->checkBladePermission($ability, $arguments);

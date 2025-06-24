@@ -50,6 +50,7 @@ final class MakePermissionSeederCommand extends GeneratorCommand
      *
      * @return string
      */
+    #[Override]
     protected function getStub()
     {
         return __DIR__ . '/stubs/permission-seeder.stub';

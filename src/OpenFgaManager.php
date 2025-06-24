@@ -20,6 +20,7 @@ use OpenFGA\Laravel\Query\AuthorizationQuery;
 use OpenFGA\Models\{BatchCheckItem, TupleKey, UserTypeFilter};
 use OpenFGA\Models\Collections\{BatchCheckItems, TupleKeys, TupleKeysInterface, UserTypeFilters};
 use OpenFGA\Results\{FailureInterface, SuccessInterface};
+use Override;
 use Psr\Http\Message\{RequestFactoryInterface, ResponseFactoryInterface, StreamFactoryInterface};
 use RuntimeException;
 use Throwable;
@@ -27,6 +28,7 @@ use Throwable;
 use function count;
 use function is_array;
 use function is_int;
+use function is_object;
 use function is_string;
 use function sprintf;
 
@@ -100,6 +102,7 @@ final class OpenFgaManager implements ManagerInterface
      *
      * @return array<string, bool> Keyed by "user:relation:object"
      */
+    #[Override]
     public function batchCheck(array $checks, ?string $connection = null): array
     {
         $batchItems = [];
@@ -171,8 +174,11 @@ final class OpenFgaManager implements ManagerInterface
 
             $batchResults = $this->handleResult($result, static function ($success) {
                 if (method_exists($success, 'getResult')) {
-                    /** @var array<object> */
-                    return $success->getResult();
+                    /** @var array<mixed> */
+                    $rawResult = $success->getResult();
+
+                    // Filter to ensure we only have objects
+                    return array_filter($rawResult, static fn ($item): bool => is_object($item));
                 }
 
                 return [];
@@ -228,6 +234,7 @@ final class OpenFgaManager implements ManagerInterface
      * @throws Exception                                 If throwExceptions is true and an error occurs
      * @throws InvalidArgumentException
      */
+    #[Override]
     public function check(
         string $user,
         string $relation,
@@ -530,6 +537,7 @@ final class OpenFgaManager implements ManagerInterface
      *
      * @return array<string>
      */
+    #[Override]
     public function listObjects(
         string $user,
         string $relation,

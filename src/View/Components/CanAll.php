@@ -8,9 +8,13 @@ use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\Component;
+use InvalidArgumentException;
 use OpenFGA\Laravel\OpenFgaManager;
 use OpenFGA\Results\SuccessInterface;
+use Override;
 
+use function gettype;
+use function is_object;
 use function is_scalar;
 use function is_string;
 
@@ -51,7 +55,7 @@ final class CanAll extends Component
         $objectId = $this->resolveObject($this->object);
 
         foreach ($this->relations as $relation) {
-            $result = $manager->connection($this->connection)->check($userId, $relation, $objectId);
+            $result = $manager->check($userId, $relation, $objectId, [], [], $this->connection);
 
             if (! $result instanceof SuccessInterface) {
                 return false;
@@ -64,6 +68,7 @@ final class CanAll extends Component
     /**
      * Get the view / contents that represent the component.
      */
+    #[Override]
     public function render(): View | string
     {
         if (! $this->hasAllPermissions()) {
@@ -77,10 +82,69 @@ final class CanAll extends Component
      * Resolve the object identifier for OpenFGA.
      *
      * @param mixed $object
+     *
+     * @throws InvalidArgumentException
      */
     private function resolveObject($object): string
     {
-        return openfga_resolve_object($object);
+        // String in object:id format
+        if (is_string($object)) {
+            return $object;
+        }
+
+        // Model with authorization support
+        if (is_object($object) && method_exists($object, 'authorizationObject')) {
+            $result = $object->authorizationObject();
+
+            if (is_string($result)) {
+                return $result;
+            }
+
+            if (is_scalar($result) || (is_object($result) && method_exists($result, '__toString'))) {
+                return (string) $result;
+            }
+
+            throw new InvalidArgumentException('authorizationObject() must return a string or stringable value');
+        }
+
+        // Model with authorization type method
+        if (is_object($object) && method_exists($object, 'authorizationType') && method_exists($object, 'getKey')) {
+            $type = $object->authorizationType();
+            $key = $object->getKey();
+
+            if (null === $type || (! is_string($type) && ! is_numeric($type))) {
+                throw new InvalidArgumentException('Authorization type must be string or numeric');
+            }
+
+            if (null === $key || (! is_string($key) && ! is_numeric($key))) {
+                throw new InvalidArgumentException('Model key must be string or numeric');
+            }
+
+            return (string) $type . ':' . (string) $key;
+        }
+
+        // Eloquent model fallback
+        if (is_object($object) && method_exists($object, 'getTable') && method_exists($object, 'getKey')) {
+            $table = $object->getTable();
+            $key = $object->getKey();
+
+            if (! is_string($table)) {
+                throw new InvalidArgumentException('Table name must be string');
+            }
+
+            if (null === $key || (! is_string($key) && ! is_numeric($key))) {
+                throw new InvalidArgumentException('Model key must be string or numeric');
+            }
+
+            return $table . ':' . (string) $key;
+        }
+
+        // Numeric ID - use 'resource' as default type
+        if (is_numeric($object)) {
+            return 'resource:' . (string) $object;
+        }
+
+        throw new InvalidArgumentException('Cannot resolve object identifier for: ' . gettype($object));
     }
 
     /**

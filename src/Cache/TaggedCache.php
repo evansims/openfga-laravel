@@ -283,7 +283,7 @@ final class TaggedCache
     private function getPermissionKey(string $user, string $relation, string $object): string
     {
         $prefix = is_string($this->config['prefix'] ?? null) ? $this->config['prefix'] : 'openfga';
-        
+
         return sprintf(
             '%s:check:%s:%s:%s',
             $prefix,

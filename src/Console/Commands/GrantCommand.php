@@ -6,9 +6,13 @@ namespace OpenFGA\Laravel\Console\Commands;
 
 use Exception;
 use Illuminate\Console\Command;
+use Illuminate\Contracts\Container\BindingResolutionException;
+use InvalidArgumentException;
+use OpenFGA\Exceptions\ClientThrowable;
 use OpenFGA\Laravel\OpenFgaManager;
 use OpenFGA\Models\Collections\TupleKeys;
 use OpenFGA\Models\TupleKey;
+use ReflectionException;
 
 use function count;
 use function is_string;
@@ -40,10 +44,11 @@ final class GrantCommand extends Command
      * Execute the console command.
      *
      * @param OpenFgaManager $manager
-     * @throws \OpenFGA\Exceptions\ClientThrowable
-     * @throws \InvalidArgumentException
-     * @throws \ReflectionException
-     * @throws \Illuminate\Contracts\Container\BindingResolutionException
+     *
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws InvalidArgumentException
+     * @throws ReflectionException
      */
     public function handle(OpenFgaManager $manager): int
     {

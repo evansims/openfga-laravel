@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Authorization;
 
+use Exception;
 use Illuminate\Auth\Access\Gate;
 use Illuminate\Contracts\Auth\Authenticatable;
-use Illuminate\Contracts\Container\Container;
+use Illuminate\Contracts\Container\{BindingResolutionException, Container};
 use Illuminate\Database\Eloquent\Model;
+use InvalidArgumentException;
+use OpenFGA\Exceptions\ClientThrowable;
 use OpenFGA\Laravel\Contracts\{AuthorizableUser, AuthorizationObject, AuthorizationType};
 use OpenFGA\Laravel\OpenFgaManager;
 use Override;
@@ -43,6 +46,12 @@ final class OpenFgaGate extends Gate
      * @param iterable<mixed>|string|UnitEnum $abilities
      * @param array|mixed                     $arguments
      * @param Authenticatable|null            $user
+     *
+     * @throws \Psr\SimpleCache\InvalidArgumentException
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
+     * @throws InvalidArgumentException
      */
     #[Override]
     public function check($abilities, $arguments = [], $user = null): bool
@@ -68,11 +77,12 @@ final class OpenFgaGate extends Gate
      * @param string               $ability
      * @param array|mixed          $arguments
      * @param Authenticatable|null $user
+     *
      * @throws \Psr\SimpleCache\InvalidArgumentException
-     * @throws \Illuminate\Contracts\Container\BindingResolutionException
-     * @throws \OpenFGA\Exceptions\ClientThrowable
-     * @throws \Exception
-     * @throws \InvalidArgumentException
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
+     * @throws InvalidArgumentException
      */
     private function checkOpenFgaPermission(string $ability, $arguments, ?Authenticatable $user = null): bool
     {

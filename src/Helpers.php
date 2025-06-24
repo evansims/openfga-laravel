@@ -3,8 +3,10 @@
 declare(strict_types=1);
 
 use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Contracts\Container\BindingResolutionException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
+use OpenFGA\Exceptions\ClientThrowable;
 use OpenFGA\Laravel\Contracts\{AuthorizationObject, AuthorizationType, AuthorizationUser, AuthorizationUserId};
 use OpenFGA\Laravel\OpenFgaManager;
 use OpenFGA\Laravel\Query\AuthorizationQuery;
@@ -16,6 +18,12 @@ if (! function_exists('openfga_can')) {
      * @param string      $relation
      * @param mixed       $object
      * @param string|null $connection
+     *
+     * @throws Psr\SimpleCache\InvalidArgumentException
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
+     * @throws InvalidArgumentException
      */
     function openfga_can(string $relation, $object, ?string $connection = null): bool
     {
@@ -23,7 +31,6 @@ if (! function_exists('openfga_can')) {
             return false;
         }
 
-        /** @var OpenFgaManager $manager */
         $manager = app(OpenFgaManager::class);
         $user = Auth::user();
 
@@ -100,10 +107,14 @@ if (! function_exists('openfga_grant')) {
      * @param string       $relation
      * @param mixed        $object
      * @param string|null  $connection
+     *
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
+     * @throws InvalidArgumentException
      */
     function openfga_grant($user, string $relation, $object, ?string $connection = null): void
     {
-        /** @var OpenFgaManager $manager */
         $manager = app(OpenFgaManager::class);
 
         $userId = openfga_resolve_user_id($user);
@@ -121,10 +132,14 @@ if (! function_exists('openfga_revoke')) {
      * @param string       $relation
      * @param mixed        $object
      * @param string|null  $connection
+     *
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
+     * @throws InvalidArgumentException
      */
     function openfga_revoke($user, string $relation, $object, ?string $connection = null): void
     {
-        /** @var OpenFgaManager $manager */
         $manager = app(OpenFgaManager::class);
 
         $userId = openfga_resolve_user_id($user);
@@ -153,6 +168,8 @@ if (! function_exists('openfga_resolve_user_id')) {
      * Resolve a user identifier for OpenFGA.
      *
      * @param mixed $user
+     *
+     * @throws InvalidArgumentException
      */
     function openfga_resolve_user_id($user): string
     {
@@ -169,13 +186,17 @@ if (! function_exists('openfga_resolve_user_id')) {
         // User object with custom method
         if (is_object($user) && method_exists($user, 'authorizationUser')) {
             /** @var AuthorizationUser&object $user */
-            return (string) $user->authorizationUser();
+            $result = $user->authorizationUser();
+
+            return is_string($result) ? $result : (string) $result;
         }
 
         // User object with alternative method
         if (is_object($user) && method_exists($user, 'getAuthorizationUserId')) {
             /** @var AuthorizationUserId&object $user */
-            return (string) $user->getAuthorizationUserId();
+            $result = $user->getAuthorizationUserId();
+
+            return is_string($result) ? $result : (string) $result;
         }
 
         // Authenticatable user
@@ -199,6 +220,8 @@ if (! function_exists('openfga_resolve_object')) {
      * Resolve an object identifier for OpenFGA.
      *
      * @param mixed $object
+     *
+     * @throws InvalidArgumentException
      */
     function openfga_resolve_object($object): string
     {
@@ -210,7 +233,9 @@ if (! function_exists('openfga_resolve_object')) {
         // Model with authorization support
         if (is_object($object) && method_exists($object, 'authorizationObject')) {
             /** @var AuthorizationObject&object $object */
-            return (string) $object->authorizationObject();
+            $result = $object->authorizationObject();
+
+            return is_string($result) ? $result : (string) $result;
         }
 
         // Model with authorization type method
@@ -219,7 +244,9 @@ if (! function_exists('openfga_resolve_object')) {
             $key = $object->getKey();
 
             if (is_string($key) || is_numeric($key)) {
-                return (string) $object->authorizationType() . ':' . (string) $key;
+                $type = $object->authorizationType();
+
+                return (string) $type . ':' . (string) $key;
             }
 
             throw new InvalidArgumentException('Model key must be string or numeric, got: ' . gettype($key));
@@ -231,7 +258,9 @@ if (! function_exists('openfga_resolve_object')) {
             $key = $object->getKey();
 
             if (is_string($key) || is_numeric($key)) {
-                return (string) $object->getTable() . ':' . (string) $key;
+                $table = $object->getTable();
+
+                return (string) $table . ':' . (string) $key;
             }
 
             throw new InvalidArgumentException('Model key must be string or numeric, got: ' . gettype($key));

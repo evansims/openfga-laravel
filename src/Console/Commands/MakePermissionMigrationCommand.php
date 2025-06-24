@@ -89,6 +89,7 @@ final class MakePermissionMigrationCommand extends GeneratorCommand
      *
      * @return array<int, array<int, mixed>>
      */
+    #[Override]
     protected function getOptions()
     {
         return [
@@ -119,6 +120,7 @@ final class MakePermissionMigrationCommand extends GeneratorCommand
      *
      * @return string
      */
+    #[Override]
     protected function getStub()
     {
         return __DIR__ . '/stubs/permission-migration.stub';

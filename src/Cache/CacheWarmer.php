@@ -50,6 +50,7 @@ final class CacheWarmer
 
         // If cache store supports pattern deletion
         $store = Cache::store();
+
         if (method_exists($store, 'deletePattern')) {
             $result = $store->deletePattern($pattern);
 

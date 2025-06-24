@@ -8,6 +8,7 @@ use Illuminate\Auth\Access\Gate;
 use Illuminate\Container\Container;
 use Illuminate\Contracts\Auth\Access\Gate as GateContract;
 use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Contracts\Container\BindingResolutionException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\ServiceProvider;
@@ -18,6 +19,7 @@ use Override;
 
 use function gettype;
 use function is_object;
+use function is_scalar;
 use function is_string;
 
 /**
@@ -27,6 +29,8 @@ final class AuthorizationServiceProvider extends ServiceProvider
 {
     /**
      * Bootstrap services.
+     *
+     * @throws BindingResolutionException
      */
     public function boot(): void
     {
@@ -97,6 +101,11 @@ final class AuthorizationServiceProvider extends ServiceProvider
                     throw new InvalidArgumentException('Model key must be string or numeric');
                 }
 
+                // Ensure table is a string
+                if (! is_string($table)) {
+                    throw new InvalidArgumentException('Table name must be string');
+                }
+
                 return $table . ':' . (string) $key;
             }
         }
@@ -108,6 +117,7 @@ final class AuthorizationServiceProvider extends ServiceProvider
      * Resolve the user ID for OpenFGA.
      *
      * @param Authenticatable $user
+     *
      * @throws InvalidArgumentException
      */
     public function resolveUserId($user): string
@@ -119,19 +129,33 @@ final class AuthorizationServiceProvider extends ServiceProvider
 
         // Legacy support: check for method without interface
         if (method_exists($user, 'authorizationUser')) {
+            /** @var mixed $result */
             $result = $user->authorizationUser();
 
             if (is_string($result)) {
                 return $result;
             }
+
+            if (is_scalar($result) || (is_object($result) && method_exists($result, '__toString'))) {
+                return (string) $result;
+            }
+
+            throw new InvalidArgumentException('authorizationUser() must return a string or stringable value');
         }
 
         if (method_exists($user, 'getAuthorizationUserId')) {
+            /** @var mixed $result */
             $result = $user->getAuthorizationUserId();
 
             if (is_string($result)) {
                 return $result;
             }
+
+            if (is_scalar($result) || (is_object($result) && method_exists($result, '__toString'))) {
+                return (string) $result;
+            }
+
+            throw new InvalidArgumentException('getAuthorizationUserId() must return a string or stringable value');
         }
 
         $identifier = $user->getAuthIdentifier();
@@ -155,7 +179,7 @@ final class AuthorizationServiceProvider extends ServiceProvider
     /**
      * Register OpenFGA-specific gates.
      *
-     * @throws \Illuminate\Contracts\Container\BindingResolutionException
+     * @throws BindingResolutionException
      */
     private function registerOpenFgaGates(): void
     {
@@ -181,6 +205,7 @@ final class AuthorizationServiceProvider extends ServiceProvider
 
                 $relation = str_replace('openfga:', '', $ability);
                 $resource = $arguments[0] ?? null;
+
                 /** @var string|null $connection */
                 $connection = is_string($arguments[1] ?? null) ? $arguments[1] : null;
 
