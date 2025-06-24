@@ -13,3 +13,4 @@ coverage/
 .phpunit.result.cache
 psalm.xml
 phpstan.neon
+PLAN.md
