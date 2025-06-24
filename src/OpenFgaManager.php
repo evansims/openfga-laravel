@@ -20,6 +20,7 @@ use OpenFGA\Laravel\Query\AuthorizationQuery;
 use OpenFGA\Models\{BatchCheckItem, TupleKey, UserTypeFilter};
 use OpenFGA\Models\Collections\{BatchCheckItems, TupleKeys, TupleKeysInterface, UserTypeFilters};
 use OpenFGA\Results\{FailureInterface, SuccessInterface};
+use Override;
 use Psr\Http\Message\{RequestFactoryInterface, ResponseFactoryInterface, StreamFactoryInterface};
 use RuntimeException;
 use Throwable;
@@ -27,6 +28,7 @@ use Throwable;
 use function count;
 use function is_array;
 use function is_int;
+use function is_object;
 use function is_string;
 use function sprintf;
 
@@ -100,6 +102,7 @@ final class OpenFgaManager implements ManagerInterface
      *
      * @return array<string, bool> Keyed by "user:relation:object"
      */
+    #[Override]
     public function batchCheck(array $checks, ?string $connection = null): array
     {
         $batchItems = [];
@@ -122,6 +125,8 @@ final class OpenFgaManager implements ManagerInterface
                     }
                 } else {
                     $cacheKey = $this->getCacheKey('check', $user, $check['relation'], $check['object']);
+
+                    /** @var mixed $cached */
                     $cached = $this->getCache()->get($cacheKey);
 
                     if (null !== $cached) {
@@ -169,10 +174,13 @@ final class OpenFgaManager implements ManagerInterface
                 checks: new BatchCheckItems($batchItems),
             );
 
-            $batchResults = $this->handleResult($result, static function ($success) {
+            $batchResults = $this->handleResult($result, static function ($success): array {
                 if (method_exists($success, 'getResult')) {
-                    /** @var array<object> */
-                    return $success->getResult();
+                    /** @var array<mixed> */
+                    $rawResult = $success->getResult();
+
+                    // Filter to ensure we only have objects
+                    return array_filter($rawResult, static fn ($item): bool => is_object($item));
                 }
 
                 return [];
@@ -228,6 +236,7 @@ final class OpenFgaManager implements ManagerInterface
      * @throws Exception                                 If throwExceptions is true and an error occurs
      * @throws InvalidArgumentException
      */
+    #[Override]
     public function check(
         string $user,
         string $relation,
@@ -253,6 +262,8 @@ final class OpenFgaManager implements ManagerInterface
             } else {
                 // Fallback to regular cache
                 $cacheKey = $this->getCacheKey('check', $user, $relation, $object);
+
+                /** @var mixed $cached */
                 $cached = $this->getCache()->get($cacheKey);
 
                 if (null !== $cached) {
@@ -388,6 +399,65 @@ final class OpenFgaManager implements ManagerInterface
     }
 
     /**
+     * Expand a relation to see all users who have it.
+     *
+     * @param string      $relation   The relation to expand
+     * @param string      $object     The object identifier
+     * @param string|null $connection Optional connection name
+     *
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception                  If throwExceptions is true and an error occurs
+     * @throws InvalidArgumentException
+     *
+     * @return array<string, mixed>
+     */
+    public function expand(string $relation, string $object, ?string $connection = null): array
+    {
+        $connectionConfig = $this->configuration($connection ?? $this->getDefaultConnection());
+
+        if (null === $connectionConfig) {
+            throw new InvalidArgumentException('Connection configuration not found');
+        }
+
+        $storeId = $connectionConfig['store_id'] ?? null;
+        $modelId = $connectionConfig['model_id'] ?? null;
+
+        if (! is_string($storeId)) {
+            throw new InvalidArgumentException('store_id not configured');
+        }
+
+        if (! is_string($modelId)) {
+            throw new InvalidArgumentException('model_id not configured');
+        }
+
+        // Create TupleKey for the SDK
+        $tupleKey = new TupleKey(
+            user: '',  // Empty user for expand operation
+            relation: $relation,
+            object: $object,
+        );
+
+        $result = $this->connection($connection)->expand(
+            store: $storeId,
+            model: $modelId,
+            tuple: $tupleKey,
+        );
+
+        /** @var array<string, mixed> */
+        return $this->handleResult($result, static function ($success): array {
+            if (method_exists($success, 'getTree')) {
+                /** @var array<string, mixed> */
+                $tree = $success->getTree();
+
+                return ['tree' => $tree];
+            }
+
+            return [];
+        });
+    }
+
+    /**
      * Get all of the created connections.
      *
      * @return array<string, ClientInterface>
@@ -407,13 +477,15 @@ final class OpenFgaManager implements ManagerInterface
 
     /**
      * Get the read-through cache instance.
+     *
+     * @throws RuntimeException
      */
     public function getReadThroughCache(): ReadThroughCache
     {
         $cacheConfig = $this->config['cache'] ?? [];
         $readThroughEnabled = true;
 
-        if (is_array($cacheConfig) && isset($cacheConfig['read_through'])) {
+        if (isset($cacheConfig['read_through'])) {
             $readThroughEnabled = (bool) $cacheConfig['read_through'];
         }
 
@@ -530,6 +602,7 @@ final class OpenFgaManager implements ManagerInterface
      *
      * @return array<string>
      */
+    #[Override]
     public function listObjects(
         string $user,
         string $relation,
@@ -1261,7 +1334,7 @@ final class OpenFgaManager implements ManagerInterface
         // Initialize read-through cache if enabled
         $readThroughEnabled = true;
 
-        if (is_array($cacheConfig) && isset($cacheConfig['read_through'])) {
+        if (isset($cacheConfig['read_through'])) {
             $readThroughEnabled = (bool) $cacheConfig['read_through'];
         }
 
@@ -1272,7 +1345,7 @@ final class OpenFgaManager implements ManagerInterface
         // Initialize tagged cache if tags are enabled
         $tagsEnabled = true;
 
-        if (is_array($cacheConfig) && isset($cacheConfig['tags']) && is_array($cacheConfig['tags']) && isset($cacheConfig['tags']['enabled'])) {
+        if (isset($cacheConfig['tags']) && is_array($cacheConfig['tags']) && isset($cacheConfig['tags']['enabled'])) {
             $tagsEnabled = (bool) $cacheConfig['tags']['enabled'];
         }
 
@@ -1286,6 +1359,8 @@ final class OpenFgaManager implements ManagerInterface
      *
      * @param ?TupleKeysInterface $writes
      * @param ?TupleKeysInterface $deletes
+     *
+     * @throws BindingResolutionException
      */
     private function invalidateCache(?TupleKeysInterface $writes, ?TupleKeysInterface $deletes): void
     {
@@ -1442,16 +1517,10 @@ final class OpenFgaManager implements ManagerInterface
 
         $cacheConfig = $this->config['cache'] ?? [];
 
-        if (! is_array($cacheConfig)) {
-            return false;
-        }
-
+        /** @var array<string, mixed> $tagsConfig */
         $tagsConfig = $cacheConfig['tags'] ?? [];
 
-        if (! is_array($tagsConfig)) {
-            return false;
-        }
-
+        /** @var mixed $enabled */
         $enabled = $tagsConfig['enabled'] ?? false;
 
         return true === $enabled;

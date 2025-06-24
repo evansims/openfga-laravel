@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Testing;
 
-use PHPUnit\Framework\Assert;
+use PHPUnit\Framework\{Assert, ExpectationFailedException, GeneratorNotSupportedException};
 use RuntimeException;
 use Throwable;
 
@@ -82,6 +82,9 @@ final class FakeOpenFga
      * Assert that a write batch was performed.
      *
      * @param ?string $message
+     *
+     * @throws ExpectationFailedException
+     * @throws GeneratorNotSupportedException
      */
     public function assertBatchWritten(?string $message = null): void
     {
@@ -95,6 +98,8 @@ final class FakeOpenFga
      *
      * @param int     $count
      * @param ?string $message
+     *
+     * @throws ExpectationFailedException
      */
     public function assertCheckCount(int $count, ?string $message = null): void
     {
@@ -111,6 +116,8 @@ final class FakeOpenFga
      * @param string  $relation
      * @param string  $object
      * @param ?string $message
+     *
+     * @throws ExpectationFailedException
      */
     public function assertChecked(string $user, string $relation, string $object, ?string $message = null): void
     {
@@ -133,6 +140,8 @@ final class FakeOpenFga
      * @param string  $relation
      * @param string  $object
      * @param ?string $message
+     *
+     * @throws ExpectationFailedException
      */
     public function assertGranted(string $user, string $relation, string $object, ?string $message = null): void
     {
@@ -150,6 +159,9 @@ final class FakeOpenFga
      * Assert that no batch writes were performed.
      *
      * @param ?string $message
+     *
+     * @throws ExpectationFailedException
+     * @throws GeneratorNotSupportedException
      */
     public function assertNoBatchWrites(?string $message = null): void
     {
@@ -162,6 +174,8 @@ final class FakeOpenFga
      * Assert that no checks were performed.
      *
      * @param ?string $message
+     *
+     * @throws ExpectationFailedException
      */
     public function assertNoChecks(?string $message = null): void
     {
@@ -175,6 +189,8 @@ final class FakeOpenFga
      * @param string  $relation
      * @param string  $object
      * @param ?string $message
+     *
+     * @throws ExpectationFailedException
      */
     public function assertNotChecked(string $user, string $relation, string $object, ?string $message = null): void
     {
@@ -195,6 +211,8 @@ final class FakeOpenFga
      * @param string  $relation
      * @param string  $object
      * @param ?string $message
+     *
+     * @throws ExpectationFailedException
      */
     public function assertNotGranted(string $user, string $relation, string $object, ?string $message = null): void
     {
@@ -214,6 +232,9 @@ final class FakeOpenFga
      * @param string $user
      * @param string $relation
      * @param string $object
+     *
+     * @throws RuntimeException
+     * @throws Throwable
      */
     public function check(string $user, string $relation, string $object): bool
     {
@@ -242,8 +263,12 @@ final class FakeOpenFga
     /**
      * Expand a relation to see all users who have it.
      *
-     * @param  string               $object
-     * @param  string               $relation
+     * @param string $object
+     * @param string $relation
+     *
+     * @throws RuntimeException
+     * @throws Throwable
+     *
      * @return array<string, mixed>
      */
     public function expand(string $object, string $relation): array
@@ -345,9 +370,13 @@ final class FakeOpenFga
     /**
      * List objects that a user has a specific relation to.
      *
-     * @param  string        $user
-     * @param  string        $relation
-     * @param  string        $type
+     * @param string $user
+     * @param string $relation
+     * @param string $type
+     *
+     * @throws RuntimeException
+     * @throws Throwable
+     *
      * @return array<string>
      */
     public function listObjects(string $user, string $relation, string $type): array
@@ -471,6 +500,9 @@ final class FakeOpenFga
      *
      * @param array<int, array{user: string, relation: string, object: string}> $writes
      * @param array<int, array{user: string, relation: string, object: string}> $deletes
+     *
+     * @throws RuntimeException
+     * @throws Throwable
      */
     public function writeBatch(array $writes = [], array $deletes = []): void
     {

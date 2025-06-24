@@ -5,16 +5,21 @@ declare(strict_types=1);
 namespace OpenFGA\Laravel\Http\Middleware;
 
 use Closure;
+use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use InvalidArgumentException;
+use LogicException;
 use OpenFGA\Laravel\OpenFgaManager;
 use OpenFGA\Laravel\Traits\{ResolvesAuthorizationObject, ResolvesAuthorizationUser};
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Exception\{HttpException, NotFoundHttpException};
 
 use function is_string;
 use function sprintf;
+use function strlen;
 
 /**
  * Middleware that requires all of multiple permissions.
@@ -36,6 +41,12 @@ final readonly class RequiresAllPermissions
      * @param Request                      $request
      * @param Closure(Request): (Response) $next
      * @param string                       ...$relations Multiple relations, where all are required
+     *
+     * @throws HttpException
+     * @throws HttpResponseException
+     * @throws InvalidArgumentException
+     * @throws LogicException
+     * @throws NotFoundHttpException
      */
     public function handle(Request $request, Closure $next, string ...$relations): Response
     {
@@ -73,22 +84,20 @@ final readonly class RequiresAllPermissions
      *
      * @param string $parameterName
      */
-    private function inferObjectType(string $parameterName): ?string
+    private function inferObjectType(string $parameterName): string
     {
-        // Common parameter patterns
-        $patterns = [
-            '/^(.+)_id$/' => '$1',           // user_id -> user
-            '/^(.+)Id$/' => '$1',            // userId -> user
-            '/^(.+)$/' => '$1',              // user -> user
-        ];
-
-        foreach (array_keys($patterns) as $pattern) {
-            if (1 === preg_match($pattern, $parameterName, $matches)) {
-                return strtolower($matches[1]);
-            }
+        // Check for _id suffix
+        if (str_ends_with($parameterName, '_id')) {
+            return strtolower(substr($parameterName, 0, -3));
         }
 
-        return null;
+        // Check for Id suffix
+        if (str_ends_with($parameterName, 'Id') && 2 < strlen($parameterName)) {
+            return strtolower(substr($parameterName, 0, -2));
+        }
+
+        // Default: use the parameter name as-is
+        return strtolower($parameterName);
     }
 
     /**
@@ -97,6 +106,7 @@ final readonly class RequiresAllPermissions
      * @param Request $request
      *
      * @throws InvalidArgumentException
+     * @throws LogicException
      */
     private function resolveObject(Request $request): string
     {
@@ -107,21 +117,24 @@ final readonly class RequiresAllPermissions
         }
 
         // Look for Eloquent models in route parameters
-        foreach ($route->parameters() as $key => $value) {
+        /** @var array<string, mixed> $parameters */
+        $parameters = $route->parameters();
+
+        /** @var mixed $value */
+        foreach ($parameters as $value) {
             if ($value instanceof Model) {
                 return $this->getAuthorizationObjectFromModel($value);
             }
         }
 
         // Look for string/numeric parameters that might represent objects
-        foreach ($route->parameters() as $key => $value) {
+        /** @var mixed $value */
+        foreach ($parameters as $key => $value) {
             if (is_string($value) || is_numeric($value)) {
                 // Try to infer object type from parameter name
                 $objectType = $this->inferObjectType($key);
 
-                if (null !== $objectType) {
-                    return $objectType . ':' . $value;
-                }
+                return $objectType . ':' . (string) $value;
             }
         }
 
@@ -132,9 +145,14 @@ final readonly class RequiresAllPermissions
      * Resolve the user identifier from the request.
      *
      * @param Request $request
+     *
+     * @throws InvalidArgumentException If no authenticated user found
+     *
+     * @return string User identifier
      */
     private function resolveUser(Request $request): string
     {
+        /** @var Authenticatable|null $user */
         $user = $request->user();
 
         if (null === $user) {

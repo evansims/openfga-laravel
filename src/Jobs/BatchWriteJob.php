@@ -5,10 +5,14 @@ declare(strict_types=1);
 namespace OpenFGA\Laravel\Jobs;
 
 use DateTimeImmutable;
+use Exception;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Container\BindingResolutionException;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\{InteractsWithQueue, SerializesModels};
+use InvalidArgumentException;
+use OpenFGA\Exceptions\ClientThrowable;
 use OpenFGA\Laravel\Events\{BatchWriteCompleted, BatchWriteFailed};
 use OpenFGA\Laravel\OpenFgaManager;
 use OpenFGA\Models\Collections\TupleKeys;
@@ -74,10 +78,14 @@ final class BatchWriteJob implements ShouldQueue
         private array $options = [],
     ) {
         // Set queue configuration
+        /** @var mixed $queueEnabled */
         $queueEnabled = config('openfga.queue.enabled');
 
         if (true === $queueEnabled) {
+            /** @var mixed $connection */
             $connection = config('openfga.queue.connection');
+
+            /** @var mixed $queue */
             $queue = config('openfga.queue.queue');
 
             if (is_string($connection)) {
@@ -121,6 +129,11 @@ final class BatchWriteJob implements ShouldQueue
      * Execute the job.
      *
      * @param OpenFgaManager $manager
+     *
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
+     * @throws InvalidArgumentException
      */
     public function handle(OpenFgaManager $manager): void
     {

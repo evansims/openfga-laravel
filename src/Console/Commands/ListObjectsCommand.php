@@ -6,12 +6,13 @@ namespace OpenFGA\Laravel\Console\Commands;
 
 use Exception;
 use Illuminate\Console\Command;
+use OpenFGA\Exceptions\ClientThrowable;
 use OpenFGA\Laravel\OpenFgaManager;
+use Psr\SimpleCache\InvalidArgumentException;
 
 use function array_slice;
 use function count;
 use function is_array;
-use function is_scalar;
 use function is_string;
 use function sprintf;
 
@@ -43,6 +44,9 @@ final class ListObjectsCommand extends Command
      * Execute the console command.
      *
      * @param OpenFgaManager $manager
+     *
+     * @throws ClientThrowable
+     * @throws InvalidArgumentException
      */
     public function handle(OpenFgaManager $manager): int
     {
@@ -62,7 +66,8 @@ final class ListObjectsCommand extends Command
         $connection = $this->option('connection');
         $connection = is_string($connection) ? $connection : null;
 
-        $limit = (int) $this->option('limit');
+        $limitOption = $this->option('limit');
+        $limit = is_numeric($limitOption) ? (int) $limitOption : 100;
 
         // Parse contextual tuples
         $contextualTupleOption = $this->option('contextual-tuple');
@@ -79,7 +84,7 @@ final class ListObjectsCommand extends Command
 
             $objects = $manager->listObjects($user, $relation, $type, $contextualTuples, $context, $connection);
 
-            $duration = round((microtime(true) - $startTime) * 1000, 2);
+            $duration = round((microtime(true) - $startTime) * 1000.0, 2);
 
             // Apply limit if specified
 
@@ -121,9 +126,7 @@ final class ListObjectsCommand extends Command
                     $this->info("\nContext:");
 
                     foreach ($context as $key => $value) {
-                        $keyStr = (string) $key;
-                        $valueStr = is_scalar($value) ? (string) $value : json_encode($value);
-                        $this->line(sprintf('  - %s: %s', $keyStr, $valueStr));
+                        $this->line(sprintf('  - %s: %s', $key, $value));
                     }
                 }
             }
@@ -198,7 +201,7 @@ final class ListObjectsCommand extends Command
             ['Metric', 'Value'],
             [
                 ['Total Objects', count($objects) . ($truncated ? ' (truncated)' : '')],
-                ['Duration', $duration . 'ms'],
+                ['Duration', ((string) $duration) . 'ms'],
                 ['Connection', $this->option('connection') ?? 'default'],
             ],
         );
@@ -231,8 +234,8 @@ final class ListObjectsCommand extends Command
     /**
      * Parse context values from command options.
      *
-     * @param  array<string>        $contextValues
-     * @return array<string, mixed>
+     * @param  array<string>         $contextValues
+     * @return array<string, string>
      */
     private function parseContext(array $contextValues): array
     {

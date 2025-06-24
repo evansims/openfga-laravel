@@ -7,10 +7,10 @@ namespace OpenFGA\Laravel\Traits;
 use Exception;
 use Illuminate\Contracts\Container\BindingResolutionException;
 use Illuminate\Database\Eloquent\{Builder, Model};
-use Illuminate\Support\Facades\App;
-use Illuminate\Support\Str;
+use Illuminate\Support\{Facades\App, Str};
 use InvalidArgumentException;
 use OpenFGA\Exceptions\ClientThrowable;
+use OpenFGA\Laravel\Helpers\ModelKeyHelper;
 use OpenFGA\Laravel\OpenFgaManager;
 
 use function in_array;
@@ -32,7 +32,7 @@ trait HasAuthorization
      */
     public function authorizationObject(): string
     {
-        return $this->authorizationType() . ':' . $this->getKey();
+        return $this->authorizationType() . ':' . ModelKeyHelper::stringId($this);
     }
 
     /**
@@ -404,11 +404,11 @@ trait HasAuthorization
     /**
      * Resolve a user identifier from various input types.
      *
-     * @param int|Model|string $user
+     * @param int|Model|string $user The user to resolve (Model, string identifier, or int ID)
      *
-     * @throws InvalidArgumentException
+     * @throws InvalidArgumentException If user type is not supported
      *
-     * @return string The resolved user identifier
+     * @return string The resolved user identifier in OpenFGA format
      */
     protected function resolveUserId($user): string
     {
@@ -419,7 +419,7 @@ trait HasAuthorization
             }
 
             // Otherwise, use the model type and key
-            return Str::snake(class_basename($user)) . ':' . $user->getKey();
+            return Str::snake(class_basename($user)) . ':' . ModelKeyHelper::stringId($user);
         }
 
         if (is_string($user)) {

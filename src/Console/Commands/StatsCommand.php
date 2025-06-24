@@ -7,7 +7,6 @@ namespace OpenFGA\Laravel\Console\Commands;
 use Illuminate\Console\Command;
 use OpenFGA\Laravel\Monitoring\PerformanceMonitor;
 
-use function is_array;
 use function is_float;
 use function is_int;
 use function is_string;
@@ -162,19 +161,19 @@ final class StatsCommand extends Command
         $this->line('=' . str_repeat('=', 50));
         $this->newLine();
 
-        if (isset($stats['permission_checks']) && is_array($stats['permission_checks'])) {
+        if (isset($stats['permission_checks'])) {
             $this->displayPermissionCheckStats($stats['permission_checks']);
         }
 
-        if (isset($stats['batch_writes']) && is_array($stats['batch_writes'])) {
+        if (isset($stats['batch_writes'])) {
             $this->displayBatchWriteStats($stats['batch_writes']);
         }
 
-        if (isset($stats['cache']) && is_array($stats['cache'])) {
+        if (isset($stats['cache'])) {
             $this->displayCacheStats($stats['cache']);
         }
 
-        if (isset($stats['performance']) && is_array($stats['performance'])) {
+        if (isset($stats['performance'])) {
             $this->displayPerformanceStats($stats['performance']);
         }
     }
@@ -186,10 +185,10 @@ final class StatsCommand extends Command
      */
     private function formatDuration(float $seconds): string
     {
-        $milliseconds = $seconds * 1000;
+        $milliseconds = $seconds * 1000.0;
 
         if (1 > $milliseconds) {
-            return number_format($milliseconds * 1000, 2) . 'μs';
+            return number_format($milliseconds * 1000.0, 2) . 'μs';
         }
 
         if (1000 > $milliseconds) {

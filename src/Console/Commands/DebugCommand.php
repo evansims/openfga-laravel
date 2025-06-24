@@ -6,8 +6,11 @@ namespace OpenFGA\Laravel\Console\Commands;
 
 use Exception;
 use Illuminate\Console\Command;
+use Illuminate\Contracts\Container\BindingResolutionException;
 use Illuminate\Support\Facades\Config;
+use OpenFGA\Exceptions\ClientThrowable;
 use OpenFGA\Laravel\OpenFgaManager;
+use Psr\SimpleCache\InvalidArgumentException;
 
 use function is_array;
 use function is_scalar;
@@ -40,6 +43,11 @@ final class DebugCommand extends Command
      * Execute the console command.
      *
      * @param OpenFgaManager $manager
+     *
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
+     * @throws InvalidArgumentException
      */
     public function handle(OpenFgaManager $manager): int
     {
@@ -81,22 +89,23 @@ final class DebugCommand extends Command
     {
         $this->info('Cache Configuration:');
 
+        /** @var array<string, mixed> $cacheConfig */
         $cacheConfig = Config::get('openfga.cache', []);
 
-        $enabled = is_array($cacheConfig) && isset($cacheConfig['enabled']) && (bool) $cacheConfig['enabled'];
+        $enabled = isset($cacheConfig['enabled']) && (bool) $cacheConfig['enabled'];
         $store = 'default';
 
-        if (is_array($cacheConfig) && isset($cacheConfig['store']) && is_string($cacheConfig['store'])) {
+        if (isset($cacheConfig['store']) && is_string($cacheConfig['store'])) {
             $store = $cacheConfig['store'];
         }
         $ttl = 300;
 
-        if (is_array($cacheConfig) && isset($cacheConfig['ttl']) && is_numeric($cacheConfig['ttl'])) {
+        if (isset($cacheConfig['ttl']) && is_numeric($cacheConfig['ttl'])) {
             $ttl = (int) $cacheConfig['ttl'];
         }
         $prefix = 'openfga';
 
-        if (is_array($cacheConfig) && isset($cacheConfig['prefix']) && is_string($cacheConfig['prefix'])) {
+        if (isset($cacheConfig['prefix']) && is_string($cacheConfig['prefix'])) {
             $prefix = $cacheConfig['prefix'];
         }
 
@@ -111,14 +120,18 @@ final class DebugCommand extends Command
         );
 
         if ($enabled && $this->output->isVerbose()) {
+            /** @var mixed $defaultStoreConfig */
             $defaultStoreConfig = Config::get('cache.default', 'file');
             $defaultStore = is_string($defaultStoreConfig) ? $defaultStoreConfig : 'file';
+
+            /** @var mixed $cacheStore */
             $cacheStore = Config::get('cache.stores.' . $store, Config::get('cache.stores.' . $defaultStore, []));
 
             if (is_array($cacheStore)) {
                 $this->newLine();
                 $this->line('Cache Store Details:');
 
+                /** @var array<string, mixed> $cacheStore */
                 $driver = isset($cacheStore['driver']) && is_scalar($cacheStore['driver']) ? (string) $cacheStore['driver'] : 'unknown';
                 $this->line('  Driver: ' . $driver);
 
@@ -138,23 +151,19 @@ final class DebugCommand extends Command
     {
         $this->info('Configuration:');
 
+        /** @var array<string, mixed> $config */
         $config = Config::get('openfga', []);
-        $defaultConnection = is_array($config) && isset($config['default']) && is_scalar($config['default']) ? (string) $config['default'] : 'main';
+        $defaultConnection = isset($config['default']) && is_scalar($config['default']) ? (string) $config['default'] : 'main';
         $connectionName = $connection ?? $defaultConnection;
 
-        if (! is_array($config) || ! isset($config['connections']) || ! is_array($config['connections']) || ! isset($config['connections'][$connectionName])) {
+        if (! isset($config['connections']) || ! is_array($config['connections']) || ! isset($config['connections'][$connectionName])) {
             $this->error(sprintf("Connection '%s' not found in configuration", $connectionName));
 
             return;
         }
 
+        /** @var array<string, mixed> $connectionConfig */
         $connectionConfig = $config['connections'][$connectionName];
-
-        if (! is_array($connectionConfig)) {
-            $this->error(sprintf("Connection '%s' configuration is invalid", $connectionName));
-
-            return;
-        }
 
         // Basic configuration
         $this->line('Connection: ' . $connectionName . ($connectionName === $defaultConnection ? ' (default)' : ''));
@@ -245,6 +254,7 @@ final class DebugCommand extends Command
             $contents = file_get_contents($composerFile);
 
             if (false !== $contents) {
+                /** @var array<string, mixed>|null $composer */
                 $composer = json_decode($contents, true);
                 $packageName = is_array($composer) && isset($composer['name']) && is_scalar($composer['name']) ? (string) $composer['name'] : 'openfga/laravel';
                 $packageVersion = is_array($composer) && isset($composer['version']) && is_scalar($composer['version']) ? (string) $composer['version'] : 'dev';
@@ -273,11 +283,12 @@ final class DebugCommand extends Command
     {
         $this->info('Queue Configuration:');
 
+        /** @var array<string, mixed> $queueConfig */
         $queueConfig = Config::get('openfga.queue', []);
 
-        $enabled = is_array($queueConfig) && isset($queueConfig['enabled']) && (bool) $queueConfig['enabled'];
-        $connection = is_array($queueConfig) && isset($queueConfig['connection']) && is_scalar($queueConfig['connection']) ? (string) $queueConfig['connection'] : 'default';
-        $queueName = is_array($queueConfig) && isset($queueConfig['queue']) && is_scalar($queueConfig['queue']) ? (string) $queueConfig['queue'] : 'openfga';
+        $enabled = isset($queueConfig['enabled']) && (bool) $queueConfig['enabled'];
+        $connection = isset($queueConfig['connection']) && is_scalar($queueConfig['connection']) ? (string) $queueConfig['connection'] : 'default';
+        $queueName = isset($queueConfig['queue']) && is_scalar($queueConfig['queue']) ? (string) $queueConfig['queue'] : 'openfga';
 
         $this->table(
             ['Setting', 'Value'],
@@ -289,19 +300,24 @@ final class DebugCommand extends Command
         );
 
         if ($enabled && $this->output->isVerbose()) {
+            /** @var mixed $defaultQueue */
             $defaultQueue = Config::get('queue.default', 'sync');
             $connectionKey = 'queue.connections.' . $connection;
             $defaultKey = is_string($defaultQueue) ? 'queue.connections.' . $defaultQueue : null;
+
+            /** @var mixed $queueConnection */
             $queueConnection = Config::get($connectionKey, null !== $defaultKey ? Config::get($defaultKey, []) : []);
 
             if (is_array($queueConnection)) {
                 $this->newLine();
                 $this->line('Queue Connection Details:');
 
+                /** @var array<string, mixed> $queueConnection */
                 $driver = isset($queueConnection['driver']) && is_scalar($queueConnection['driver']) ? (string) $queueConnection['driver'] : 'unknown';
                 $this->line('  Driver: ' . $driver);
 
                 if (isset($queueConnection['queue'])) {
+                    /** @var mixed $queue */
                     $queue = $queueConnection['queue'];
                     $queueStr = is_scalar($queue) ? (string) $queue : 'non-scalar value';
                     $this->line('  Default Queue: ' . $queueStr);
@@ -331,6 +347,11 @@ final class DebugCommand extends Command
      *
      * @param OpenFgaManager $manager
      * @param ?string        $connection
+     *
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
+     * @throws InvalidArgumentException
      */
     private function testConnection(OpenFgaManager $manager, ?string $connection): void
     {
@@ -341,9 +362,9 @@ final class DebugCommand extends Command
             $startTime = microtime(true);
 
             // Try to perform a simple check operation
-            $manager->connection($connection)->check('test:user', 'test', 'test:object');
+            $manager->check('test:user', 'test', 'test:object', [], [], $connection);
 
-            $duration = round((microtime(true) - $startTime) * 1000, 2);
+            $duration = round((microtime(true) - $startTime) * 1000.0, 2);
 
             $this->info(sprintf('✅ Connection successful! (Response time: %sms)', $duration));
         } catch (Exception $exception) {

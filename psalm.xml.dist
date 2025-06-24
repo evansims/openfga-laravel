@@ -29,7 +29,14 @@
 
     <projectFiles>
         <directory name="src" />
+        <ignoreFiles>
+            <directory name="vendor" />
+        </ignoreFiles>
     </projectFiles>
+
+    <stubs>
+        <file name="stubs/laravel.phpstub" />
+    </stubs>
 
     <!-- Suppress issues that conflict with modern PHP patterns -->
     <issueHandlers>
@@ -38,7 +45,12 @@
         <MixedArgumentTypeCoercion errorLevel="info" />
 
         <!-- Support for typed properties and strict types -->
-        <PropertyNotSetInConstructor errorLevel="error" />
+        <PropertyNotSetInConstructor errorLevel="error">
+            <!-- Laravel Commands have properties injected by the framework -->
+            <errorLevel type="suppress">
+                <directory name="src/Console/Commands" />
+            </errorLevel>
+        </PropertyNotSetInConstructor>
         <MissingConstructor errorLevel="error" />
 
         <!-- Modern PSR standards -->

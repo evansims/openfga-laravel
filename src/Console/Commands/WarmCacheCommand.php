@@ -78,6 +78,7 @@ final class WarmCacheCommand extends Command
         $users = [];
 
         if (is_array($usersOption)) {
+            /** @var mixed $userOption */
             foreach ($usersOption as $userOption) {
                 if (is_string($userOption)) {
                     $users[] = $userOption;
@@ -88,6 +89,7 @@ final class WarmCacheCommand extends Command
         $relations = [];
 
         if (is_array($relationsOption)) {
+            /** @var mixed $relationOption */
             foreach ($relationsOption as $relationOption) {
                 if (is_string($relationOption)) {
                     $relations[] = $relationOption;
@@ -98,6 +100,7 @@ final class WarmCacheCommand extends Command
         $objects = [];
 
         if (is_array($objectsOption)) {
+            /** @var mixed $objectOption */
             foreach ($objectsOption as $objectOption) {
                 if (is_string($objectOption)) {
                     $objects[] = $objectOption;
@@ -190,7 +193,8 @@ final class WarmCacheCommand extends Command
      */
     private function warmFromActivity(CacheWarmer $warmer): int
     {
-        $limit = (int) $this->option('limit');
+        $limitOption = $this->option('limit');
+        $limit = is_numeric($limitOption) ? (int) $limitOption : 1000;
         $this->info(sprintf('Warming cache based on recent activity (limit: %d)...', $limit));
 
         $warmed = $warmer->warmFromActivity($limit);

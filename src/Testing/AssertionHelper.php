@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Testing;
 
-use PHPUnit\Framework\Assert;
+use PHPUnit\Framework\{Assert, AssertionFailedError, Exception, ExpectationFailedException, GeneratorNotSupportedException};
+use RuntimeException;
+use Throwable;
 
 use function count;
 use function is_array;
@@ -23,6 +25,10 @@ final class AssertionHelper
      * @param string        $object
      * @param string        $relation
      * @param ?string       $message
+     *
+     * @throws ExpectationFailedException
+     * @throws RuntimeException
+     * @throws Throwable
      */
     public static function assertExpandContainsUsers(FakeOpenFga $fake, string $object, string $relation, array $expectedUsers, ?string $message = null): void
     {
@@ -50,6 +56,10 @@ final class AssertionHelper
      * @param string        $object
      * @param string        $relation
      * @param ?string       $message
+     *
+     * @throws ExpectationFailedException
+     * @throws RuntimeException
+     * @throws Throwable
      */
     public static function assertExpandDoesNotContainUsers(FakeOpenFga $fake, string $object, string $relation, array $forbiddenUsers, ?string $message = null): void
     {
@@ -75,6 +85,8 @@ final class AssertionHelper
      * @param FakeOpenFga $fake
      * @param int         $expectedCount
      * @param ?string     $message
+     *
+     * @throws ExpectationFailedException
      */
     public static function assertFailedCheckCount(FakeOpenFga $fake, int $expectedCount, ?string $message = null): void
     {
@@ -91,6 +103,8 @@ final class AssertionHelper
      *
      * @param FakeOpenFga $fake
      * @param ?string     $message
+     *
+     * @throws ExpectationFailedException
      */
     public static function assertNoTuples(FakeOpenFga $fake, ?string $message = null): void
     {
@@ -104,6 +118,8 @@ final class AssertionHelper
      * @param string      $object
      * @param int         $expectedCount
      * @param ?string     $message
+     *
+     * @throws ExpectationFailedException
      */
     public static function assertObjectCheckCount(FakeOpenFga $fake, string $object, int $expectedCount, ?string $message = null): void
     {
@@ -121,6 +137,8 @@ final class AssertionHelper
      * @param FakeOpenFga $fake
      * @param int         $expectedCount
      * @param ?string     $message
+     *
+     * @throws ExpectationFailedException
      */
     public static function assertSuccessfulCheckCount(FakeOpenFga $fake, int $expectedCount, ?string $message = null): void
     {
@@ -138,6 +156,8 @@ final class AssertionHelper
      * @param FakeOpenFga $fake
      * @param int         $expectedCount
      * @param ?string     $message
+     *
+     * @throws ExpectationFailedException
      */
     public static function assertTupleCount(FakeOpenFga $fake, int $expectedCount, ?string $message = null): void
     {
@@ -153,6 +173,8 @@ final class AssertionHelper
      * @param array<array{user: string, relation: string, object: string}> $forbiddenTuples
      * @param FakeOpenFga                                                  $fake
      * @param ?string                                                      $message
+     *
+     * @throws AssertionFailedError
      */
     public static function assertTuplesDoNotExist(FakeOpenFga $fake, array $forbiddenTuples, ?string $message = null): void
     {
@@ -178,6 +200,8 @@ final class AssertionHelper
      * @param array<array{user: string, relation: string, object: string}> $expectedTuples
      * @param FakeOpenFga                                                  $fake
      * @param ?string                                                      $message
+     *
+     * @throws AssertionFailedError
      */
     public static function assertTuplesExist(FakeOpenFga $fake, array $expectedTuples, ?string $message = null): void
     {
@@ -212,6 +236,8 @@ final class AssertionHelper
      * @param string      $user
      * @param int         $expectedCount
      * @param ?string     $message
+     *
+     * @throws ExpectationFailedException
      */
     public static function assertUserCheckCount(FakeOpenFga $fake, string $user, int $expectedCount, ?string $message = null): void
     {
@@ -231,6 +257,10 @@ final class AssertionHelper
      * @param string        $user
      * @param string        $relation
      * @param ?string       $message
+     *
+     * @throws ExpectationFailedException
+     * @throws RuntimeException
+     * @throws Throwable
      */
     public static function assertUserDoesNotHaveAccessToObjects(FakeOpenFga $fake, string $user, string $relation, array $forbiddenObjects, ?string $message = null): void
     {
@@ -249,6 +279,10 @@ final class AssertionHelper
      * @param string      $relation
      * @param string      $object
      * @param ?string     $message
+     *
+     * @throws ExpectationFailedException
+     * @throws RuntimeException
+     * @throws Throwable
      */
     public static function assertUserDoesNotHavePermission(FakeOpenFga $fake, string $user, string $relation, string $object, ?string $message = null): void
     {
@@ -266,6 +300,12 @@ final class AssertionHelper
      * @param string      $type
      * @param int         $expectedCount
      * @param ?string     $message
+     *
+     * @throws Exception
+     * @throws ExpectationFailedException
+     * @throws GeneratorNotSupportedException
+     * @throws RuntimeException
+     * @throws Throwable
      */
     public static function assertUserHasAccessToObjectCount(FakeOpenFga $fake, string $user, string $relation, string $type, int $expectedCount, ?string $message = null): void
     {
@@ -285,6 +325,10 @@ final class AssertionHelper
      * @param string        $user
      * @param string        $relation
      * @param ?string       $message
+     *
+     * @throws ExpectationFailedException
+     * @throws RuntimeException
+     * @throws Throwable
      */
     public static function assertUserHasAccessToObjects(FakeOpenFga $fake, string $user, string $relation, array $expectedObjects, ?string $message = null): void
     {
@@ -303,6 +347,10 @@ final class AssertionHelper
      * @param string        $user
      * @param string        $object
      * @param ?string       $message
+     *
+     * @throws AssertionFailedError
+     * @throws RuntimeException
+     * @throws Throwable
      */
     public static function assertUserHasAllPermissions(FakeOpenFga $fake, string $user, array $relations, string $object, ?string $message = null): void
     {
@@ -325,6 +373,11 @@ final class AssertionHelper
      * @param string        $user
      * @param string        $object
      * @param ?string       $message
+     *
+     * @throws AssertionFailedError
+     * @throws ExpectationFailedException
+     * @throws RuntimeException
+     * @throws Throwable
      */
     public static function assertUserHasAnyPermission(FakeOpenFga $fake, string $user, array $relations, string $object, ?string $message = null): void
     {
@@ -348,6 +401,10 @@ final class AssertionHelper
      * @param string      $relation
      * @param string      $object
      * @param ?string     $message
+     *
+     * @throws ExpectationFailedException
+     * @throws RuntimeException
+     * @throws Throwable
      */
     public static function assertUserHasPermission(FakeOpenFga $fake, string $user, string $relation, string $object, ?string $message = null): void
     {

@@ -6,11 +6,12 @@ namespace OpenFGA\Laravel\Console\Commands;
 
 use Exception;
 use Illuminate\Console\Command;
+use OpenFGA\Exceptions\ClientThrowable;
 use OpenFGA\Laravel\OpenFgaManager;
+use Psr\SimpleCache\InvalidArgumentException;
 
 use function count;
 use function is_array;
-use function is_scalar;
 use function is_string;
 use function sprintf;
 
@@ -41,8 +42,9 @@ final class CheckCommand extends Command
      * Execute the console command.
      *
      * @param OpenFgaManager $manager
-     * @throws \Psr\SimpleCache\InvalidArgumentException
-     * @throws \OpenFGA\Exceptions\ClientThrowable
+     *
+     * @throws ClientThrowable
+     * @throws InvalidArgumentException
      */
     public function handle(OpenFgaManager $manager): int
     {
@@ -77,7 +79,7 @@ final class CheckCommand extends Command
 
             $allowed = $manager->check($user, $relation, $object, $contextualTuples, $context, $connection);
 
-            $duration = round((microtime(true) - $startTime) * 1000, 2);
+            $duration = round((microtime(true) - $startTime) * 1000.0, 2);
 
             if (true === $this->option('json')) {
                 $jsonOutput = json_encode([
@@ -103,7 +105,7 @@ final class CheckCommand extends Command
                         ['Relation', $relation],
                         ['Object', $object],
                         ['Connection', $connection ?? 'default'],
-                        ['Duration', $duration . 'ms'],
+                        ['Duration', ((string) $duration) . 'ms'],
                     ],
                 );
 
@@ -119,8 +121,7 @@ final class CheckCommand extends Command
                     $this->info("\nContext:");
 
                     foreach ($context as $key => $value) {
-                        $valueStr = is_scalar($value) ? (string) $value : 'non-scalar value';
-                        $this->line(sprintf('  - %s: %s', $key, $valueStr));
+                        $this->line(sprintf('  - %s: %s', $key, $value));
                     }
                 }
             }
@@ -144,8 +145,8 @@ final class CheckCommand extends Command
     /**
      * Parse context values from command options.
      *
-     * @param  array<string>        $contextValues
-     * @return array<string, mixed>
+     * @param  array<string>         $contextValues
+     * @return array<string, string>
      */
     private function parseContext(array $contextValues): array
     {

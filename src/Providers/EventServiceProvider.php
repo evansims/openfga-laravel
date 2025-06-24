@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Providers;
 
+use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
 use OpenFGA\Laravel\{Events, Listeners};
 use Override;
@@ -45,14 +46,19 @@ final class EventServiceProvider extends ServiceProvider
     ];
 
     /**
-     * The subscribers to register.
+     * Create a new service provider instance.
      *
-     * @var array
+     * @param Application $app
      */
-    protected $subscribe = [ // @phpstan-ignore missingType.iterableValue
-        Listeners\AuditPermissionChanges::class,
-        Listeners\MonitorPerformance::class,
-    ];
+    public function __construct($app)
+    {
+        parent::__construct($app);
+
+        $this->subscribe = [
+            Listeners\AuditPermissionChanges::class,
+            Listeners\MonitorPerformance::class,
+        ];
+    }
 
     /**
      * Register any events for your application.

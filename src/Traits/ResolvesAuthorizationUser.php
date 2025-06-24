@@ -17,16 +17,17 @@ trait ResolvesAuthorizationUser
     /**
      * Resolve the user ID for OpenFGA from an authenticatable user.
      *
-     * @param Authenticatable|mixed $user
+     * @param Authenticatable $user The authenticated user
+     *
+     * @throws InvalidArgumentException If identifier cannot be resolved
+     *
+     * @return string The user identifier for OpenFGA
      */
-    protected function resolveUserIdentifier($user): string
+    protected function resolveUserIdentifier(Authenticatable $user): string
     {
-        if (! $user instanceof Authenticatable) {
-            throw new InvalidArgumentException('User must implement Authenticatable interface');
-        }
-
         // Check for custom authorization user methods
         if (method_exists($user, 'authorizationUser')) {
+            /** @var mixed $result */
             $result = $user->authorizationUser();
 
             if (is_string($result) || is_numeric($result)) {
@@ -35,6 +36,7 @@ trait ResolvesAuthorizationUser
         }
 
         if (method_exists($user, 'getAuthorizationUserId')) {
+            /** @var mixed $result */
             $result = $user->getAuthorizationUserId();
 
             if (is_string($result) || is_numeric($result)) {
@@ -43,6 +45,7 @@ trait ResolvesAuthorizationUser
         }
 
         // Default to user:{id}
+        /** @var mixed $identifier */
         $identifier = $user->getAuthIdentifier();
 
         if (is_string($identifier) || is_numeric($identifier)) {

@@ -1,0 +1,17 @@
+<?php
+
+namespace Illuminate\Http;
+
+use Illuminate\Routing\Route;
+
+class Request
+{
+    /**
+     * Get the route handling the request.
+     *
+     * @param string|null $param
+     * @param mixed $default
+     * @return ($param is null ? Route|null : mixed)
+     */
+    public function route($param = null, $default = null) {}
+}

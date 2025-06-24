@@ -4,15 +4,20 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\View;
 
+use Exception;
 use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Contracts\Container\BindingResolutionException;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\{Auth, Blade};
 use Illuminate\Support\ServiceProvider;
 use Illuminate\View\{Factory, View};
 use InvalidArgumentException;
+use OpenFGA\Exceptions\ClientThrowable;
+use OpenFGA\Laravel\Contracts\AuthorizationType;
+use OpenFGA\Laravel\Helpers\ModelKeyHelper;
 use OpenFGA\Laravel\OpenFgaManager;
 
 use function gettype;
-use function is_callable;
 use function is_object;
 use function is_string;
 
@@ -36,6 +41,12 @@ final class BladeServiceProvider extends ServiceProvider
      * @param string      $relation
      * @param mixed       $object
      * @param string|null $connection
+     *
+     * @throws \Psr\SimpleCache\InvalidArgumentException
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
+     * @throws InvalidArgumentException
      */
     public function checkBladePermission(string $relation, $object, ?string $connection = null): bool
     {
@@ -53,8 +64,7 @@ final class BladeServiceProvider extends ServiceProvider
         $userId = $this->resolveUserId($user);
         $objectId = $this->resolveObject($object);
 
-        /* @phpstan-ignore-next-line */
-        return (bool) $manager->connection($connection)->check($userId, $relation, $objectId);
+        return $manager->check($userId, $relation, $objectId, [], [], $connection);
     }
 
     /**
@@ -73,6 +83,7 @@ final class BladeServiceProvider extends ServiceProvider
 
         // Model with authorization support
         if (is_object($object) && method_exists($object, 'authorizationObject')) {
+            /** @var mixed $result */
             $result = $object->authorizationObject();
 
             if (is_string($result)) {
@@ -81,23 +92,20 @@ final class BladeServiceProvider extends ServiceProvider
         }
 
         // Model with authorization type method
-        if (is_object($object) && method_exists($object, 'authorizationType') && method_exists($object, 'getKey')) {
+        if (is_object($object) && $object instanceof Model && $object instanceof AuthorizationType) {
+            /** @var AuthorizationType&Model $object */
             $type = $object->authorizationType();
-            $key = $object->getKey();
+            $key = ModelKeyHelper::stringId($object);
 
-            if (is_string($type) && (is_string($key) || is_numeric($key))) {
-                return $type . ':' . $key;
-            }
+            return $type . ':' . $key;
         }
 
         // Eloquent model fallback
-        if (is_object($object) && method_exists($object, 'getTable') && method_exists($object, 'getKey')) {
+        if (is_object($object) && $object instanceof Model) {
             $table = $object->getTable();
-            $key = $object->getKey();
+            $key = ModelKeyHelper::stringId($object);
 
-            if (is_string($table) && (is_string($key) || is_numeric($key))) {
-                return $table . ':' . $key;
-            }
+            return $table . ':' . $key;
         }
 
         throw new InvalidArgumentException('Cannot resolve object identifier for: ' . gettype($object));
@@ -106,11 +114,16 @@ final class BladeServiceProvider extends ServiceProvider
     /**
      * Resolve the user ID for OpenFGA.
      *
-     * @param Authenticatable $user
+     * @param Authenticatable $user The authenticated user
+     *
+     * @throws InvalidArgumentException If user identifier cannot be resolved
+     *
+     * @return string The user identifier for OpenFGA
      */
     public function resolveUserId(Authenticatable $user): string
     {
         if (method_exists($user, 'authorizationUser')) {
+            /** @var mixed $result */
             $result = $user->authorizationUser();
 
             if (is_string($result)) {
@@ -119,6 +132,7 @@ final class BladeServiceProvider extends ServiceProvider
         }
 
         if (method_exists($user, 'getAuthorizationUserId')) {
+            /** @var mixed $result */
             $result = $user->getAuthorizationUserId();
 
             if (is_string($result)) {
@@ -126,10 +140,11 @@ final class BladeServiceProvider extends ServiceProvider
             }
         }
 
+        /** @var int|mixed|string $identifier */
         $identifier = $user->getAuthIdentifier();
 
         if (is_string($identifier) || is_numeric($identifier)) {
-            return 'user:' . $identifier;
+            return 'user:' . (string) $identifier;
         }
 
         throw new InvalidArgumentException('Unable to resolve user identifier');
@@ -141,7 +156,7 @@ final class BladeServiceProvider extends ServiceProvider
     private function registerBladeDirectives(): void
     {
         // @openfgacan directive
-        Blade::if('openfgacan', function (string $relation, $object, ?string $connection = null) {
+        Blade::if('openfgacan', function (string $relation, mixed $object, ?string $connection = null): bool {
             if (! Auth::check()) {
                 return false;
             }
@@ -156,20 +171,18 @@ final class BladeServiceProvider extends ServiceProvider
             $userId = $this->resolveUserId($user);
             $objectId = $this->resolveObject($object);
 
-            /* @phpstan-ignore-next-line */
-            return (bool) $manager->connection($connection)->check($userId, $relation, $objectId);
+            return $manager->check($userId, $relation, $objectId, [], [], $connection);
         });
 
         // @openfgacannot directive (opposite of @openfgacan)
-        Blade::if('openfgacannot', function (string $relation, $object, ?string $connection = null): bool {
-            /** @var BladeServiceProvider $provider */
+        Blade::if('openfgacannot', function (string $relation, mixed $object, ?string $connection = null): bool {
             $provider = $this->app->make(BladeServiceProvider::class);
 
             return ! $provider->checkBladePermission($relation, $object, $connection);
         });
 
         // @openfgacanany directive - check if user has any of the given permissions
-        Blade::if('openfgacanany', function (array $relations, $object, ?string $connection = null) {
+        Blade::if('openfgacanany', function (array $relations, mixed $object, ?string $connection = null): bool {
             if (! Auth::check()) {
                 return false;
             }
@@ -179,7 +192,6 @@ final class BladeServiceProvider extends ServiceProvider
                     continue;
                 }
 
-                /** @var BladeServiceProvider $provider */
                 $provider = $this->app->make(BladeServiceProvider::class);
 
                 if ($provider->checkBladePermission($relation, $object, $connection)) {
@@ -191,7 +203,7 @@ final class BladeServiceProvider extends ServiceProvider
         });
 
         // @openfgacanall directive - check if user has all of the given permissions
-        Blade::if('openfgacanall', function (array $relations, $object, ?string $connection = null) {
+        Blade::if('openfgacanall', function (array $relations, mixed $object, ?string $connection = null): bool {
             if (! Auth::check()) {
                 return false;
             }
@@ -201,7 +213,6 @@ final class BladeServiceProvider extends ServiceProvider
                     return false;
                 }
 
-                /** @var BladeServiceProvider $provider */
                 $provider = $this->app->make(BladeServiceProvider::class);
 
                 if (! $provider->checkBladePermission($relation, $object, $connection)) {
@@ -213,7 +224,7 @@ final class BladeServiceProvider extends ServiceProvider
         });
 
         // @openfgauser directive - check if current user matches the given user identifier
-        Blade::if('openfgauser', function (string $userId) {
+        Blade::if('openfgauser', function (string $userId): bool {
             if (! Auth::check()) {
                 return false;
             }
@@ -224,7 +235,6 @@ final class BladeServiceProvider extends ServiceProvider
                 return false;
             }
 
-            /** @var BladeServiceProvider $provider */
             $provider = $this->app->make(BladeServiceProvider::class);
             $currentUserId = $provider->resolveUserId($user);
 
@@ -235,9 +245,8 @@ final class BladeServiceProvider extends ServiceProvider
         Blade::if('openfgaguest', static fn (): bool => ! Auth::check());
 
         // @openfgajs directive - generate JavaScript helpers
-        Blade::directive('openfgajs', static function ($expression): string {
+        Blade::directive('openfgajs', static function (?string $expression): string {
             // $expression comes from Blade compiler and is always a string or null
-            /** @var string|null $expression */
             if (null === $expression || '' === $expression) {
                 return '<?php echo app(' . JavaScriptHelper::class . '::class)->bladeDirective(null); ?>';
             }
@@ -250,21 +259,20 @@ final class BladeServiceProvider extends ServiceProvider
         /** @var callable|null $originalCanDirective */
         $originalCanDirective = Blade::getCustomDirectives()['can'] ?? null;
 
-        Blade::if('can', function ($ability, $arguments = null) use ($originalCanDirective) {
+        Blade::if('can', function (mixed $ability, mixed $arguments = null) use ($originalCanDirective) {
             if (! is_string($ability)) {
                 return false;
             }
 
             // If it looks like an OpenFGA permission check (object contains ':')
             if (is_string($arguments) && str_contains($arguments, ':')) {
-                /** @var BladeServiceProvider $provider */
                 $provider = $this->app->make(BladeServiceProvider::class);
 
                 return $provider->checkBladePermission($ability, $arguments);
             }
 
             // Fall back to Laravel's original @can behavior
-            if (null !== $originalCanDirective && is_callable($originalCanDirective)) {
+            if (null !== $originalCanDirective) {
                 return $originalCanDirective($ability, $arguments);
             }
 
@@ -284,15 +292,20 @@ final class BladeServiceProvider extends ServiceProvider
         // Register a view composer that makes OpenFGA helpers available in all views
         /** @var Factory $viewFactory */
         $viewFactory = view();
-        $viewFactory->composer('*', function ($view): void {
-            /** @var View $view */
+        $viewFactory->composer('*', function (View $view): void {
             $view->with('openfga', new class {
                 /**
                  * @param string      $relation
                  * @param mixed       $object
                  * @param string|null $connection
+                 *
+                 * @throws \Psr\SimpleCache\InvalidArgumentException
+                 * @throws BindingResolutionException
+                 * @throws ClientThrowable
+                 * @throws Exception
+                 * @throws InvalidArgumentException
                  */
-                public function can(string $relation, $object, ?string $connection = null): bool
+                public function can(string $relation, mixed $object, ?string $connection = null): bool
                 {
                     if (! Auth::check()) {
                         return false;
@@ -307,8 +320,14 @@ final class BladeServiceProvider extends ServiceProvider
                  * @param string      $relation
                  * @param mixed       $object
                  * @param string|null $connection
+                 *
+                 * @throws \Psr\SimpleCache\InvalidArgumentException
+                 * @throws BindingResolutionException
+                 * @throws ClientThrowable
+                 * @throws Exception
+                 * @throws InvalidArgumentException
                  */
-                public function cannot(string $relation, $object, ?string $connection = null): bool
+                public function cannot(string $relation, mixed $object, ?string $connection = null): bool
                 {
                     return ! $this->can($relation, $object, $connection);
                 }
@@ -317,11 +336,17 @@ final class BladeServiceProvider extends ServiceProvider
                  * @param array<int, string> $relations
                  * @param mixed              $object
                  * @param string|null        $connection
+                 *
+                 * @throws \Psr\SimpleCache\InvalidArgumentException
+                 * @throws BindingResolutionException
+                 * @throws ClientThrowable
+                 * @throws Exception
+                 * @throws InvalidArgumentException
                  */
-                public function canAny(array $relations, $object, ?string $connection = null): bool
+                public function canAny(array $relations, mixed $object, ?string $connection = null): bool
                 {
                     foreach ($relations as $relation) {
-                        if (is_string($relation) && $this->can($relation, $object, $connection)) {
+                        if ($this->can($relation, $object, $connection)) {
                             return true;
                         }
                     }
@@ -333,11 +358,17 @@ final class BladeServiceProvider extends ServiceProvider
                  * @param array<int, string> $relations
                  * @param mixed              $object
                  * @param string|null        $connection
+                 *
+                 * @throws \Psr\SimpleCache\InvalidArgumentException
+                 * @throws BindingResolutionException
+                 * @throws ClientThrowable
+                 * @throws Exception
+                 * @throws InvalidArgumentException
                  */
-                public function canAll(array $relations, $object, ?string $connection = null): bool
+                public function canAll(array $relations, mixed $object, ?string $connection = null): bool
                 {
                     foreach ($relations as $relation) {
-                        if (! is_string($relation) || ! $this->can($relation, $object, $connection)) {
+                        if (! $this->can($relation, $object, $connection)) {
                             return false;
                         }
                     }
@@ -345,6 +376,9 @@ final class BladeServiceProvider extends ServiceProvider
                     return true;
                 }
 
+                /**
+                 * @throws InvalidArgumentException
+                 */
                 public function user(): ?string
                 {
                     if (! Auth::check()) {

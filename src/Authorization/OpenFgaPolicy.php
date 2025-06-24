@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Authorization;
 
+use Exception;
 use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Contracts\Container\BindingResolutionException;
 use Illuminate\Database\Eloquent\Model;
 use InvalidArgumentException;
+use OpenFGA\Exceptions\ClientThrowable;
 use OpenFGA\Laravel\Contracts\{AuthorizationObject, AuthorizationType};
+use OpenFGA\Laravel\Helpers\ModelKeyHelper;
 use OpenFGA\Laravel\OpenFgaManager;
 
 use function gettype;
@@ -37,11 +41,12 @@ abstract class OpenFgaPolicy
      * @param string          $relation
      * @param mixed           $resource
      * @param string|null     $connection
+     *
      * @throws \Psr\SimpleCache\InvalidArgumentException
-     * @throws \Illuminate\Contracts\Container\BindingResolutionException
-     * @throws \OpenFGA\Exceptions\ClientThrowable
-     * @throws \Exception
-     * @throws \InvalidArgumentException
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
+     * @throws InvalidArgumentException
      */
     protected function can(Authenticatable $user, string $relation, $resource, ?string $connection = null): bool
     {
@@ -58,6 +63,8 @@ abstract class OpenFgaPolicy
      * @param array<string>   $relations
      * @param mixed           $resource
      * @param string|null     $connection
+     *
+     * @throws InvalidArgumentException
      */
     protected function canAll(Authenticatable $user, array $relations, $resource, ?string $connection = null): bool
     {
@@ -80,6 +87,8 @@ abstract class OpenFgaPolicy
      * @param array<string>   $relations
      * @param mixed           $resource
      * @param string|null     $connection
+     *
+     * @throws InvalidArgumentException
      */
     protected function canAny(Authenticatable $user, array $relations, $resource, ?string $connection = null): bool
     {
@@ -123,6 +132,7 @@ abstract class OpenFgaPolicy
      * Create an object identifier for the given ID.
      *
      * @param mixed $id
+     *
      * @throws InvalidArgumentException
      */
     protected function objectId($id): string
@@ -138,6 +148,8 @@ abstract class OpenFgaPolicy
      * Resolve the object identifier for OpenFGA.
      *
      * @param mixed $resource
+     *
+     * @throws InvalidArgumentException
      */
     protected function resolveObject($resource): string
     {
@@ -149,24 +161,16 @@ abstract class OpenFgaPolicy
         // Model with authorization support
         if (is_object($resource) && method_exists($resource, 'authorizationObject')) {
             /** @var AuthorizationObject&object $resource */
-            return (string) $resource->authorizationObject();
+            return $resource->authorizationObject();
         }
 
         // Model with authorization type method
         if (is_object($resource) && method_exists($resource, 'authorizationType') && method_exists($resource, 'getKey')) {
             /** @var AuthorizationType&Model&object $resource */
             $type = $resource->authorizationType();
-            $key = $resource->getKey();
+            $key = ModelKeyHelper::stringId($resource);
 
-            if (! is_string($type) && ! is_numeric($type)) {
-                throw new InvalidArgumentException('Authorization type must be string or numeric');
-            }
-
-            if (null === $key || (! is_string($key) && ! is_numeric($key))) {
-                throw new InvalidArgumentException('Model key must be string or numeric');
-            }
-
-            return (string) $type . ':' . (string) $key;
+            return $type . ':' . $key;
         }
 
         // Eloquent model fallback
@@ -175,17 +179,9 @@ abstract class OpenFgaPolicy
             if (method_exists($resource, 'getTable') && method_exists($resource, 'getKey')) {
                 /** @var Model $resource */
                 $table = $resource->getTable();
-                $key = $resource->getKey();
+                $key = ModelKeyHelper::stringId($resource);
 
-                if (! is_string($table)) {
-                    throw new InvalidArgumentException('Table name must be string');
-                }
-
-                if (null === $key || (! is_string($key) && ! is_numeric($key))) {
-                    throw new InvalidArgumentException('Model key must be string or numeric');
-                }
-
-                return $table . ':' . (string) $key;
+                return $table . ':' . $key;
             }
         }
 
@@ -193,7 +189,7 @@ abstract class OpenFgaPolicy
         if (is_numeric($resource)) {
             $type = $this->inferResourceType();
 
-            return $type . ':' . $resource;
+            return $type . ':' . (string) $resource;
         }
 
         throw new InvalidArgumentException('Cannot resolve object identifier for: ' . gettype($resource));
@@ -202,24 +198,42 @@ abstract class OpenFgaPolicy
     /**
      * Resolve the user ID for OpenFGA.
      *
-     * @param Authenticatable $user
+     * @param Authenticatable $user The authenticated user
+     *
+     * @throws InvalidArgumentException
+     *
+     * @return string The user identifier for OpenFGA
      */
     protected function resolveUserId(Authenticatable $user): string
     {
         if (method_exists($user, 'authorizationUser')) {
-            /** @var Authenticatable&object $userObj */
-            $userObj = $user;
+            /** @var mixed $result */
+            $result = $user->authorizationUser();
 
-            /* @phpstan-ignore-next-line */
-            return (string) $userObj->authorizationUser();
+            if (is_string($result)) {
+                return $result;
+            }
+
+            if (is_scalar($result) || (is_object($result) && method_exists($result, '__toString'))) {
+                return (string) $result;
+            }
+
+            throw new InvalidArgumentException('authorizationUser() must return a string or stringable value');
         }
 
         if (method_exists($user, 'getAuthorizationUserId')) {
-            /** @var Authenticatable&object $userObj */
-            $userObj = $user;
+            /** @var mixed $result */
+            $result = $user->getAuthorizationUserId();
 
-            /* @phpstan-ignore-next-line */
-            return (string) $userObj->getAuthorizationUserId();
+            if (is_string($result)) {
+                return $result;
+            }
+
+            if (is_scalar($result) || (is_object($result) && method_exists($result, '__toString'))) {
+                return (string) $result;
+            }
+
+            throw new InvalidArgumentException('getAuthorizationUserId() must return a string or stringable value');
         }
 
         $identifier = $user->getAuthIdentifier();

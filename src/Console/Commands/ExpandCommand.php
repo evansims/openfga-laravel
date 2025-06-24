@@ -6,6 +6,9 @@ namespace OpenFGA\Laravel\Console\Commands;
 
 use Exception;
 use Illuminate\Console\Command;
+use Illuminate\Contracts\Container\BindingResolutionException;
+use InvalidArgumentException;
+use OpenFGA\Exceptions\ClientThrowable;
 use OpenFGA\Laravel\OpenFgaManager;
 
 use function count;
@@ -39,6 +42,11 @@ final class ExpandCommand extends Command
      * Execute the console command.
      *
      * @param OpenFgaManager $manager
+     *
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
+     * @throws InvalidArgumentException
      */
     public function handle(OpenFgaManager $manager): int
     {
@@ -59,16 +67,9 @@ final class ExpandCommand extends Command
         try {
             $startTime = microtime(true);
 
-            /**
-             * @var array<string, mixed>
-             *
-             * @phpstan-ignore-next-line
-             */
-            $result = $manager
-                ->connection($connection)
-                ->expand($object, $relation);
+            $result = $manager->expand($relation, $object, $connection);
 
-            $duration = round((microtime(true) - $startTime) * 1000, 2);
+            $duration = round((microtime(true) - $startTime) * 1000.0, 2);
 
             $jsonOption = $this->option('json');
 
@@ -89,7 +90,7 @@ final class ExpandCommand extends Command
                 $this->info(sprintf('Expansion Results for %s on %s', $relation, $object));
                 $this->newLine();
 
-                if (is_array($result)) {
+                {
                     $treeOption = $this->option('tree');
 
                     if (true === $treeOption) {
@@ -97,8 +98,6 @@ final class ExpandCommand extends Command
                     } else {
                         $this->displaySimple($result);
                     }
-                } else {
-                    $this->error('Unexpected result format from expand operation');
                 }
 
                 $this->newLine();
@@ -144,25 +143,34 @@ final class ExpandCommand extends Command
         }
 
         if (isset($node['leaf']) && is_array($node['leaf']) && isset($node['leaf']['users']) && is_array($node['leaf']['users'])) {
-            foreach ($node['leaf']['users'] as $user) {
-                if (is_string($user)) {
-                    $users[] = $user;
+            $nodeLeafUsers = $node['leaf']['users'];
+
+            /** @var mixed $nodeLeafUser */
+            foreach ($nodeLeafUsers as $nodeLeafUser) {
+                if (is_string($nodeLeafUser)) {
+                    $users[] = $nodeLeafUser;
                 }
             }
         }
 
         if (isset($node['union']) && is_array($node['union']) && isset($node['union']['nodes']) && is_array($node['union']['nodes'])) {
-            foreach ($node['union']['nodes'] as $unionNode) {
-                if (is_array($unionNode)) {
-                    $this->collectUsers($unionNode, $users);
+            $nodeUnionNodes = $node['union']['nodes'];
+
+            /** @var mixed $nodeUnionNode */
+            foreach ($nodeUnionNodes as $nodeUnionNode) {
+                if (is_array($nodeUnionNode)) {
+                    $this->collectUsers($nodeUnionNode, $users);
                 }
             }
         }
 
         if (isset($node['intersection']) && is_array($node['intersection']) && isset($node['intersection']['nodes']) && is_array($node['intersection']['nodes'])) {
-            foreach ($node['intersection']['nodes'] as $intersectionNode) {
-                if (is_array($intersectionNode)) {
-                    $this->collectUsers($intersectionNode, $users);
+            $nodeIntersectionNodes = $node['intersection']['nodes'];
+
+            /** @var mixed $nodeIntersectionNode */
+            foreach ($nodeIntersectionNodes as $nodeIntersectionNode) {
+                if (is_array($nodeIntersectionNode)) {
+                    $this->collectUsers($nodeIntersectionNode, $users);
                 }
             }
         }
@@ -191,7 +199,7 @@ final class ExpandCommand extends Command
         $this->info('Users with permission:');
 
         foreach ($users as $user) {
-            $this->line('  - ' . (string) $user);
+            $this->line('  - ' . $user);
         }
 
         $this->newLine();
@@ -249,7 +257,10 @@ final class ExpandCommand extends Command
         if (isset($node['union']) && is_array($node['union']) && isset($node['union']['nodes']) && is_array($node['union']['nodes'])) {
             $this->line($indent . '  ∪ Union:');
 
-            foreach ($node['union']['nodes'] as $unionNode) {
+            $unionNodes = $node['union']['nodes'];
+
+            /** @var mixed $unionNode */
+            foreach ($unionNodes as $unionNode) {
                 if (is_array($unionNode)) {
                     $this->renderTreeNode($unionNode, $depth + 2);
                 }
@@ -259,7 +270,10 @@ final class ExpandCommand extends Command
         if (isset($node['intersection']) && is_array($node['intersection']) && isset($node['intersection']['nodes']) && is_array($node['intersection']['nodes'])) {
             $this->line($indent . '  ∩ Intersection:');
 
-            foreach ($node['intersection']['nodes'] as $intersectionNode) {
+            $intersectionNodes = $node['intersection']['nodes'];
+
+            /** @var mixed $intersectionNode */
+            foreach ($intersectionNodes as $intersectionNode) {
                 if (is_array($intersectionNode)) {
                     $this->renderTreeNode($intersectionNode, $depth + 2);
                 }
@@ -284,9 +298,13 @@ final class ExpandCommand extends Command
             if (isset($node['leaf']['users']) && is_array($node['leaf']['users']) && [] !== $node['leaf']['users']) {
                 $this->line($indent . '  👤 Users:');
 
-                foreach ($node['leaf']['users'] as $user) {
-                    if (is_string($user) || is_numeric($user)) {
-                        $this->line($indent . '    - ' . (string) $user);
+                /** @var array<mixed> $leafUsers */
+                $leafUsers = $node['leaf']['users'];
+
+                /** @var mixed $leafUser */
+                foreach ($leafUsers as $leafUser) {
+                    if (is_string($leafUser) || is_numeric($leafUser)) {
+                        $this->line($indent . '    - ' . (string) $leafUser);
                     }
                 }
             }
@@ -294,14 +312,18 @@ final class ExpandCommand extends Command
             if (isset($node['leaf']['computed']) && is_array($node['leaf']['computed']) && [] !== $node['leaf']['computed']) {
                 $this->line($indent . '  🔗 Computed:');
 
-                foreach ($node['leaf']['computed'] as $computed) {
-                    if (is_array($computed)) {
-                        if (isset($computed['userset']) && (is_string($computed['userset']) || is_numeric($computed['userset']))) {
-                            $this->line($indent . '    - ' . (string) $computed['userset']);
+                /** @var array<mixed> $computedItems */
+                $computedItems = $node['leaf']['computed'];
+
+                /** @var mixed $computedItem */
+                foreach ($computedItems as $computedItem) {
+                    if (is_array($computedItem)) {
+                        if (isset($computedItem['userset']) && (is_string($computedItem['userset']) || is_numeric($computedItem['userset']))) {
+                            $this->line($indent . '    - ' . (string) $computedItem['userset']);
                         }
 
-                        if (isset($computed['relation']) && (is_string($computed['relation']) || is_numeric($computed['relation']))) {
-                            $this->line($indent . '    - ' . (string) $computed['relation']);
+                        if (isset($computedItem['relation']) && (is_string($computedItem['relation']) || is_numeric($computedItem['relation']))) {
+                            $this->line($indent . '    - ' . (string) $computedItem['relation']);
                         }
                     }
                 }
@@ -310,10 +332,14 @@ final class ExpandCommand extends Command
             if (isset($node['leaf']['tupleToUserset']) && is_array($node['leaf']['tupleToUserset']) && [] !== $node['leaf']['tupleToUserset']) {
                 $this->line($indent . '  🔄 Tuple to Userset:');
 
-                foreach ($node['leaf']['tupleToUserset'] as $ttu) {
-                    if (is_array($ttu) && isset($ttu['tupleset'], $ttu['computedUserset']) && is_array($ttu['computedUserset']) && isset($ttu['computedUserset']['relation'])) {
-                        $tuplesetStr = is_string($ttu['tupleset']) || is_numeric($ttu['tupleset']) ? (string) $ttu['tupleset'] : '';
-                        $relationStr = is_string($ttu['computedUserset']['relation']) || is_numeric($ttu['computedUserset']['relation']) ? (string) $ttu['computedUserset']['relation'] : '';
+                /** @var array<mixed> $tupleToUsersetItems */
+                $tupleToUsersetItems = $node['leaf']['tupleToUserset'];
+
+                /** @var mixed $tupleToUsersetItem */
+                foreach ($tupleToUsersetItems as $tupleToUsersetItem) {
+                    if (is_array($tupleToUsersetItem) && isset($tupleToUsersetItem['tupleset'], $tupleToUsersetItem['computedUserset']) && is_array($tupleToUsersetItem['computedUserset']) && isset($tupleToUsersetItem['computedUserset']['relation'])) {
+                        $tuplesetStr = is_string($tupleToUsersetItem['tupleset']) || is_numeric($tupleToUsersetItem['tupleset']) ? (string) $tupleToUsersetItem['tupleset'] : '';
+                        $relationStr = is_string($tupleToUsersetItem['computedUserset']['relation']) || is_numeric($tupleToUsersetItem['computedUserset']['relation']) ? (string) $tupleToUsersetItem['computedUserset']['relation'] : '';
 
                         if ('' !== $tuplesetStr && '' !== $relationStr) {
                             $this->line($indent . '    - ' . $tuplesetStr . ' → ' . $relationStr);

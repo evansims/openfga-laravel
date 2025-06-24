@@ -157,17 +157,20 @@ final class PerformanceMonitor
      */
     private function getCacheStats(): array
     {
+        /** @var mixed $hitsValue */
         $hitsValue = Cache::get('openfga:counters:cache_hits', 0);
+
+        /** @var mixed $missesValue */
         $missesValue = Cache::get('openfga:counters:cache_misses', 0);
 
-        $hits = is_numeric($hitsValue) ? (float) $hitsValue : 0;
-        $misses = is_numeric($missesValue) ? (float) $missesValue : 0;
+        $hits = is_numeric($hitsValue) ? (float) $hitsValue : 0.0;
+        $misses = is_numeric($missesValue) ? (float) $missesValue : 0.0;
         $total = $hits + $misses;
 
         return [
             'hits' => $hits,
             'misses' => $misses,
-            'hit_rate' => 0 < $total ? ($hits / $total) * 100 : 0,
+            'hit_rate' => 0 < $total ? ($hits / $total) * 100.0 : 0.0,
         ];
     }
 
@@ -191,6 +194,8 @@ final class PerformanceMonitor
     private function getMetricStats(string $name, int $minutes): array
     {
         $key = $this->getMetricKey($name);
+
+        /** @var mixed $metricsValue */
         $metricsValue = Cache::get($key, []);
         $metrics = is_array($metricsValue) ? $metricsValue : [];
 
@@ -222,7 +227,7 @@ final class PerformanceMonitor
 
         return [
             'count' => count($filtered),
-            'avg_duration' => array_sum($floatDurations) / count($floatDurations),
+            'avg_duration' => array_sum($floatDurations) / (float) count($floatDurations),
             'min_duration' => min($floatDurations),
             'max_duration' => max($floatDurations),
         ];
@@ -240,8 +245,8 @@ final class PerformanceMonitor
         $batchStats = $this->getMetricStats('batch_writes', $minutes);
 
         $totalOps = (float) $checkStats['count'] + (float) $batchStats['count'];
-        $avgDuration = ((float) $checkStats['avg_duration'] + (float) $batchStats['avg_duration']) / 2;
-        $opsPerMinute = $totalOps / max(1, $minutes);
+        $avgDuration = ($checkStats['avg_duration'] + $batchStats['avg_duration']) / 2.0;
+        $opsPerMinute = $totalOps / (float) max(1, $minutes);
 
         return [
             'total_operations' => $totalOps,
@@ -272,6 +277,7 @@ final class PerformanceMonitor
         $key = 'openfga:histograms:' . $name;
         $ttl = 3600; // 1 hour
 
+        /** @var mixed $histogramValue */
         $histogramValue = Cache::get($key, []);
         $histogram = is_array($histogramValue) ? $histogramValue : [];
 
@@ -299,6 +305,7 @@ final class PerformanceMonitor
         $key = $this->getMetricKey($name);
         $ttl = 3600; // 1 hour
 
+        /** @var mixed $metricsValue */
         $metricsValue = Cache::get($key, []);
         $metrics = is_array($metricsValue) ? $metricsValue : [];
 

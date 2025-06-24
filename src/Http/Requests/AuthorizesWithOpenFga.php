@@ -8,6 +8,7 @@ use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Support\Facades\Auth;
 use InvalidArgumentException;
+use OpenFGA\Laravel\Helpers\ModelKeyHelper;
 use OpenFGA\Laravel\OpenFgaManager;
 
 use function gettype;
@@ -157,7 +158,13 @@ trait AuthorizesWithOpenFga // @phpstan-ignore trait.unused
         }
 
         $manager = app(OpenFgaManager::class);
+
+        /** @var Authenticatable|null $user */
         $user = Auth::user();
+
+        if (null === $user) {
+            return false;
+        }
 
         $userId = $this->resolveUserId($user);
         $object = $this->resolveObject($resource);
@@ -206,12 +213,12 @@ trait AuthorizesWithOpenFga // @phpstan-ignore trait.unused
 
         // Model with authorization type method
         if (is_object($resource) && method_exists($resource, 'authorizationType') && method_exists($resource, 'getKey')) {
-            return $resource->authorizationType() . ':' . $resource->getKey();
+            return $resource->authorizationType() . ':' . ModelKeyHelper::stringId($resource);
         }
 
         // Eloquent model fallback
         if (is_object($resource) && method_exists($resource, 'getTable') && method_exists($resource, 'getKey')) {
-            return $resource->getTable() . ':' . $resource->getKey();
+            return $resource->getTable() . ':' . ModelKeyHelper::stringId($resource);
         }
 
         // Route parameter resolution
@@ -229,9 +236,10 @@ trait AuthorizesWithOpenFga // @phpstan-ignore trait.unused
     /**
      * Resolve the user ID for OpenFGA.
      *
-     * @param Authenticatable $user
+     * @param  Authenticatable $user The authenticated user
+     * @return string          The user identifier for OpenFGA
      */
-    protected function resolveUserId($user): string
+    protected function resolveUserId(Authenticatable $user): string
     {
         if (method_exists($user, 'authorizationUser')) {
             return $user->authorizationUser();

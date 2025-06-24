@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Cache;
 use OpenFGA\Laravel\Contracts\ManagerInterface;
 use OpenFGA\Models\TupleKey;
 use Psr\Log\LoggerInterface;
+use Psr\SimpleCache\InvalidArgumentException;
 use RuntimeException;
 use Throwable;
 
@@ -58,7 +59,7 @@ final class ReadThroughCache
     }
 
     /**
-     * Check permission with read-through caching.
+     * Check a permission with read-through caching.
      *
      * @param string               $user
      * @param string               $relation
@@ -67,6 +68,8 @@ final class ReadThroughCache
      * @param array<string, mixed> $context
      * @param ?string              $connection
      *
+     * @throws InvalidArgumentException
+     * @throws RuntimeException
      * @throws Throwable
      */
     public function check(
@@ -90,6 +93,7 @@ final class ReadThroughCache
         $tags = $this->getCacheTags($user, $relation, $object);
 
         // Try to get from cache
+        /** @var mixed $cached */
         $cached = $this->getFromCache($key, $tags);
 
         if (null !== $cached && is_array($cached) && array_key_exists('value', $cached)) {
@@ -138,6 +142,9 @@ final class ReadThroughCache
     /**
      * Get cache statistics.
      *
+     * @throws InvalidArgumentException
+     * @throws RuntimeException
+     *
      * @return array{hits: int, misses: int, hit_rate: float}
      */
     public function getStats(): array
@@ -152,12 +159,16 @@ final class ReadThroughCache
             $prefix = $this->config['prefix'];
         }
         $hits = 0;
+
+        /** @var mixed $cached_hits */
         $cached_hits = $this->getCache()->get($prefix . ':stats:hits', 0);
 
         if (is_int($cached_hits) || is_numeric($cached_hits)) {
             $hits = (int) $cached_hits;
         }
         $misses = 0;
+
+        /** @var mixed $cached_misses */
         $cached_misses = $this->getCache()->get($prefix . ':stats:misses', 0);
 
         if (is_int($cached_misses) || is_numeric($cached_misses)) {
@@ -168,7 +179,7 @@ final class ReadThroughCache
         return [
             'hits' => $hits,
             'misses' => $misses,
-            'hit_rate' => 0 < $total ? round($hits / $total * 100, 2) : 0.0,
+            'hit_rate' => 0 < $total ? round(((float) $hits / (float) $total) * 100.0, 2) : 0.0,
         ];
     }
 
@@ -182,12 +193,13 @@ final class ReadThroughCache
      */
     public function invalidate(?string $user = null, ?string $relation = null, ?string $object = null): int
     {
-        if (! $this->isEnabled() || ! $this->getTaggedCache() instanceof TaggedCache) {
+        $taggedCache = $this->getTaggedCache();
+
+        if (! $this->isEnabled() || ! $taggedCache instanceof TaggedCache) {
             return 0;
         }
 
         $invalidated = 0;
-        $taggedCache = $this->getTaggedCache();
 
         // Invalidate based on what's provided
         if (null !== $user && null !== $relation && null !== $object) {
@@ -221,12 +233,17 @@ final class ReadThroughCache
     /**
      * List objects with read-through caching.
      *
-     * @param  string               $user
-     * @param  string               $relation
-     * @param  string               $type
-     * @param  array<TupleKey>      $contextualTuples
-     * @param  array<string, mixed> $context
-     * @param  ?string              $connection
+     * @param string               $user
+     * @param string               $relation
+     * @param string               $type
+     * @param array<TupleKey>      $contextualTuples
+     * @param array<string, mixed> $context
+     * @param ?string              $connection
+     *
+     * @throws InvalidArgumentException
+     * @throws RuntimeException
+     * @throws Throwable
+     *
      * @return array<string>
      */
     public function listObjects(
@@ -250,6 +267,7 @@ final class ReadThroughCache
         $tags = $this->getListCacheTags($user, $relation, $type);
 
         // Try to get from cache
+        /** @var mixed $cached */
         $cached = $this->getFromCache($key, $tags);
 
         if (null !== $cached && is_array($cached) && array_key_exists('value', $cached)) {
@@ -294,6 +312,8 @@ final class ReadThroughCache
 
     /**
      * Reset cache statistics.
+     *
+     * @throws RuntimeException
      */
     public function resetStats(): void
     {
@@ -331,11 +351,13 @@ final class ReadThroughCache
 
     /**
      * Get the cache store instance.
+     *
+     * @throws RuntimeException
      */
     private function getCache(): Repository
     {
         if (! $this->cache instanceof Repository) {
-            $store = is_string($this->config['store']) ? $this->config['store'] : null;
+            $store = (isset($this->config['store']) && is_string($this->config['store'])) ? $this->config['store'] : null;
             $repository = Cache::store($store);
 
             if (! $repository instanceof Repository) {
@@ -401,14 +423,20 @@ final class ReadThroughCache
     /**
      * Get a value from cache.
      *
-     * @param  string        $key
-     * @param  array<string> $tags
+     * @param string        $key
+     * @param array<string> $tags
+     *
+     * @throws InvalidArgumentException
+     * @throws RuntimeException
+     *
      * @return mixed
      */
     private function getFromCache(string $key, array $tags)
     {
-        if ($this->getTaggedCache() instanceof TaggedCache) {
-            return $this->getTaggedCache()->get($key, $tags);
+        $taggedCache = $this->getTaggedCache();
+
+        if ($taggedCache instanceof TaggedCache) {
+            return $taggedCache->get($key, $tags);
         }
 
         return $this->getCache()->get($key);
@@ -482,7 +510,7 @@ final class ReadThroughCache
      */
     private function isEnabled(): bool
     {
-        return (bool) $this->config['enabled'];
+        return isset($this->config['enabled']) && (bool) $this->config['enabled'];
     }
 
     /**
@@ -492,11 +520,15 @@ final class ReadThroughCache
      * @param array<string>        $tags
      * @param array<string, mixed> $value
      * @param int                  $ttl
+     *
+     * @throws RuntimeException
      */
     private function putInCache(string $key, array $tags, array $value, int $ttl): bool
     {
-        if ($this->getTaggedCache() instanceof TaggedCache) {
-            return $this->getTaggedCache()->put($key, $value, $tags, $ttl);
+        $taggedCache = $this->getTaggedCache();
+
+        if ($taggedCache instanceof TaggedCache) {
+            return $taggedCache->put($key, $value, $tags, $ttl);
         }
 
         return $this->getCache()->put($key, $value, $ttl);
@@ -504,6 +536,8 @@ final class ReadThroughCache
 
     /**
      * Record a cache hit.
+     *
+     * @throws RuntimeException
      */
     private function recordHit(): void
     {
@@ -519,6 +553,8 @@ final class ReadThroughCache
 
     /**
      * Record a cache miss.
+     *
+     * @throws RuntimeException
      */
     private function recordMiss(): void
     {

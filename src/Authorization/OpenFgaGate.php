@@ -4,33 +4,38 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Authorization;
 
+use Exception;
 use Illuminate\Auth\Access\Gate;
 use Illuminate\Contracts\Auth\Authenticatable;
-use Illuminate\Contracts\Container\Container;
+use Illuminate\Contracts\Container\{BindingResolutionException, Container};
 use Illuminate\Database\Eloquent\Model;
-use OpenFGA\Laravel\Contracts\{AuthorizableUser, AuthorizationObject, AuthorizationType};
-use OpenFGA\Laravel\OpenFgaManager;
+use InvalidArgumentException;
+use OpenFGA\Exceptions\ClientThrowable;
+use OpenFGA\Laravel\Contracts\{AuthorizableUser, AuthorizationObject, AuthorizationType, ManagerInterface, OpenFgaGateInterface};
 use Override;
 use UnitEnum;
 
 use function is_array;
 use function is_object;
 use function is_string;
+use function sprintf;
 
 /**
  * OpenFGA-powered Gate implementation that integrates with Laravel's authorization system.
+ *
+ * @template TUser of Authenticatable&Model
  */
-final class OpenFgaGate extends Gate
+final class OpenFgaGate extends Gate implements OpenFgaGateInterface
 {
     /**
      * Create a new OpenFGA Gate instance.
      *
-     * @param OpenFgaManager               $manager
+     * @param ManagerInterface             $manager
      * @param Container                    $container
      * @param callable(): ?Authenticatable $userResolver
      */
     public function __construct(
-        private readonly OpenFgaManager $manager,
+        private readonly ManagerInterface $manager,
         Container $container,
         callable $userResolver,
     ) {
@@ -38,51 +43,66 @@ final class OpenFgaGate extends Gate
     }
 
     /**
-     * Determine if the given ability should be granted for the current user.
+     * Determine if all of the given abilities should be granted for the current user.
      *
-     * @param iterable<mixed>|string|UnitEnum $abilities
-     * @param array|mixed                     $arguments
-     * @param Authenticatable|null            $user
+     * Supports both Laravel's native abilities and OpenFGA permission checks.
+     * OpenFGA checks are identified by the presence of authorization objects in arguments.
+     *
+     * @param iterable<mixed>|string|UnitEnum $abilities Single ability string or iterable of abilities
+     * @param array<mixed>|mixed              $arguments Authorization object(s), model instances, or traditional gate arguments
+     * @param Authenticatable|null            $user      User to check permissions for (optional, uses current user if null)
+     *
+     * @throws \Psr\SimpleCache\InvalidArgumentException
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
+     * @throws InvalidArgumentException
+     *
+     * @return bool True if all abilities are granted, false otherwise
      */
     #[Override]
     public function check($abilities, $arguments = [], $user = null): bool
     {
-        // Handle single ability
-        if (! is_string($abilities)) {
+        // Handle single string ability first to avoid iterable/string confusion
+        if (is_string($abilities)) {
+            // For string abilities, check if this is an OpenFGA permission check
+            if ($this->isOpenFgaPermission($arguments)) {
+                /** @var array<mixed>|object|string $arguments */
+                return $this->checkOpenFgaPermission($abilities, $arguments, $user);
+            }
+
             // Fall back to Laravel's default behavior for non-OpenFGA checks
             return parent::check($abilities, $arguments);
         }
 
-        // First check if this is an OpenFGA permission check
-        if ($this->isOpenFgaPermission($arguments)) {
-            return $this->checkOpenFgaPermission($abilities, $arguments, $user);
-        }
-
-        // Fall back to Laravel's default behavior for non-OpenFGA checks
+        // Handle non-string abilities (arrays, Collections, UnitEnum, etc.)
         return parent::check($abilities, $arguments);
     }
 
     /**
-     * Check OpenFGA permission.
+     * Check a specific OpenFGA permission.
      *
-     * @param string               $ability
-     * @param array|mixed          $arguments
-     * @param Authenticatable|null $user
+     * @param string                     $ability   The OpenFGA relation/permission to check
+     * @param array<mixed>|object|string $arguments Object identifier, model instance, or arguments array
+     * @param Authenticatable|null       $user      User to check permissions for
+     *
      * @throws \Psr\SimpleCache\InvalidArgumentException
-     * @throws \Illuminate\Contracts\Container\BindingResolutionException
-     * @throws \OpenFGA\Exceptions\ClientThrowable
-     * @throws \Exception
-     * @throws \InvalidArgumentException
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
+     * @throws InvalidArgumentException
+     *
+     * @return bool True if permission is granted, false otherwise
      */
-    private function checkOpenFgaPermission(string $ability, $arguments, ?Authenticatable $user = null): bool
+    #[Override]
+    public function checkOpenFgaPermission(string $ability, mixed $arguments, ?Authenticatable $user = null): bool
     {
         $user ??= $this->resolveUser();
 
-        if (null === $user) {
+        if (! $user instanceof Authenticatable) {
             return false;
         }
 
-        /** @var Authenticatable $user */
         $userId = $this->resolveUserId($user);
         $object = $this->resolveObject($arguments);
 
@@ -94,22 +114,34 @@ final class OpenFgaGate extends Gate
     }
 
     /**
-     * Determine if this is an OpenFGA permission check.
+     * Determine if arguments represent an OpenFGA permission check.
      *
-     * @param array|mixed $arguments
+     * @param  mixed $arguments Arguments to analyze
+     * @return bool  True if this appears to be an OpenFGA check
      */
-    private function isOpenFgaPermission($arguments): bool
+    #[Override]
+    public function isOpenFgaPermission(mixed $arguments): bool
     {
         // Check if we have a clear object identifier in arguments
         $arguments = is_array($arguments) ? $arguments : [$arguments];
 
+        /** @var mixed $argument */
         foreach ($arguments as $argument) {
             if (is_string($argument) && str_contains($argument, ':')) {
                 return true; // Looks like object:id format
             }
 
-            if (is_object($argument) && method_exists($argument, 'authorizationObject')) {
-                return true; // Model with authorization support
+            if (is_object($argument) && $argument instanceof Model) {
+                // Check if it has authorization methods (don't count basic getTable)
+                if (method_exists($argument, 'authorizationObject')
+                    || $argument instanceof AuthorizationType) {
+                    return true; // Model with authorization support
+                }
+
+                // For basic Eloquent models without authorization interfaces,
+                // still consider them as OpenFGA permissions since they can be used
+                // Note: Model already has getTable() and getKey() methods
+                return true;
             }
         }
 
@@ -117,14 +149,31 @@ final class OpenFgaGate extends Gate
     }
 
     /**
+     * Resolve the user from the user resolver.
+     */
+    #[Override]
+    protected function resolveUser(): ?Authenticatable
+    {
+        /** @var mixed $user */
+        $user = parent::resolveUser();
+
+        if ($user instanceof Authenticatable) {
+            return $user;
+        }
+
+        return null;
+    }
+
+    /**
      * Resolve the object from arguments.
      *
-     * @param array|mixed $arguments
+     * @param mixed $arguments
      */
-    private function resolveObject($arguments): ?string
+    private function resolveObject(mixed $arguments): ?string
     {
         $arguments = is_array($arguments) ? $arguments : [$arguments];
 
+        /** @var mixed $argument */
         foreach ($arguments as $argument) {
             // String in object:id format
             if (is_string($argument) && str_contains($argument, ':')) {
@@ -133,37 +182,39 @@ final class OpenFgaGate extends Gate
 
             // Model with authorization support
             if (is_object($argument) && method_exists($argument, 'authorizationObject')) {
-                /** @var AuthorizationObject&object $argument */
+                /** @var AuthorizationObject&Model $argument */
                 return $argument->authorizationObject();
             }
 
             // Model with authorization type method
-            if (is_object($argument) && method_exists($argument, 'authorizationType') && method_exists($argument, 'getKey')) {
-                /** @var AuthorizationType&Model&object $argument */
-                $type = $argument->authorizationType();
+            if (is_object($argument) && $argument instanceof Model && $argument instanceof AuthorizationType) {
+                /** @var AuthorizationType&Model $argument */
+                $authType = $argument->authorizationType();
+                $key = $argument->getKey();
+
+                if (null === $key) {
+                    continue;
+                }
+
+                if (! is_string($key) && ! is_numeric($key)) {
+                    continue;
+                }
+
+                return sprintf('%s:%s', $authType, (string) $key);
+            }
+
+            // Check if argument is a valid Eloquent Model instance with getTable() and getKey() methods
+            if (is_object($argument) && $argument instanceof Model) {
+                $table = $argument->getTable();
+
+                /** @var mixed $key */
                 $key = $argument->getKey();
 
                 if (null === $key || (! is_string($key) && ! is_numeric($key))) {
-                    return null;
+                    continue; // Skip models with invalid keys
                 }
 
-                return $type . ':' . (string) $key;
-            }
-
-            // Eloquent model fallback
-            if (is_object($argument)) {
-                /** @var object $argument */
-                if (method_exists($argument, 'getTable') && method_exists($argument, 'getKey')) {
-                    /** @var Model $argument */
-                    $table = $argument->getTable();
-                    $key = $argument->getKey();
-
-                    if (null === $key || (! is_string($key) && ! is_numeric($key))) {
-                        return null;
-                    }
-
-                    return $table . ':' . (string) $key;
-                }
+                return sprintf('%s:%s', $table, (string) $key);
             }
         }
 
@@ -184,6 +235,7 @@ final class OpenFgaGate extends Gate
 
         // Legacy support: check for method without interface
         if (method_exists($user, 'authorizationUser')) {
+            /** @var mixed $result */
             $result = $user->authorizationUser();
 
             if (is_string($result)) {
@@ -192,6 +244,7 @@ final class OpenFgaGate extends Gate
         }
 
         if (method_exists($user, 'getAuthorizationUserId')) {
+            /** @var mixed $result */
             $result = $user->getAuthorizationUserId();
 
             if (is_string($result)) {
