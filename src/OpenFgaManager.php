@@ -230,10 +230,9 @@ final class OpenFgaManager implements ManagerInterface
      * @param array<string, mixed>                                                  $context          Optional context
      * @param string|null                                                           $connection       Optional connection name
      *
-     * @throws \Psr\SimpleCache\InvalidArgumentException
      * @throws BindingResolutionException
      * @throws ClientThrowable
-     * @throws Exception                                 If throwExceptions is true and an error occurs
+     * @throws Exception                  If throwExceptions is true and an error occurs
      * @throws InvalidArgumentException
      */
     #[Override]

@@ -151,7 +151,7 @@ trait FakesOpenFga // @phpstan-ignore trait.unused
             {
                 return $this->fake->batchCheck($checks);
             }
-            
+
             public function listUsers(string $object, string $relation, array $userFilters = [], array $contextualTuples = [], array $context = [], ?string $connection = null): array
             {
                 return $this->fake->listUsers($object, $relation);

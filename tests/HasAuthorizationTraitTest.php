@@ -8,6 +8,7 @@ use Illuminate\Container\Container;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\App;
 use InvalidArgumentException;
+use Mockery;
 use OpenFGA\Laravel\OpenFgaManager;
 use OpenFGA\Laravel\Traits\HasAuthorization;
 use ReflectionClass;
@@ -83,18 +84,16 @@ describe('HasAuthorization Trait', function (): void {
         App::setFacadeApplication($this->container);
 
         // Mock config using Mockery
-        $configMock = \Mockery::mock('config');
+        $configMock = Mockery::mock('config');
         $configMock->shouldReceive('get')
-            ->with('openfga.cleanup_on_delete', \Mockery::any())
+            ->with('openfga.cleanup_on_delete', Mockery::any())
             ->andReturn(true);
         $configMock->shouldReceive('get')
-            ->with('openfga.replicate_permissions', \Mockery::any())
+            ->with('openfga.replicate_permissions', Mockery::any())
             ->andReturn(false);
         $configMock->shouldReceive('get')
-            ->andReturnUsing(function ($key, $default = null) {
-                return $default;
-            });
-            
+            ->andReturnUsing(fn ($key, $default = null) => $default);
+
         $this->container->instance('config', $configMock);
 
         $this->config = [

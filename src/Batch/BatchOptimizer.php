@@ -11,8 +11,14 @@ use function sprintf;
 
 final class BatchOptimizer
 {
+    /**
+     * @var array{remove_duplicates: bool, resolve_conflicts: bool, merge_related: bool, sort_operations: bool, chunk_size: int}
+     */
     private array $config;
 
+    /**
+     * @var array{original_operations: int, optimized_operations: int, duplicates_removed: int, conflicts_resolved: int, operations_merged: int}
+     */
     private array $stats = [
         'original_operations' => 0,
         'optimized_operations' => 0,
@@ -21,6 +27,9 @@ final class BatchOptimizer
         'operations_merged' => 0,
     ];
 
+    /**
+     * @param array{remove_duplicates?: bool, resolve_conflicts?: bool, merge_related?: bool, sort_operations?: bool, chunk_size?: int} $config
+     */
     public function __construct(array $config = [])
     {
         $this->config = array_merge([
@@ -35,7 +44,8 @@ final class BatchOptimizer
     /**
      * Chunk operations for processing.
      *
-     * @param array $operations
+     * @param  array<int, array{user: string, relation: string, object: string}>             $operations
+     * @return array<int, array<int, array{user: string, relation: string, object: string}>>
      */
     public function chunkOperations(array $operations): array
     {
@@ -44,6 +54,8 @@ final class BatchOptimizer
 
     /**
      * Get optimization statistics.
+     *
+     * @return array{original_operations: int, optimized_operations: int, duplicates_removed: int, conflicts_resolved: int, operations_merged: int, optimization_ratio: float}
      */
     public function getStats(): array
     {

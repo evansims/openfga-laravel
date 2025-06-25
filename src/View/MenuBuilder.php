@@ -228,7 +228,6 @@ final readonly class MenuBuilder
      * @param string $relation
      * @param mixed  $object
      *
-     * @throws \Psr\SimpleCache\InvalidArgumentException
      * @throws BindingResolutionException
      * @throws ClientThrowable
      * @throws Exception

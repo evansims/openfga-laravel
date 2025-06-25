@@ -234,6 +234,31 @@ final class FakeOpenFga
     }
 
     /**
+     * Batch check multiple permissions.
+     *
+     * @param array $checks
+     */
+    public function batchCheck(array $checks): array
+    {
+        $results = [];
+
+        foreach ($checks as $check) {
+            $user = $check[0] ?? $check['user'] ?? '';
+            $relation = $check[1] ?? $check['relation'] ?? '';
+            $object = $check[2] ?? $check['object'] ?? '';
+
+            $results[] = [
+                'allowed' => $this->check($user, $relation, $object),
+                'user' => $user,
+                'relation' => $relation,
+                'object' => $object,
+            ];
+        }
+
+        return $results;
+    }
+
+    /**
      * Check if a user has a permission.
      *
      * @param string $user
@@ -265,32 +290,6 @@ final class FakeOpenFga
         $this->checks[] = ['user' => $user, 'relation' => $relation, 'object' => $object, 'result' => $result];
 
         return $result;
-    }
-
-    /**
-     * Batch check multiple permissions.
-     *
-     * @param array $checks
-     * @return array
-     */
-    public function batchCheck(array $checks): array
-    {
-        $results = [];
-        
-        foreach ($checks as $check) {
-            $user = $check[0] ?? $check['user'] ?? '';
-            $relation = $check[1] ?? $check['relation'] ?? '';
-            $object = $check[2] ?? $check['object'] ?? '';
-            
-            $results[] = [
-                'allowed' => $this->check($user, $relation, $object),
-                'user' => $user,
-                'relation' => $relation,
-                'object' => $object,
-            ];
-        }
-        
-        return $results;
     }
 
     /**

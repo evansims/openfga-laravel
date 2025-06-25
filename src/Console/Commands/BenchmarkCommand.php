@@ -4,29 +4,33 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Console\Commands;
 
+use Exception;
 use Illuminate\Console\Command;
 use OpenFGA\Laravel\Facades\OpenFga;
 use OpenFGA\Laravel\Testing\PerformanceTesting;
 
+use function count;
+use function sprintf;
+
 /**
- * Command to run performance benchmarks for OpenFGA operations
+ * Command to run performance benchmarks for OpenFGA operations.
  */
-class BenchmarkCommand extends Command
+final class BenchmarkCommand extends Command
 {
+    protected $description = 'Run performance benchmarks for OpenFGA operations';
+
     protected $signature = 'openfga:benchmark
                             {--iterations=100 : Number of iterations for each benchmark}
                             {--suite=basic : Benchmark suite to run (basic, comprehensive, stress)}
                             {--export= : Export results to file (json or csv)}';
 
-    protected $description = 'Run performance benchmarks for OpenFGA operations';
-
     private PerformanceTesting $tester;
 
     public function handle(): int
     {
-        $this->tester = new PerformanceTesting();
+        $this->tester = new PerformanceTesting;
         $this->tester->enableDetailed();
-        
+
         $suite = $this->option('suite');
         $iterations = (int) $this->option('iterations');
 
@@ -50,16 +54,122 @@ class BenchmarkCommand extends Command
             }
 
             return 0;
-        } catch (\Exception $exception) {
+        } catch (Exception $exception) {
             $this->error('Benchmark failed: ' . $exception->getMessage());
+
             return 1;
         }
+    }
+
+    private function displayResults(array $results): void
+    {
+        $this->newLine();
+        $this->info('📊 Benchmark Results');
+        $this->info('==================');
+
+        $tableData = [];
+
+        foreach ($results['results'] as $name => $result) {
+            if (isset($result['mean'])) {
+                $tableData[] = [
+                    'Operation' => $result['name'] ?? $name,
+                    'Mean (ms)' => round($result['mean'], 3),
+                    'Median (ms)' => round($result['median'], 3),
+                    'Min (ms)' => round($result['min'], 3),
+                    'Max (ms)' => round($result['max'], 3),
+                    'P95 (ms)' => round($result['p95'], 3),
+                    'StdDev' => round($result['stddev'], 3),
+                ];
+            }
+        }
+
+        $this->table(
+            ['Operation', 'Mean (ms)', 'Median (ms)', 'Min (ms)', 'Max (ms)', 'P95 (ms)', 'StdDev'],
+            $tableData,
+        );
+
+        // Display comparison insights
+        $this->newLine();
+        $this->info('💡 Insights:');
+
+        if (isset($results['results']['single_check'], $results['results']['batch_check_10'])) {
+            $singleTime = $results['results']['single_check']['mean'];
+            $batchTime = $results['results']['batch_check_10']['mean'];
+            $efficiency = (($singleTime * 10) / $batchTime - 1) * 100;
+
+            if (0 < $efficiency) {
+                $this->line(sprintf(
+                    '- Batch checking 10 items is %.1f%% more efficient than individual checks',
+                    $efficiency,
+                ));
+            }
+        }
+
+        // Show performance report
+        $this->newLine();
+        $this->line($this->tester->generateReport());
+    }
+
+    private function exportCsv(array $results, string $path): void
+    {
+        $fp = fopen($path, 'w');
+
+        // Header
+        fputcsv($fp, ['Operation', 'Mean (ms)', 'Median (ms)', 'Min (ms)', 'Max (ms)', 'P95 (ms)', 'StdDev', 'Iterations']);
+
+        // Data
+        foreach ($results['results'] as $name => $result) {
+            if (isset($result['mean'])) {
+                fputcsv($fp, [
+                    $result['name'] ?? $name,
+                    round($result['mean'], 3),
+                    round($result['median'], 3),
+                    round($result['min'], 3),
+                    round($result['max'], 3),
+                    round($result['p95'], 3),
+                    round($result['stddev'], 3),
+                    $result['iterations'] ?? 0,
+                ]);
+            }
+        }
+
+        fclose($fp);
+    }
+
+    private function exportJson(array $results, string $path): void
+    {
+        $data = [
+            'timestamp' => now()->toIso8601String(),
+            'environment' => [
+                'laravel_version' => app()->version(),
+                'php_version' => PHP_VERSION,
+                'connection' => config('openfga.default'),
+            ],
+            'suite' => $results['suite'],
+            'results' => $results['results'],
+            'summary' => $this->tester->getSummary(),
+        ];
+
+        file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT));
+    }
+
+    private function exportResults(array $results, string $path): void
+    {
+        $extension = pathinfo($path, PATHINFO_EXTENSION) ?: 'json';
+
+        if ('csv' === $extension) {
+            $this->exportCsv($results, $path);
+        } else {
+            $this->exportJson($results, $path);
+        }
+
+        $this->info('Results exported to: ' . $path);
     }
 
     private function runBasicSuite(int $iterations): array
     {
         $this->info('Running basic benchmark suite...');
-        
+
         // Single permission check
         $this->line('📊 Benchmarking single permission check...');
         $checkResult = $this->tester->benchmark('Single Check', static function (): void {
@@ -70,7 +180,8 @@ class BenchmarkCommand extends Command
         $this->line('📊 Benchmarking batch check (10 items)...');
         $batchCheckResult = $this->tester->benchmark('Batch Check (10)', static function (): void {
             $checks = [];
-            for ($i = 1; $i <= 10; ++$i) {
+
+            for ($i = 1; 10 >= $i; ++$i) {
                 $checks[] = [
                     'user' => 'user:1',
                     'relation' => 'viewer',
@@ -90,7 +201,8 @@ class BenchmarkCommand extends Command
         $this->line('📊 Benchmarking batch write (10 items)...');
         $batchWriteResult = $this->tester->benchmark('Batch Write (10)', static function (): void {
             $writes = [];
-            for ($i = 1; $i <= 10; ++$i) {
+
+            for ($i = 1; 10 >= $i; ++$i) {
                 $writes[] = [
                     'user' => 'user:1',
                     'relation' => 'editor',
@@ -114,7 +226,7 @@ class BenchmarkCommand extends Command
     private function runComprehensiveSuite(int $iterations): array
     {
         $this->info('Running comprehensive benchmark suite...');
-        
+
         $results = [];
 
         // Various batch sizes for checks
@@ -124,6 +236,7 @@ class BenchmarkCommand extends Command
                 sprintf('Batch Check (%s)', $size),
                 static function () use ($size): void {
                     $checks = [];
+
                     for ($i = 1; $i <= $size; ++$i) {
                         $checks[] = [
                             'user' => 'user:' . $i,
@@ -133,7 +246,7 @@ class BenchmarkCommand extends Command
                     }
                     OpenFga::batchCheck($checks);
                 },
-                max(10, intval($iterations / ($size / 10)))
+                max(10, (int) ($iterations / ($size / 10))),
             );
         }
 
@@ -169,7 +282,7 @@ class BenchmarkCommand extends Command
     {
         $this->info('Running stress test benchmark suite...');
         $this->warn('This may take a while...');
-        
+
         $results = [];
 
         // Large batch operations
@@ -179,6 +292,7 @@ class BenchmarkCommand extends Command
                 sprintf('Stress Write (%s)', $size),
                 static function () use ($size): void {
                     $writes = [];
+
                     for ($i = 1; $i <= $size; ++$i) {
                         $writes[] = [
                             'user' => 'user:' . $i,
@@ -188,7 +302,7 @@ class BenchmarkCommand extends Command
                     }
                     OpenFga::writeBatch($writes);
                 },
-                max(5, intval($iterations / 20))
+                max(5, (int) ($iterations / 20)),
             );
         }
 
@@ -199,149 +313,47 @@ class BenchmarkCommand extends Command
             static function (): void {
                 // Simulate 100 concurrent permission checks
                 $promises = [];
-                for ($i = 1; $i <= 100; ++$i) {
+
+                for ($i = 1; 100 >= $i; ++$i) {
                     // In real implementation, these would be async
                     OpenFga::check('user:' . $i, 'viewer', 'document:' . $i);
                 }
             },
-            max(10, intval($iterations / 10))
+            max(10, (int) ($iterations / 10)),
         );
 
         // Memory stress test
         $this->line('📊 Memory stress test...');
         memory_get_usage();
-        
+
         $results['memory_stress'] = $this->tester->profileMemory(
             'Memory Stress (10k tuples)',
             static function (): void {
                 $writes = [];
-                for ($i = 1; $i <= 10000; ++$i) {
+
+                for ($i = 1; 10000 >= $i; ++$i) {
                     $writes[] = [
-                        'user' => "user:" . ($i % 100),
+                        'user' => 'user:' . ($i % 100),
                         'relation' => 'viewer',
                         'object' => 'document:' . $i,
                     ];
-                    
+
                     // Write in batches of 1000
-                    if (count($writes) >= 1000) {
+                    if (1000 <= count($writes)) {
                         OpenFga::writeBatch($writes);
                         $writes = [];
                     }
                 }
-                if ($writes !== []) {
+
+                if ([] !== $writes) {
                     OpenFga::writeBatch($writes);
                 }
-            }
+            },
         );
 
         return [
             'suite' => 'stress',
             'results' => $results,
         ];
-    }
-
-    private function displayResults(array $results): void
-    {
-        $this->newLine();
-        $this->info('📊 Benchmark Results');
-        $this->info('==================');
-        
-        $tableData = [];
-        
-        foreach ($results['results'] as $name => $result) {
-            if (isset($result['mean'])) {
-                $tableData[] = [
-                    'Operation' => $result['name'] ?? $name,
-                    'Mean (ms)' => round($result['mean'], 3),
-                    'Median (ms)' => round($result['median'], 3),
-                    'Min (ms)' => round($result['min'], 3),
-                    'Max (ms)' => round($result['max'], 3),
-                    'P95 (ms)' => round($result['p95'], 3),
-                    'StdDev' => round($result['stddev'], 3),
-                ];
-            }
-        }
-
-        $this->table(
-            ['Operation', 'Mean (ms)', 'Median (ms)', 'Min (ms)', 'Max (ms)', 'P95 (ms)', 'StdDev'],
-            $tableData
-        );
-
-        // Display comparison insights
-        $this->newLine();
-        $this->info('💡 Insights:');
-        
-        if (isset($results['results']['single_check']) && isset($results['results']['batch_check_10'])) {
-            $singleTime = $results['results']['single_check']['mean'];
-            $batchTime = $results['results']['batch_check_10']['mean'];
-            $efficiency = (($singleTime * 10) / $batchTime - 1) * 100;
-            
-            if ($efficiency > 0) {
-                $this->line(sprintf(
-                    '- Batch checking 10 items is %.1f%% more efficient than individual checks',
-                    $efficiency
-                ));
-            }
-        }
-
-        // Show performance report
-        $this->newLine();
-        $this->line($this->tester->generateReport());
-    }
-
-    private function exportResults(array $results, string $path): void
-    {
-        $extension = pathinfo($path, PATHINFO_EXTENSION) ?: 'json';
-        
-        if ($extension === 'csv') {
-            $this->exportCsv($results, $path);
-        } else {
-            $this->exportJson($results, $path);
-        }
-        
-        $this->info('Results exported to: ' . $path);
-    }
-
-    private function exportJson(array $results, string $path): void
-    {
-        $data = [
-            'timestamp' => now()->toIso8601String(),
-            'environment' => [
-                'laravel_version' => app()->version(),
-                'php_version' => PHP_VERSION,
-                'connection' => config('openfga.default'),
-            ],
-            'suite' => $results['suite'],
-            'results' => $results['results'],
-            'summary' => $this->tester->getSummary(),
-        ];
-
-        file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT));
-    }
-
-    private function exportCsv(array $results, string $path): void
-    {
-        $fp = fopen($path, 'w');
-        
-        // Header
-        fputcsv($fp, ['Operation', 'Mean (ms)', 'Median (ms)', 'Min (ms)', 'Max (ms)', 'P95 (ms)', 'StdDev', 'Iterations']);
-        
-        // Data
-        foreach ($results['results'] as $name => $result) {
-            if (isset($result['mean'])) {
-                fputcsv($fp, [
-                    $result['name'] ?? $name,
-                    round($result['mean'], 3),
-                    round($result['median'], 3),
-                    round($result['min'], 3),
-                    round($result['max'], 3),
-                    round($result['p95'], 3),
-                    round($result['stddev'], 3),
-                    $result['iterations'] ?? 0,
-                ]);
-            }
-        }
-        
-        fclose($fp);
     }
 }

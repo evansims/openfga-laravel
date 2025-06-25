@@ -52,7 +52,6 @@ final class OpenFgaGate extends Gate implements OpenFgaGateInterface
      * @param array<mixed>|mixed              $arguments Authorization object(s), model instances, or traditional gate arguments
      * @param Authenticatable|null            $user      User to check permissions for (optional, uses current user if null)
      *
-     * @throws \Psr\SimpleCache\InvalidArgumentException
      * @throws BindingResolutionException
      * @throws ClientThrowable
      * @throws Exception
@@ -86,7 +85,6 @@ final class OpenFgaGate extends Gate implements OpenFgaGateInterface
      * @param array<mixed>|object|string $arguments Object identifier, model instance, or arguments array
      * @param Authenticatable|null       $user      User to check permissions for
      *
-     * @throws \Psr\SimpleCache\InvalidArgumentException
      * @throws BindingResolutionException
      * @throws ClientThrowable
      * @throws Exception

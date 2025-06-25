@@ -52,7 +52,6 @@ final class CanAll extends Component
     /**
      * Determine if the user has all of the required permissions.
      *
-     * @throws \Psr\SimpleCache\InvalidArgumentException
      * @throws BindingResolutionException
      * @throws ClientThrowable
      * @throws Exception
@@ -84,7 +83,6 @@ final class CanAll extends Component
     /**
      * Get the view / contents that represent the component.
      *
-     * @throws \Psr\SimpleCache\InvalidArgumentException
      * @throws BindingResolutionException
      * @throws ClientThrowable
      * @throws Exception

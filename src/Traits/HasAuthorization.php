@@ -55,7 +55,6 @@ trait HasAuthorization
      * @throws ClientThrowable
      * @throws Exception
      * @throws InvalidArgumentException
-     * @throws \Psr\SimpleCache\InvalidArgumentException
      */
     public function can(string $relation): bool
     {
@@ -72,7 +71,6 @@ trait HasAuthorization
      * @throws ClientThrowable
      * @throws Exception
      * @throws InvalidArgumentException
-     * @throws \Psr\SimpleCache\InvalidArgumentException
      */
     public function check($user, string $relation): bool
     {
@@ -106,7 +104,6 @@ trait HasAuthorization
      * @throws ClientThrowable
      * @throws Exception
      * @throws InvalidArgumentException
-     * @throws \Psr\SimpleCache\InvalidArgumentException
      *
      * @return array<string, bool>
      */

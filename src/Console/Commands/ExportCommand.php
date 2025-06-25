@@ -85,8 +85,10 @@ final class ExportCommand extends Command
             $this->info(sprintf('✅ Successfully exported %d permissions to %s', $count, $file));
 
             // Show file size
-            $size = $this->formatFileSize(filesize($file));
-            $this->comment('File size: ' . $size);
+            if (file_exists($file)) {
+                $size = $this->formatFileSize(filesize($file));
+                $this->comment('File size: ' . $size);
+            }
 
             return self::SUCCESS;
         } catch (Exception $exception) {

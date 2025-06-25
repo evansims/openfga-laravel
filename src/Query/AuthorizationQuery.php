@@ -94,7 +94,6 @@ final class AuthorizationQuery
     /**
      * Execute a permission check.
      *
-     * @throws \Psr\SimpleCache\InvalidArgumentException
      * @throws BindingResolutionException
      * @throws ClientThrowable
      * @throws Exception
@@ -260,7 +259,6 @@ final class AuthorizationQuery
     /**
      * List relations a user has on an object.
      *
-     * @throws \Psr\SimpleCache\InvalidArgumentException
      * @throws BindingResolutionException
      * @throws ClientThrowable
      * @throws Exception

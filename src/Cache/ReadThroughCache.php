@@ -6,10 +6,10 @@ namespace OpenFGA\Laravel\Cache;
 
 use Illuminate\Cache\Repository;
 use Illuminate\Support\Facades\Cache;
+use InvalidArgumentException;
 use OpenFGA\Laravel\Contracts\ManagerInterface;
 use OpenFGA\Models\TupleKey;
 use Psr\Log\LoggerInterface;
-use Psr\SimpleCache\InvalidArgumentException;
 use RuntimeException;
 use Throwable;
 

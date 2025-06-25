@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Tests\Feature;
 
-use Mockery;
 use OpenFGA\Laravel\Export\PermissionExporter;
 use OpenFGA\Laravel\Import\PermissionImporter;
 use OpenFGA\Laravel\OpenFgaManager;
@@ -36,7 +35,7 @@ final class ImportExportTest extends FeatureTestCase
             '--user' => 'user:123',
         ])
             ->expectsOutputToContain('Exporting permissions to:')
-            ->expectsOutputToContain('Successfully exported 3 permissions')
+            ->expectsOutputToContain('✅ Successfully exported 3 permissions')
             ->assertSuccessful();
 
         $this->assertFileExists("{$this->tempDir}/cmd_export.json");
@@ -87,7 +86,7 @@ final class ImportExportTest extends FeatureTestCase
             'file' => $file,
             '--dry-run' => true,
         ])
-            ->expectsOutputToContain('Running in dry-run mode')
+            ->expectsOutputToContain('Running in dry-run mode. No changes will be made.')
             ->expectsOutputToContain('Import completed!')
             ->assertSuccessful();
     }

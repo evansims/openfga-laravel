@@ -9,6 +9,7 @@ use Illuminate\Console\Command;
 use OpenFGA\Laravel\Events\PermissionChanged;
 use OpenFGA\Laravel\Webhooks\WebhookManager;
 
+use function is_array;
 use function sprintf;
 
 final class WebhookCommand extends Command
@@ -126,7 +127,7 @@ final class WebhookCommand extends Command
             if (! is_array($webhook)) {
                 continue;
             }
-            
+
             $rows[] = [
                 $name,
                 $webhook['url'] ?? '',
@@ -135,7 +136,11 @@ final class WebhookCommand extends Command
             ];
         }
 
-        $this->table(['Name', 'URL', 'Events', 'Status'], $rows);
+        if ([] === $rows) {
+            $this->info('No webhooks to display.');
+        } else {
+            $this->table(['Name', 'URL', 'Events', 'Status'], $rows);
+        }
 
         return self::SUCCESS;
     }

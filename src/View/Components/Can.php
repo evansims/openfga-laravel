@@ -52,7 +52,6 @@ final class Can extends Component
     /**
      * Determine if the user has the required permission.
      *
-     * @throws \Psr\SimpleCache\InvalidArgumentException
      * @throws BindingResolutionException
      * @throws ClientThrowable
      * @throws Exception
@@ -78,7 +77,6 @@ final class Can extends Component
     /**
      * Get the view / contents that represent the component.
      *
-     * @throws \Psr\SimpleCache\InvalidArgumentException
      * @throws BindingResolutionException
      * @throws ClientThrowable
      * @throws Exception

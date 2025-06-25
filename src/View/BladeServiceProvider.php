@@ -42,7 +42,6 @@ final class BladeServiceProvider extends ServiceProvider
      * @param mixed       $object
      * @param string|null $connection
      *
-     * @throws \Psr\SimpleCache\InvalidArgumentException
      * @throws BindingResolutionException
      * @throws ClientThrowable
      * @throws Exception
@@ -299,7 +298,6 @@ final class BladeServiceProvider extends ServiceProvider
                  * @param mixed       $object
                  * @param string|null $connection
                  *
-                 * @throws \Psr\SimpleCache\InvalidArgumentException
                  * @throws BindingResolutionException
                  * @throws ClientThrowable
                  * @throws Exception
@@ -321,7 +319,6 @@ final class BladeServiceProvider extends ServiceProvider
                  * @param mixed       $object
                  * @param string|null $connection
                  *
-                 * @throws \Psr\SimpleCache\InvalidArgumentException
                  * @throws BindingResolutionException
                  * @throws ClientThrowable
                  * @throws Exception
@@ -337,7 +334,6 @@ final class BladeServiceProvider extends ServiceProvider
                  * @param mixed              $object
                  * @param string|null        $connection
                  *
-                 * @throws \Psr\SimpleCache\InvalidArgumentException
                  * @throws BindingResolutionException
                  * @throws ClientThrowable
                  * @throws Exception
@@ -359,7 +355,6 @@ final class BladeServiceProvider extends ServiceProvider
                  * @param mixed              $object
                  * @param string|null        $connection
                  *
-                 * @throws \Psr\SimpleCache\InvalidArgumentException
                  * @throws BindingResolutionException
                  * @throws ClientThrowable
                  * @throws Exception

@@ -42,7 +42,6 @@ abstract class OpenFgaPolicy
      * @param mixed           $resource
      * @param string|null     $connection
      *
-     * @throws \Psr\SimpleCache\InvalidArgumentException
      * @throws BindingResolutionException
      * @throws ClientThrowable
      * @throws Exception

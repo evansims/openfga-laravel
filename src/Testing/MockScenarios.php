@@ -57,11 +57,14 @@ final readonly class MockScenarios
     {
         $this->fake->reset();
 
-        // User 1 owns document 1
+        // User 1 owns document 1 (owner implies editor and viewer)
         $this->fake->grant('user:1', 'owner', 'document:1');
+        $this->fake->grant('user:1', 'editor', 'document:1');
+        $this->fake->grant('user:1', 'viewer', 'document:1');
 
-        // User 2 can edit document 1
+        // User 2 can edit document 1 (editor implies viewer)
         $this->fake->grant('user:2', 'editor', 'document:1');
+        $this->fake->grant('user:2', 'viewer', 'document:1');
 
         // User 3 can only view document 1
         $this->fake->grant('user:3', 'viewer', 'document:1');
@@ -102,10 +105,29 @@ final readonly class MockScenarios
      */
     public function combine(array $scenarios): self
     {
+        // Store all tuples from all scenarios
+        $allTuples = [];
+
         foreach ($scenarios as $scenario) {
             if (method_exists($this, $scenario)) {
+                // Reset before each scenario
+                $this->fake->reset();
+
+                // Call the scenario
                 $this->{$scenario}();
+
+                // Collect all tuples
+                foreach ($this->fake->getTuples() as $tuple) {
+                    $allTuples[] = $tuple;
+                }
             }
+        }
+
+        // Reset and add all collected tuples
+        $this->fake->reset();
+
+        foreach ($allTuples as $allTuple) {
+            $this->fake->grant($allTuple['user'], $allTuple['relation'], $allTuple['object']);
         }
 
         return $this;

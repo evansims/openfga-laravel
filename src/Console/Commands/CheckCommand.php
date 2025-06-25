@@ -6,9 +6,9 @@ namespace OpenFGA\Laravel\Console\Commands;
 
 use Exception;
 use Illuminate\Console\Command;
+use InvalidArgumentException;
 use OpenFGA\Exceptions\ClientThrowable;
 use OpenFGA\Laravel\OpenFgaManager;
-use Psr\SimpleCache\InvalidArgumentException;
 
 use function count;
 use function is_array;

@@ -6,7 +6,7 @@ namespace OpenFGA\Laravel\Cache;
 
 use Illuminate\Cache\TaggedCache as LaravelTaggedCache;
 use Illuminate\Support\Facades\Cache;
-use Psr\SimpleCache\InvalidArgumentException;
+use InvalidArgumentException;
 
 use function count;
 use function is_bool;

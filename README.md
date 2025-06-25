@@ -83,7 +83,6 @@ Let's implement a simple document sharing system with enhanced type safety.
 declare(strict_types=1);
 
 use App\Models\Document;
-use OpenFGA\Laravel\Facades\OpenFGA;
 
 class DocumentController extends Controller
 {
@@ -95,7 +94,7 @@ class DocumentController extends Controller
         // Ensure user can share (only owners can share)
         $this->authorize('owner', $document);
 
-        // Grant permission to new user - type-safe operation
+        // Grant permission to new user
         $document->grant($request->user_email, $request->permission);
 
         return back()->with('success', 'Document shared successfully!');
@@ -127,6 +126,12 @@ class DocumentController extends Controller
 - [Performance & Optimization](docs/performance.md)
 - [Testing](docs/testing.md)
 - [API Reference](docs/api-reference.md)
+
+<p><br /></p>
+
+## Related
+
+- [OpenFGA PHP SDK](https://github.com/evansims/openfga-php)
 
 <p><br /></p>
 

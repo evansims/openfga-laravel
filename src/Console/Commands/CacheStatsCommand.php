@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace OpenFGA\Laravel\Console\Commands;
 
 use Illuminate\Console\Command;
+use InvalidArgumentException;
 use OpenFGA\Laravel\OpenFgaManager;
-use Psr\SimpleCache\InvalidArgumentException;
 use RuntimeException;
 
 use function sprintf;

@@ -8,9 +8,9 @@ use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Contracts\Container\BindingResolutionException;
 use Illuminate\Support\Facades\Config;
+use InvalidArgumentException;
 use OpenFGA\Exceptions\ClientThrowable;
 use OpenFGA\Laravel\OpenFgaManager;
-use Psr\SimpleCache\InvalidArgumentException;
 
 use function is_array;
 use function is_scalar;
