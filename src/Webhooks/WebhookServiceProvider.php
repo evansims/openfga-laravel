@@ -40,7 +40,7 @@ final class WebhookServiceProvider extends ServiceProvider
     /**
      * Register configured webhooks.
      */
-    protected function registerWebhooks(): void
+    private function registerWebhooks(): void
     {
         $webhookManager = $this->app->make(WebhookManager::class);
         $webhooks = config('openfga.webhooks.endpoints', []);

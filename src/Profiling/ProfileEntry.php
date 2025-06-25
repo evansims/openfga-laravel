@@ -8,6 +8,8 @@ use Carbon\Carbon;
 
 final class ProfileEntry
 {
+    private readonly ?float $startTime;
+
     private ?string $cacheStatus = null;
 
     private ?float $endTime = null;
@@ -16,11 +18,9 @@ final class ProfileEntry
 
     private array $metadata = [];
 
-    private ?float $startTime;
-
     private ?bool $success = null;
 
-    public function __construct(protected string $operation, protected array $parameters = [])
+    public function __construct(private readonly string $operation, private readonly array $parameters = [])
     {
         $this->startTime = microtime(true);
     }

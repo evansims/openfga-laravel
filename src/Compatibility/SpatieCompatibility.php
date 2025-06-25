@@ -350,10 +350,6 @@ final class SpatieCompatibility
             return 'article:*';
         }
 
-        if (str_contains($permission, 'user')) {
-            return 'organization:main';
-        }
-
         // Default to organization context
         return 'organization:main';
     }

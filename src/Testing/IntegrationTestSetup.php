@@ -13,9 +13,9 @@ use function sprintf;
 /**
  * Helper class for setting up integration test environments.
  */
-final class IntegrationTestSetup
+final readonly class IntegrationTestSetup
 {
-    public function __construct(private readonly Command $command, private readonly string $openFgaUrl = 'http://localhost:8080')
+    public function __construct(private Command $command, private string $openFgaUrl = 'http://localhost:8080')
     {
     }
 

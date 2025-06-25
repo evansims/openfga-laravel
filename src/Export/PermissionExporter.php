@@ -14,7 +14,7 @@ final class PermissionExporter
 {
     private array $options = [];
 
-    public function __construct(protected OpenFgaManager $manager)
+    public function __construct(private readonly OpenFgaManager $manager)
     {
     }
 

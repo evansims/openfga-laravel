@@ -22,7 +22,7 @@ final class WriteBehindCache
 
     private array $pendingWrites = [];
 
-    public function __construct(protected Cache $cache, protected Queue $queue, protected OpenFgaManager $manager, protected int $batchSize = 100, protected int $flushInterval = 5)
+    public function __construct(private readonly Cache $cache, private readonly Queue $queue, private readonly OpenFgaManager $manager, private readonly int $batchSize = 100, private readonly int $flushInterval = 5)
     {
     }
 

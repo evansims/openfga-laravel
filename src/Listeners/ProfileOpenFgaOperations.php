@@ -9,10 +9,10 @@ use OpenFga\Laravel\Profiling\OpenFgaProfiler;
 
 use function count;
 
-final class ProfileOpenFgaOperations
+final readonly class ProfileOpenFgaOperations
 {
     public function __construct(
-        protected OpenFgaProfiler $profiler,
+        private OpenFgaProfiler $profiler,
     ) {
     }
 

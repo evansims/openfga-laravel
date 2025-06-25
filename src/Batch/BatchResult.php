@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Batch;
 
-final class BatchResult
+final readonly class BatchResult
 {
     public function __construct(
-        public readonly bool $success,
-        public readonly int $totalOperations,
-        public readonly int $processedOperations,
-        public readonly int $failedOperations,
-        public readonly float $duration,
-        public readonly array $optimizationStats = [],
-        public readonly array $errors = [],
+        public bool $success,
+        public int $totalOperations,
+        public int $processedOperations,
+        public int $failedOperations,
+        public float $duration,
+        public array $optimizationStats = [],
+        public array $errors = [],
     ) {
     }
 

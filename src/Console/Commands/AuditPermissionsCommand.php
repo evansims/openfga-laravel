@@ -6,7 +6,6 @@ namespace OpenFGA\Laravel\Console\Commands;
 
 use Exception;
 use Illuminate\Console\Command;
-use OpenFGA\ClientInterface;
 use OpenFGA\Laravel\OpenFgaManager;
 
 use function count;
@@ -43,12 +42,12 @@ final class AuditPermissionsCommand extends Command
     public function handle(OpenFgaManager $manager): int
     {
         $connection = $this->option('connection');
-        $client = $manager->connection($connection);
+        $manager->connection($connection);
 
         $this->info('Starting permission audit...');
 
         try {
-            $auditData = $this->collectAuditData($client);
+            $auditData = $this->collectAuditData();
 
             if ($this->option('export')) {
                 $this->exportResults($auditData);
@@ -134,10 +133,8 @@ final class AuditPermissionsCommand extends Command
 
     /**
      * Collect audit data based on options.
-     *
-     * @param ClientInterface $client
      */
-    private function collectAuditData(ClientInterface $client): array
+    private function collectAuditData(): array
     {
         $data = [
             'summary' => [],
@@ -164,7 +161,6 @@ final class AuditPermissionsCommand extends Command
             $this->warn('Performing general audit. This may take some time...');
             $data = $this->performGeneralAudit();
         }
-
         // Analyze for warnings
         $data['warnings'] = $this->analyzePermissions($data['permissions']);
 

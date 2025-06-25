@@ -9,11 +9,11 @@ use Illuminate\Support\Facades\Log;
 
 final class OpenFgaProfiler
 {
+    private readonly float $slowQueryThreshold;
+
     private bool $enabled;
 
     private Collection $profiles;
-
-    private float $slowQueryThreshold;
 
     public function __construct()
     {

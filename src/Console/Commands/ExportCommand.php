@@ -101,7 +101,7 @@ final class ExportCommand extends Command
      *
      * @param int $bytes
      */
-    protected function formatFileSize(int $bytes): string
+    private function formatFileSize(int $bytes): string
     {
         $units = ['B', 'KB', 'MB', 'GB'];
         $i = 0;

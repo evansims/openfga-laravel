@@ -17,9 +17,9 @@ use function is_object;
  * This middleware provides the same interface as Spatie's PermissionMiddleware
  * but uses OpenFGA for authorization checks.
  */
-final class SpatiePermissionMiddleware
+final readonly class SpatiePermissionMiddleware
 {
-    public function __construct(private readonly SpatieCompatibility $compatibility)
+    public function __construct(private SpatieCompatibility $compatibility)
     {
     }
 

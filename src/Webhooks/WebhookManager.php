@@ -15,7 +15,7 @@ final class WebhookManager
 {
     private array $webhooks = [];
 
-    public function __construct(protected Http $http)
+    public function __construct(private readonly Http $http)
     {
         $this->webhooks = config('openfga.webhooks', []);
     }

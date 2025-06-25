@@ -13,17 +13,17 @@ use function sprintf;
 
 final class ConnectionPool
 {
+    private readonly int $connectionTimeout;
+
+    private readonly int $maxConnections;
+
+    private readonly int $maxIdleTime;
+
+    private readonly int $minConnections;
+
     private Collection $available;
 
-    private int $connectionTimeout;
-
     private Collection $inUse;
-
-    private int $maxConnections;
-
-    private int $maxIdleTime;
-
-    private int $minConnections;
 
     private array $stats = [
         'created' => 0,
@@ -34,7 +34,7 @@ final class ConnectionPool
         'errors' => 0,
     ];
 
-    public function __construct(protected array $config = [])
+    public function __construct(private array $config = [])
     {
         $this->maxConnections = $this->config['max_connections'] ?? 10;
         $this->minConnections = $this->config['min_connections'] ?? 2;

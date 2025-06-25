@@ -91,7 +91,7 @@ final class ImportCommand extends Command
      *
      * @param array $stats
      */
-    protected function displayResults(array $stats): void
+    private function displayResults(array $stats): void
     {
         $this->newLine();
         $this->info('Import completed!');

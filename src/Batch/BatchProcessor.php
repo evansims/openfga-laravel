@@ -26,8 +26,8 @@ final class BatchProcessor
     ];
 
     public function __construct(
-        protected OpenFgaManager $manager,
-        protected BatchOptimizer $optimizer,
+        private readonly OpenFgaManager $manager,
+        private readonly BatchOptimizer $optimizer,
         array $config = [],
     ) {
         $this->config = array_merge([

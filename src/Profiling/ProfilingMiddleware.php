@@ -8,10 +8,10 @@ use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\View;
 
-final class ProfilingMiddleware
+final readonly class ProfilingMiddleware
 {
     public function __construct(
-        protected OpenFgaProfiler $profiler,
+        private OpenFgaProfiler $profiler,
     ) {
     }
 

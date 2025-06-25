@@ -47,7 +47,7 @@ final class WriteBehindCacheServiceProvider extends ServiceProvider
     /**
      * Register periodic flush using scheduler.
      */
-    protected function registerPeriodicFlush(): void
+    private function registerPeriodicFlush(): void
     {
         if ($this->app->runningInConsole()) {
             return;
@@ -68,7 +68,7 @@ final class WriteBehindCacheServiceProvider extends ServiceProvider
     /**
      * Register shutdown flush.
      */
-    protected function registerShutdownFlush(): void
+    private function registerShutdownFlush(): void
     {
         register_shutdown_function(function (): void {
             try {

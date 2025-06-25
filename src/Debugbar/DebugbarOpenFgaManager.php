@@ -5,17 +5,18 @@ declare(strict_types=1);
 namespace OpenFGA\Laravel\Debugbar;
 
 use Exception;
+use OpenFGA\ClientInterface;
 use OpenFGA\Laravel\OpenFgaManager;
 
 use function count;
 use function is_array;
 use function is_object;
 
-final class DebugbarOpenFgaManager
+final readonly class DebugbarOpenFgaManager
 {
     public function __construct(
-        private readonly OpenFgaManager $manager,
-        private readonly OpenFgaCollector $collector,
+        private OpenFgaManager $manager,
+        private OpenFgaCollector $collector,
     ) {
     }
 
@@ -34,12 +35,12 @@ final class DebugbarOpenFgaManager
             $duration = microtime(true) - $start;
 
             // Collect metrics based on method
-            $this->collectMetrics($method, $arguments, $result, $duration);
+            $this->collectMetrics($method, $arguments, $duration);
 
             return $result;
         } catch (Exception $exception) {
             $duration = microtime(true) - $start;
-            $this->collectMetrics($method, $arguments, null, $duration, $exception);
+            $this->collectMetrics($method, $arguments, $duration, $exception);
 
             throw $exception;
         }
@@ -94,7 +95,7 @@ final class DebugbarOpenFgaManager
      *
      * @param ?string $name
      */
-    public function connection(?string $name = null)
+    public function connection(?string $name = null): ClientInterface
     {
         // Return a wrapped connection that also collects metrics
         return $this->manager->connection($name);
@@ -139,14 +140,12 @@ final class DebugbarOpenFgaManager
      *
      * @param string     $method
      * @param array      $arguments
-     * @param mixed      $result
      * @param float      $duration
      * @param ?Exception $exception
      */
     private function collectMetrics(
         string $method,
         array $arguments,
-        $result,
         float $duration,
         ?Exception $exception = null,
     ): void {

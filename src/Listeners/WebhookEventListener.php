@@ -7,10 +7,10 @@ namespace OpenFGA\Laravel\Listeners;
 use OpenFGA\Laravel\Events\{PermissionChanged, PermissionChecked, PermissionGranted, PermissionRevoked};
 use OpenFGA\Laravel\Webhooks\WebhookManager;
 
-final class WebhookEventListener
+final readonly class WebhookEventListener
 {
     public function __construct(
-        protected WebhookManager $webhookManager,
+        private WebhookManager $webhookManager,
     ) {
     }
 

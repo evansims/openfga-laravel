@@ -9,7 +9,7 @@ use Override;
 
 final class PooledOpenFgaManager extends OpenFgaManager
 {
-    protected ?ConnectionPool $pool = null;
+    private ?ConnectionPool $pool = null;
 
     /**
      * Destructor to ensure pool is shut down.
@@ -103,7 +103,7 @@ final class PooledOpenFgaManager extends OpenFgaManager
     /**
      * Get or create the connection pool.
      */
-    protected function getPool(): ConnectionPool
+    private function getPool(): ConnectionPool
     {
         if (! $this->pool instanceof ConnectionPool) {
             $config = $this->getConnectionConfig($this->getDefaultConnection());

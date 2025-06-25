@@ -58,7 +58,7 @@ final class ProfileCommand extends Command
         return 0;
     }
 
-    protected function displayProfileSummary(OpenFgaProfiler $profiler): void
+    private function displayProfileSummary(OpenFgaProfiler $profiler): void
     {
         $summary = $profiler->getSummary();
 
@@ -94,7 +94,7 @@ final class ProfileCommand extends Command
         $this->table($headers, $rows);
     }
 
-    protected function displaySlowQueries(OpenFgaProfiler $profiler): void
+    private function displaySlowQueries(OpenFgaProfiler $profiler): void
     {
         $slowQueries = $profiler->getSlowQueries();
 

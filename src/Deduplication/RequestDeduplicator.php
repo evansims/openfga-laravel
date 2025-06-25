@@ -24,7 +24,7 @@ final class RequestDeduplicator
         'cache_misses' => 0,
     ];
 
-    public function __construct(protected Cache $cache, array $config = [])
+    public function __construct(private readonly Cache $cache, array $config = [])
     {
         $this->config = array_merge([
             'enabled' => true,

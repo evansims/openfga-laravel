@@ -15,9 +15,9 @@ use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
  * This middleware provides the same interface as Spatie's RoleMiddleware
  * but uses OpenFGA for authorization checks.
  */
-final class SpatieRoleMiddleware
+final readonly class SpatieRoleMiddleware
 {
-    public function __construct(private readonly SpatieCompatibility $compatibility)
+    public function __construct(private SpatieCompatibility $compatibility)
     {
     }
 

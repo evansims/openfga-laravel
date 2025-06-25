@@ -9,9 +9,9 @@ use Closure;
 /**
  * Provides pre-configured mock scenarios for common testing situations.
  */
-final class MockScenarios
+final readonly class MockScenarios
 {
-    public function __construct(private readonly FakeOpenFga $fake)
+    public function __construct(private FakeOpenFga $fake)
     {
     }
 

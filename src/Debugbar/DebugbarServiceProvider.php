@@ -49,7 +49,7 @@ final class DebugbarServiceProvider extends ServiceProvider
     /**
      * Wrap OpenFgaManager methods to collect metrics.
      */
-    protected function wrapOpenFgaManager(): void
+    private function wrapOpenFgaManager(): void
     {
         $this->app->extend(OpenFgaManager::class, static fn ($manager, $app): DebugbarOpenFgaManager => new DebugbarOpenFgaManager(
             $manager,

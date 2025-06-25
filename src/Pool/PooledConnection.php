@@ -9,7 +9,7 @@ use OpenFGA\ClientInterface;
 
 final class PooledConnection
 {
-    private float $createdAt;
+    private readonly float $createdAt;
 
     private bool $healthy = true;
 
@@ -17,7 +17,7 @@ final class PooledConnection
 
     private int $useCount = 0;
 
-    public function __construct(protected ClientInterface $client, protected string $id)
+    public function __construct(private readonly ClientInterface $client, private readonly string $id)
     {
         $this->createdAt = microtime(true);
         $this->lastUsedAt = microtime(true);

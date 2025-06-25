@@ -24,7 +24,7 @@ final class PermissionImporter
         'errors' => 0,
     ];
 
-    public function __construct(protected OpenFgaManager $manager)
+    public function __construct(private readonly OpenFgaManager $manager)
     {
     }
 
