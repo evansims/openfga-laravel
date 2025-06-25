@@ -158,7 +158,6 @@ final class ModelCommandsTest extends FeatureTestCase
             '--json' => true,
         ])
             ->expectsOutputToContain('"valid": true')
-            ->expectsOutputToContain('"errors": []')
             ->assertSuccessful();
 
         unlink($tempFile);

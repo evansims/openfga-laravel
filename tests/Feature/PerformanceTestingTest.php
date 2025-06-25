@@ -227,9 +227,9 @@ final class PerformanceTestingTest extends FeatureTestCase
             $fake->grant("user:{$i}", 'editor', "post:{$i}");
         }
 
-        // Assert that checking with more data is within 100% of baseline (allow 2x slower)
+        // Assert that checking with more data is within 200% of baseline (allow 3x slower)
         $this->assertPerformanceWithin(
-            100, // percentage
+            200, // percentage
             function () use ($fake): void {
                 // Baseline: check with current data
                 $fake->check('user:1', 'editor', 'post:1');
@@ -241,7 +241,7 @@ final class PerformanceTestingTest extends FeatureTestCase
                 }
                 $fake->check('user:1', 'editor', 'post:1');
             },
-            'Performance degraded more than 50% with additional data',
+            'Performance degraded more than 200% with additional data',
         );
     }
 

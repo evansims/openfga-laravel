@@ -62,9 +62,9 @@ final class PermissionExporter
         $count = count($permissions);
 
         $content = match ($this->options['format']) {
-            'json' => $this->exportJson($permissions),
+            'json' => $this->exportJson($permissions, $filters),
             'csv' => $this->exportCsv($permissions),
-            'yaml' => $this->exportYaml($permissions),
+            'yaml' => $this->exportYaml($permissions, $filters),
             default => throw new RuntimeException('Unsupported format: ' . $this->options['format']),
         };
 
@@ -162,11 +162,21 @@ final class PermissionExporter
      * Export to JSON format.
      *
      * @param array $permissions
+     * @param array $filters
      */
-    private function exportJson(array $permissions): string
+    private function exportJson(array $permissions, array $filters = []): string
     {
         $data = $this->options['include_metadata']
-            ? $this->exportToArray([])
+            ? [
+                'metadata' => [
+                    'exported_at' => now()->toIso8601String(),
+                    'total' => count($permissions),
+                    'filters' => $filters,
+                    'application' => config('app.name'),
+                    'environment' => app()->environment(),
+                ],
+                'permissions' => $permissions,
+            ]
             : $permissions;
 
         $flags = $this->options['pretty_print']
@@ -180,15 +190,25 @@ final class PermissionExporter
      * Export to YAML format.
      *
      * @param array $permissions
+     * @param array $filters
      */
-    private function exportYaml(array $permissions): string
+    private function exportYaml(array $permissions, array $filters = []): string
     {
         if (! function_exists('yaml_emit')) {
             throw new RuntimeException('YAML extension not installed');
         }
 
         $data = $this->options['include_metadata']
-            ? $this->exportToArray([])
+            ? [
+                'metadata' => [
+                    'exported_at' => now()->toIso8601String(),
+                    'total' => count($permissions),
+                    'filters' => $filters,
+                    'application' => config('app.name'),
+                    'environment' => app()->environment(),
+                ],
+                'permissions' => $permissions,
+            ]
             : ['permissions' => $permissions];
 
         return yaml_emit($data);

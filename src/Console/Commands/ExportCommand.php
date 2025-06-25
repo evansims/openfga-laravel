@@ -86,8 +86,11 @@ final class ExportCommand extends Command
 
             // Show file size
             if (file_exists($file)) {
-                $size = $this->formatFileSize(filesize($file));
-                $this->comment('File size: ' . $size);
+                $filesize = filesize($file);
+                if ($filesize !== false) {
+                    $size = $this->formatFileSize($filesize);
+                    $this->comment('File size: ' . $size);
+                }
             }
 
             return self::SUCCESS;

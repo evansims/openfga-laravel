@@ -73,7 +73,9 @@ final class ModelValidateCommand extends Command
             return self::FAILURE;
         }
 
-        $this->info('✅ Model validation passed!');
+        if (!$this->option('json')) {
+            $this->info('✅ Model validation passed!');
+        }
 
         // Create model if requested
         if ($this->option('create')) {
