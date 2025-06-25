@@ -7,17 +7,10 @@ namespace OpenFGA\Laravel\Webhooks;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use OpenFGA\Laravel\Listeners\WebhookEventListener;
+use Override;
 
-class WebhookServiceProvider extends ServiceProvider
+final class WebhookServiceProvider extends ServiceProvider
 {
-    /**
-     * Register services.
-     */
-    public function register(): void
-    {
-        $this->app->singleton(WebhookManager::class);
-    }
-
     /**
      * Bootstrap services.
      */
@@ -36,7 +29,16 @@ class WebhookServiceProvider extends ServiceProvider
     }
 
     /**
-     * Register configured webhooks
+     * Register services.
+     */
+    #[Override]
+    public function register(): void
+    {
+        $this->app->singleton(WebhookManager::class);
+    }
+
+    /**
+     * Register configured webhooks.
      */
     protected function registerWebhooks(): void
     {
@@ -48,7 +50,7 @@ class WebhookServiceProvider extends ServiceProvider
                 $name,
                 $config['url'],
                 $config['events'] ?? [],
-                $config['headers'] ?? []
+                $config['headers'] ?? [],
             );
 
             if (isset($config['active']) && ! $config['active']) {

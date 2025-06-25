@@ -4,77 +4,98 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Testing;
 
+use Closure;
+use Exception;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Support\Facades\Config;
-use OpenFGA\Client;
-use OpenFGA\ClientInterface;
+use OpenFGA\{Client, ClientInterface};
 use OpenFGA\Laravel\OpenFgaManager;
+use RuntimeException;
+
+use function sprintf;
 
 /**
- * Base test case for OpenFGA integration tests
- * 
+ * Base test case for OpenFGA integration tests.
+ *
  * Provides helpers for testing against a real OpenFGA instance
  */
 abstract class IntegrationTestCase extends BaseTestCase
 {
-    protected ?OpenFgaManager $openFgaManager = null;
-    protected ?ClientInterface $openFgaClient = null;
-    protected ?string $testStoreId = null;
-    protected ?string $testModelId = null;
     protected array $createdStores = [];
 
-    /**
-     * Set up integration test environment
-     */
-    protected function setUpIntegrationTest(): void
-    {
-        // Skip if not in integration test mode
-        if (!$this->shouldRunIntegrationTests()) {
-            $this->markTestSkipped('Integration tests are not enabled. Set OPENFGA_RUN_INTEGRATION_TESTS=true to run.');
-        }
+    protected ?ClientInterface $openFgaClient = null;
 
-        // Configure test connection
-        $this->configureTestConnection();
-        
-        // Initialize OpenFGA manager
-        $this->openFgaManager = app(OpenFgaManager::class);
-        $this->openFgaClient = $this->openFgaManager->connection('integration_test');
+    protected ?OpenFgaManager $openFgaManager = null;
 
-        // Create test store and model
-        $this->setUpTestStore();
-    }
+    protected ?string $testModelId = null;
+
+    protected ?string $testStoreId = null;
 
     /**
-     * Tear down integration test environment
+     * Assert permission check with retries for eventual consistency.
+     *
+     * @param string $user
+     * @param string $relation
+     * @param string $object
+     * @param int    $maxRetries
      */
-    protected function tearDownIntegrationTest(): void
+    protected function assertEventuallyAllowed(string $user, string $relation, string $object, int $maxRetries = 10): void
     {
-        // Clean up created stores
-        foreach ($this->createdStores as $storeId) {
-            try {
-                $this->deleteStore($storeId);
-            } catch (\Exception $e) {
-                // Ignore cleanup errors
+        $allowed = false;
+        $attempts = 0;
+
+        while (! $allowed && $attempts < $maxRetries) {
+            $allowed = $this->openFgaClient->check($user, $relation, $object);
+
+            if (! $allowed) {
+                $this->waitForConsistency(100);
+                ++$attempts;
             }
         }
 
-        $this->openFgaManager = null;
-        $this->openFgaClient = null;
-        $this->testStoreId = null;
-        $this->testModelId = null;
-        $this->createdStores = [];
+        $this->assertTrue($allowed, sprintf('Permission check failed after %d attempts: %s %s %s', $attempts, $user, $relation, $object));
     }
 
     /**
-     * Check if integration tests should run
+     * Assert permission check fails with retries for eventual consistency.
+     *
+     * @param string $user
+     * @param string $relation
+     * @param string $object
+     * @param int    $maxRetries
      */
-    protected function shouldRunIntegrationTests(): bool
+    protected function assertEventuallyDenied(string $user, string $relation, string $object, int $maxRetries = 10): void
     {
-        return env('OPENFGA_RUN_INTEGRATION_TESTS', false) === true;
+        $denied = false;
+        $attempts = 0;
+
+        while (! $denied && $attempts < $maxRetries) {
+            $allowed = $this->openFgaClient->check($user, $relation, $object);
+            $denied = ! $allowed;
+
+            if (! $denied) {
+                $this->waitForConsistency(100);
+                ++$attempts;
+            }
+        }
+
+        $this->assertTrue($denied, sprintf('Permission check should have failed after %d attempts: %s %s %s', $attempts, $user, $relation, $object));
     }
 
     /**
-     * Configure test connection
+     * Clear all tuples in the store.
+     */
+    protected function clearAllTuples(): void
+    {
+        $tuples = $this->listAllTuples();
+
+        if ([] !== $tuples) {
+            $this->openFgaClient->write([], $tuples);
+        }
+    }
+
+    /**
+     * Configure test connection.
      */
     protected function configureTestConnection(): void
     {
@@ -97,34 +118,85 @@ abstract class IntegrationTestCase extends BaseTestCase
     }
 
     /**
-     * Set up test store and model
+     * Create authorization model.
+     *
+     * @param array $model
      */
-    protected function setUpTestStore(): void
+    protected function createAuthorizationModel(array $model): array
     {
-        // Create a new store for testing
-        $storeName = 'test_' . uniqid();
-        $store = $this->createStore($storeName);
-        
-        $this->testStoreId = $store['id'];
-        $this->createdStores[] = $this->testStoreId;
-
-        // Update connection with store ID
-        Config::set('openfga.connections.integration_test.store_id', $this->testStoreId);
-
-        // Create authorization model
-        $model = $this->createAuthorizationModel($this->getTestAuthorizationModel());
-        $this->testModelId = $model['id'];
-
-        // Update connection with model ID
-        Config::set('openfga.connections.integration_test.model_id', $this->testModelId);
-
-        // Reinitialize client with updated config
-        $this->openFgaManager->purge('integration_test');
-        $this->openFgaClient = $this->openFgaManager->connection('integration_test');
+        return $this->makeApiRequest('POST', sprintf('/stores/%s/authorization-models', $this->testStoreId), $model);
     }
 
     /**
-     * Get test authorization model
+     * Create a store.
+     *
+     * @param string $name
+     */
+    protected function createStore(string $name): array
+    {
+        return $this->makeApiRequest('POST', '/stores', [
+            'name' => $name,
+        ]);
+    }
+
+    protected function createTestDocument(string $id): string
+    {
+        return 'document:' . $id;
+    }
+
+    protected function createTestOrganization(string $id): string
+    {
+        return 'organization:' . $id;
+    }
+
+    /**
+     * Create test data helpers.
+     *
+     * @param string $id
+     */
+    protected function createTestUser(string $id): string
+    {
+        return 'user:' . $id;
+    }
+
+    /**
+     * Delete a store.
+     *
+     * @param string $storeId
+     */
+    protected function deleteStore(string $storeId): void
+    {
+        $this->makeApiRequest('DELETE', '/stores/' . $storeId);
+    }
+
+    /**
+     * Get OpenFGA client instance.
+     */
+    protected function getClient(): ClientInterface
+    {
+        return $this->openFgaClient;
+    }
+
+    /**
+     * Get current model.
+     */
+    protected function getCurrentModel(): array
+    {
+        $response = $this->makeApiRequest('GET', sprintf('/stores/%s/authorization-models/%s', $this->testStoreId, $this->testModelId));
+
+        return $response['authorization_model'] ?? [];
+    }
+
+    /**
+     * Get OpenFGA manager instance.
+     */
+    protected function getManager(): OpenFgaManager
+    {
+        return $this->openFgaManager;
+    }
+
+    /**
+     * Get test authorization model.
      */
     protected function getTestAuthorizationModel(): array
     {
@@ -200,42 +272,50 @@ abstract class IntegrationTestCase extends BaseTestCase
     }
 
     /**
-     * Create a store
+     * Grant permission helper.
+     *
+     * @param string $user
+     * @param string $relation
+     * @param string $object
      */
-    protected function createStore(string $name): array
+    protected function grantPermission(string $user, string $relation, string $object): void
     {
-        $response = $this->makeApiRequest('POST', '/stores', [
-            'name' => $name,
+        $this->openFgaClient->write([
+            ['user' => $user, 'relation' => $relation, 'object' => $object],
         ]);
-
-        return $response;
     }
 
     /**
-     * Delete a store
+     * Batch grant permissions.
+     *
+     * @param array $tuples
      */
-    protected function deleteStore(string $storeId): void
+    protected function grantPermissions(array $tuples): void
     {
-        $this->makeApiRequest('DELETE', "/stores/{$storeId}");
+        $this->openFgaClient->write($tuples);
     }
 
     /**
-     * Create authorization model
+     * List all tuples in the store.
      */
-    protected function createAuthorizationModel(array $model): array
+    protected function listAllTuples(): array
     {
-        $response = $this->makeApiRequest('POST', "/stores/{$this->testStoreId}/authorization-models", $model);
+        $response = $this->openFgaClient->read();
 
-        return $response;
+        return $response['tuples'] ?? [];
     }
 
     /**
-     * Make direct API request
+     * Make direct API request.
+     *
+     * @param string $method
+     * @param string $path
+     * @param array  $data
      */
     protected function makeApiRequest(string $method, string $path, array $data = []): array
     {
-        $url = rtrim(Config::get('openfga.connections.integration_test.url'), '/') . $path;
-        
+        $url = rtrim((string) Config::get('openfga.connections.integration_test.url'), '/') . $path;
+
         $options = [
             'http' => [
                 'method' => $method,
@@ -251,152 +331,19 @@ abstract class IntegrationTestCase extends BaseTestCase
         $context = stream_context_create($options);
         $response = file_get_contents($url, false, $context);
 
-        if ($response === false) {
-            throw new \RuntimeException("Failed to make API request to {$url}");
+        if (false === $response) {
+            throw new RuntimeException('Failed to make API request to ' . $url);
         }
 
         return json_decode($response, true) ?: [];
     }
 
     /**
-     * Wait for eventual consistency
+     * Measure operation time.
+     *
+     * @param Closure $operation
      */
-    protected function waitForConsistency(int $milliseconds = 100): void
-    {
-        usleep($milliseconds * 1000);
-    }
-
-    /**
-     * Assert permission check with retries for eventual consistency
-     */
-    protected function assertEventuallyAllowed(string $user, string $relation, string $object, int $maxRetries = 10): void
-    {
-        $allowed = false;
-        $attempts = 0;
-
-        while (!$allowed && $attempts < $maxRetries) {
-            $allowed = $this->openFgaClient->check($user, $relation, $object);
-            
-            if (!$allowed) {
-                $this->waitForConsistency(100);
-                $attempts++;
-            }
-        }
-
-        $this->assertTrue($allowed, "Permission check failed after {$attempts} attempts: {$user} {$relation} {$object}");
-    }
-
-    /**
-     * Assert permission check fails with retries for eventual consistency
-     */
-    protected function assertEventuallyDenied(string $user, string $relation, string $object, int $maxRetries = 10): void
-    {
-        $denied = false;
-        $attempts = 0;
-
-        while (!$denied && $attempts < $maxRetries) {
-            $allowed = $this->openFgaClient->check($user, $relation, $object);
-            $denied = !$allowed;
-            
-            if (!$denied) {
-                $this->waitForConsistency(100);
-                $attempts++;
-            }
-        }
-
-        $this->assertTrue($denied, "Permission check should have failed after {$attempts} attempts: {$user} {$relation} {$object}");
-    }
-
-    /**
-     * Create test data helpers
-     */
-    protected function createTestUser(string $id): string
-    {
-        return "user:{$id}";
-    }
-
-    protected function createTestOrganization(string $id): string
-    {
-        return "organization:{$id}";
-    }
-
-    protected function createTestDocument(string $id): string
-    {
-        return "document:{$id}";
-    }
-
-    /**
-     * Grant permission helper
-     */
-    protected function grantPermission(string $user, string $relation, string $object): void
-    {
-        $this->openFgaClient->write([
-            ['user' => $user, 'relation' => $relation, 'object' => $object]
-        ]);
-    }
-
-    /**
-     * Revoke permission helper
-     */
-    protected function revokePermission(string $user, string $relation, string $object): void
-    {
-        $this->openFgaClient->write([], [
-            ['user' => $user, 'relation' => $relation, 'object' => $object]
-        ]);
-    }
-
-    /**
-     * Batch grant permissions
-     */
-    protected function grantPermissions(array $tuples): void
-    {
-        $this->openFgaClient->write($tuples);
-    }
-
-    /**
-     * Get current model
-     */
-    protected function getCurrentModel(): array
-    {
-        $response = $this->makeApiRequest('GET', "/stores/{$this->testStoreId}/authorization-models/{$this->testModelId}");
-        return $response['authorization_model'] ?? [];
-    }
-
-    /**
-     * List all tuples in the store
-     */
-    protected function listAllTuples(): array
-    {
-        $response = $this->openFgaClient->read();
-        return $response['tuples'] ?? [];
-    }
-
-    /**
-     * Clear all tuples in the store
-     */
-    protected function clearAllTuples(): void
-    {
-        $tuples = $this->listAllTuples();
-        
-        if (!empty($tuples)) {
-            $this->openFgaClient->write([], $tuples);
-        }
-    }
-
-    /**
-     * Run a test with a clean store
-     */
-    protected function runWithCleanStore(\Closure $test): void
-    {
-        $this->clearAllTuples();
-        $test();
-        $this->clearAllTuples();
-    }
-
-    /**
-     * Measure operation time
-     */
-    protected function measureTime(\Closure $operation): array
+    protected function measureTime(Closure $operation): array
     {
         $start = microtime(true);
         $result = $operation();
@@ -409,18 +356,115 @@ abstract class IntegrationTestCase extends BaseTestCase
     }
 
     /**
-     * Get OpenFGA manager instance
+     * Revoke permission helper.
+     *
+     * @param string $user
+     * @param string $relation
+     * @param string $object
      */
-    protected function getManager(): OpenFgaManager
+    protected function revokePermission(string $user, string $relation, string $object): void
     {
-        return $this->openFgaManager;
+        $this->openFgaClient->write([], [
+            ['user' => $user, 'relation' => $relation, 'object' => $object],
+        ]);
     }
 
     /**
-     * Get OpenFGA client instance
+     * Run a test with a clean store.
+     *
+     * @param Closure $test
      */
-    protected function getClient(): ClientInterface
+    protected function runWithCleanStore(Closure $test): void
     {
-        return $this->openFgaClient;
+        $this->clearAllTuples();
+        $test();
+        $this->clearAllTuples();
+    }
+
+    /**
+     * Set up integration test environment.
+     */
+    protected function setUpIntegrationTest(): void
+    {
+        // Skip if not in integration test mode
+        if (! $this->shouldRunIntegrationTests()) {
+            $this->markTestSkipped('Integration tests are not enabled. Set OPENFGA_RUN_INTEGRATION_TESTS=true to run.');
+        }
+
+        // Configure test connection
+        $this->configureTestConnection();
+
+        // Initialize OpenFGA manager
+        $this->openFgaManager = app(OpenFgaManager::class);
+        $this->openFgaClient = $this->openFgaManager->connection('integration_test');
+
+        // Create test store and model
+        $this->setUpTestStore();
+    }
+
+    /**
+     * Set up test store and model.
+     */
+    protected function setUpTestStore(): void
+    {
+        // Create a new store for testing
+        $storeName = 'test_' . uniqid();
+        $store = $this->createStore($storeName);
+
+        $this->testStoreId = $store['id'];
+        $this->createdStores[] = $this->testStoreId;
+
+        // Update connection with store ID
+        Config::set('openfga.connections.integration_test.store_id', $this->testStoreId);
+
+        // Create authorization model
+        $model = $this->createAuthorizationModel($this->getTestAuthorizationModel());
+        $this->testModelId = $model['id'];
+
+        // Update connection with model ID
+        Config::set('openfga.connections.integration_test.model_id', $this->testModelId);
+
+        // Reinitialize client with updated config
+        $this->openFgaManager->purge('integration_test');
+        $this->openFgaClient = $this->openFgaManager->connection('integration_test');
+    }
+
+    /**
+     * Check if integration tests should run.
+     */
+    protected function shouldRunIntegrationTests(): bool
+    {
+        return true === env('OPENFGA_RUN_INTEGRATION_TESTS', false);
+    }
+
+    /**
+     * Tear down integration test environment.
+     */
+    protected function tearDownIntegrationTest(): void
+    {
+        // Clean up created stores
+        foreach ($this->createdStores as $createdStore) {
+            try {
+                $this->deleteStore($createdStore);
+            } catch (Exception) {
+                // Ignore cleanup errors
+            }
+        }
+
+        $this->openFgaManager = null;
+        $this->openFgaClient = null;
+        $this->testStoreId = null;
+        $this->testModelId = null;
+        $this->createdStores = [];
+    }
+
+    /**
+     * Wait for eventual consistency.
+     *
+     * @param int $milliseconds
+     */
+    protected function waitForConsistency(int $milliseconds = 100): void
+    {
+        usleep($milliseconds * 1000);
     }
 }

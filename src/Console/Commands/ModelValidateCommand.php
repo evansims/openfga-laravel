@@ -4,12 +4,29 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Console\Commands;
 
+use Exception;
 use Illuminate\Console\Command;
 use OpenFGA\Laravel\OpenFgaManager;
-use RuntimeException;
 
-class ModelValidateCommand extends Command
+use function in_array;
+use function sprintf;
+
+final class ModelValidateCommand extends Command
 {
+    private const array RESERVED_RELATIONS = ['self'];
+
+    /**
+     * DSL validation rules.
+     */
+    private const array VALID_SCHEMA_VERSIONS = ['1.1'];
+
+    /**
+     * The console command description.
+     *
+     * @var string
+     */
+    protected $description = 'Validate an OpenFGA model DSL file';
+
     /**
      * The name and signature of the console command.
      *
@@ -22,36 +39,24 @@ class ModelValidateCommand extends Command
                             {--connection= : The OpenFGA connection to use}';
 
     /**
-     * The console command description.
-     *
-     * @var string
-     */
-    protected $description = 'Validate an OpenFGA model DSL file';
-
-    /**
-     * DSL validation rules
-     */
-    private const VALID_SCHEMA_VERSIONS = ['1.1'];
-    private const RESERVED_RELATIONS = ['self'];
-    private const VALID_RELATION_PATTERNS = [
-        '/^[a-z][a-z0-9_]*$/', // Basic relation name
-    ];
-
-    /**
      * Execute the console command.
+     *
+     * @param OpenFgaManager $manager
      */
     public function handle(OpenFgaManager $manager): int
     {
         $filePath = $this->option('file');
-        $connection = $this->option('connection');
+        $this->option('connection');
 
         if (! $filePath) {
             $this->error('Please specify a file to validate using --file option');
+
             return self::FAILURE;
         }
 
         if (! file_exists($filePath)) {
-            $this->error("File not found: {$filePath}");
+            $this->error('File not found: ' . $filePath);
+
             return self::FAILURE;
         }
 
@@ -64,7 +69,7 @@ class ModelValidateCommand extends Command
             $this->outputTable($errors, $filePath);
         }
 
-        if (! empty($errors)) {
+        if ([] !== $errors) {
             return self::FAILURE;
         }
 
@@ -72,14 +77,101 @@ class ModelValidateCommand extends Command
 
         // Create model if requested
         if ($this->option('create')) {
-            return $this->createModel($manager, $connection, $dsl);
+            return $this->createModel();
         }
 
         return self::SUCCESS;
     }
 
     /**
-     * Validate DSL content
+     * Create model in OpenFGA.
+     */
+    private function createModel(): int
+    {
+        try {
+            $this->info('Creating model in OpenFGA...');
+
+            // Note: Actual implementation would use the OpenFGA client
+            // to create the model via the API
+
+            $this->warn('Note: Actual model creation requires OpenFGA API integration.');
+            $this->info('The validated model can be uploaded to OpenFGA using the dashboard or API.');
+
+            return self::SUCCESS;
+        } catch (Exception $exception) {
+            $this->error('Failed to create model: ' . $exception->getMessage());
+
+            return self::FAILURE;
+        }
+    }
+
+    /**
+     * Extract referenced types from a relation definition.
+     *
+     * @param string $definition
+     * @param array  $referencedTypes
+     */
+    private function extractReferencedTypes(string $definition, array &$referencedTypes): void
+    {
+        // Match type references like [user], [group#member], etc.
+        preg_match_all('/\[([a-z][a-z0-9_]*)(?:#[a-z][a-z0-9_]*)?\]/', $definition, $matches);
+
+        foreach ($matches[1] as $type) {
+            $referencedTypes[] = $type;
+        }
+
+        // Match references in "from" clauses
+        preg_match_all('/from\s+([a-z][a-z0-9_]*)/', $definition, $matches);
+
+        foreach ($matches[1] as $type) {
+            $referencedTypes[] = $type;
+        }
+    }
+
+    /**
+     * Output validation results as JSON.
+     *
+     * @param array $errors
+     */
+    private function outputJson(array $errors): void
+    {
+        $output = [
+            'valid' => [] === $errors,
+            'errors' => $errors,
+        ];
+
+        $this->line(json_encode($output, JSON_PRETTY_PRINT));
+    }
+
+    /**
+     * Output validation results as table.
+     *
+     * @param array  $errors
+     * @param string $filePath
+     */
+    private function outputTable(array $errors, string $filePath): void
+    {
+        if ([] === $errors) {
+            return;
+        }
+
+        $this->error('Validation failed for: ' . $filePath);
+        $this->newLine();
+
+        $headers = ['Line', 'Type', 'Error'];
+        $rows = array_map(static fn ($error): array => [
+            $error['line'] ?: 'N/A',
+            $error['type'],
+            $error['message'],
+        ], $errors);
+
+        $this->table($headers, $rows);
+    }
+
+    /**
+     * Validate DSL content.
+     *
+     * @param string $dsl
      */
     private function validateDsl(string $dsl): array
     {
@@ -111,10 +203,18 @@ class ModelValidateCommand extends Command
 
         // Parse types and relations
         foreach ($lines as $lineNumber => $line) {
-            $lineNumber++; // 1-indexed
+            ++$lineNumber; // 1-indexed
             $trimmedLine = trim($line);
 
-            if (empty($trimmedLine) || $trimmedLine === 'model' || str_starts_with($trimmedLine, 'schema')) {
+            if (empty($trimmedLine)) {
+                continue;
+            }
+
+            if ('model' === $trimmedLine) {
+                continue;
+            }
+
+            if (str_starts_with($trimmedLine, 'schema')) {
                 continue;
             }
 
@@ -123,12 +223,14 @@ class ModelValidateCommand extends Command
                 $currentType = $matches[1];
                 $definedTypes[] = $currentType;
                 $inRelationsBlock = false;
+
                 continue;
             }
 
             // Relations block
-            if ($trimmedLine === 'relations' && $currentType) {
+            if ('relations' === $trimmedLine && $currentType) {
                 $inRelationsBlock = true;
+
                 continue;
             }
 
@@ -138,11 +240,11 @@ class ModelValidateCommand extends Command
                 $definition = $matches[2];
 
                 // Validate relation name
-                if (in_array($relationName, self::RESERVED_RELATIONS)) {
+                if (in_array($relationName, self::RESERVED_RELATIONS, true)) {
                     $errors[] = [
                         'line' => $lineNumber,
                         'type' => 'relation',
-                        'message' => "Reserved relation name: {$relationName}",
+                        'message' => 'Reserved relation name: ' . $relationName,
                     ];
                 }
 
@@ -157,11 +259,12 @@ class ModelValidateCommand extends Command
 
         // Check for undefined type references
         $undefinedTypes = array_diff(array_unique($referencedTypes), $definedTypes);
-        foreach ($undefinedTypes as $type) {
+
+        foreach ($undefinedTypes as $undefinedType) {
             $errors[] = [
                 'line' => 0,
                 'type' => 'reference',
-                'message' => "Referenced type '{$type}' is not defined",
+                'message' => sprintf("Referenced type '%s' is not defined", $undefinedType),
             ];
         }
 
@@ -169,25 +272,10 @@ class ModelValidateCommand extends Command
     }
 
     /**
-     * Extract referenced types from a relation definition
-     */
-    private function extractReferencedTypes(string $definition, array &$referencedTypes): void
-    {
-        // Match type references like [user], [group#member], etc.
-        preg_match_all('/\[([a-z][a-z0-9_]*)(?:#[a-z][a-z0-9_]*)?\]/', $definition, $matches);
-        foreach ($matches[1] as $type) {
-            $referencedTypes[] = $type;
-        }
-
-        // Match references in "from" clauses
-        preg_match_all('/from\s+([a-z][a-z0-9_]*)/', $definition, $matches);
-        foreach ($matches[1] as $type) {
-            $referencedTypes[] = $type;
-        }
-    }
-
-    /**
-     * Validate relation definition syntax
+     * Validate relation definition syntax.
+     *
+     * @param string $definition
+     * @param int    $lineNumber
      */
     private function validateRelationDefinition(string $definition, int $lineNumber): array
     {
@@ -196,6 +284,7 @@ class ModelValidateCommand extends Command
         // Check for balanced brackets
         $openBrackets = substr_count($definition, '[');
         $closeBrackets = substr_count($definition, ']');
+
         if ($openBrackets !== $closeBrackets) {
             $errors[] = [
                 'line' => $lineNumber,
@@ -204,10 +293,6 @@ class ModelValidateCommand extends Command
             ];
         }
 
-        // Check for valid operators
-        $validOperators = ['or', 'and', 'but not'];
-        $words = preg_split('/\s+/', $definition);
-        
         // Basic syntax validation
         if (! preg_match('/^\[.+\]/', $definition) && ! str_contains($definition, ' or ') && ! str_contains($definition, ' and ')) {
             $errors[] = [
@@ -218,63 +303,5 @@ class ModelValidateCommand extends Command
         }
 
         return $errors;
-    }
-
-    /**
-     * Output validation results as JSON
-     */
-    private function outputJson(array $errors): void
-    {
-        $output = [
-            'valid' => empty($errors),
-            'errors' => $errors,
-        ];
-
-        $this->line(json_encode($output, JSON_PRETTY_PRINT));
-    }
-
-    /**
-     * Output validation results as table
-     */
-    private function outputTable(array $errors, string $filePath): void
-    {
-        if (empty($errors)) {
-            return;
-        }
-
-        $this->error("Validation failed for: {$filePath}");
-        $this->newLine();
-
-        $headers = ['Line', 'Type', 'Error'];
-        $rows = array_map(function ($error) {
-            return [
-                $error['line'] ?: 'N/A',
-                $error['type'],
-                $error['message'],
-            ];
-        }, $errors);
-
-        $this->table($headers, $rows);
-    }
-
-    /**
-     * Create model in OpenFGA
-     */
-    private function createModel(OpenFgaManager $manager, ?string $connection, string $dsl): int
-    {
-        try {
-            $this->info('Creating model in OpenFGA...');
-
-            // Note: Actual implementation would use the OpenFGA client
-            // to create the model via the API
-
-            $this->warn('Note: Actual model creation requires OpenFGA API integration.');
-            $this->info('The validated model can be uploaded to OpenFGA using the dashboard or API.');
-
-            return self::SUCCESS;
-        } catch (\Exception $e) {
-            $this->error("Failed to create model: {$e->getMessage()}");
-            return self::FAILURE;
-        }
     }
 }

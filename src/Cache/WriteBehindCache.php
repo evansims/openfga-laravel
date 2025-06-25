@@ -4,72 +4,51 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Cache;
 
+use Exception;
 use Illuminate\Contracts\Cache\Repository as Cache;
 use Illuminate\Contracts\Queue\Queue;
 use Illuminate\Support\Facades\Log;
 use OpenFGA\Laravel\Jobs\FlushWriteBehindCacheJob;
 use OpenFGA\Laravel\OpenFgaManager;
 
-class WriteBehindCache
+use function count;
+use function sprintf;
+
+final class WriteBehindCache
 {
-    protected Cache $cache;
-    protected Queue $queue;
-    protected OpenFgaManager $manager;
-    protected array $pendingWrites = [];
-    protected array $pendingDeletes = [];
-    protected int $batchSize;
-    protected int $flushInterval;
-    protected ?string $lastFlushTime = null;
+    private ?string $lastFlushTime = null;
 
-    public function __construct(
-        Cache $cache,
-        Queue $queue,
-        OpenFgaManager $manager,
-        int $batchSize = 100,
-        int $flushInterval = 5 // seconds
-    ) {
-        $this->cache = $cache;
-        $this->queue = $queue;
-        $this->manager = $manager;
-        $this->batchSize = $batchSize;
-        $this->flushInterval = $flushInterval;
-    }
+    private array $pendingDeletes = [];
 
-    /**
-     * Add a write operation to the buffer
-     */
-    public function write(string $user, string $relation, string $object): void
+    private array $pendingWrites = [];
+
+    public function __construct(protected Cache $cache, protected Queue $queue, protected OpenFgaManager $manager, protected int $batchSize = 100, protected int $flushInterval = 5)
     {
-        $key = $this->getTupleKey($user, $relation, $object);
-        
-        // Remove from deletes if present
-        unset($this->pendingDeletes[$key]);
-        
-        // Add to writes
-        $this->pendingWrites[$key] = [
-            'user' => $user,
-            'relation' => $relation,
-            'object' => $object,
-            'timestamp' => now()->timestamp,
-        ];
-
-        // Update cache immediately for read consistency
-        $this->updateCache($user, $relation, $object, true);
-
-        // Check if we should flush
-        $this->checkFlushConditions();
     }
 
     /**
-     * Add a delete operation to the buffer
+     * Clear all pending operations without flushing.
+     */
+    public function clear(): void
+    {
+        $this->pendingWrites = [];
+        $this->pendingDeletes = [];
+    }
+
+    /**
+     * Add a delete operation to the buffer.
+     *
+     * @param string $user
+     * @param string $relation
+     * @param string $object
      */
     public function delete(string $user, string $relation, string $object): void
     {
         $key = $this->getTupleKey($user, $relation, $object);
-        
+
         // Remove from writes if present
         unset($this->pendingWrites[$key]);
-        
+
         // Add to deletes
         $this->pendingDeletes[$key] = [
             'user' => $user,
@@ -86,11 +65,11 @@ class WriteBehindCache
     }
 
     /**
-     * Force flush all pending operations
+     * Force flush all pending operations.
      */
     public function flush(): array
     {
-        if (empty($this->pendingWrites) && empty($this->pendingDeletes)) {
+        if ([] === $this->pendingWrites && [] === $this->pendingDeletes) {
             return ['writes' => 0, 'deletes' => 0];
         }
 
@@ -99,18 +78,18 @@ class WriteBehindCache
 
         try {
             // Perform the actual write to OpenFGA
-            if (! empty($writes) || ! empty($deletes)) {
+            if ([] !== $writes || [] !== $deletes) {
                 $this->manager->write(
-                    array_map(fn($w) => [
+                    array_map(static fn ($w): array => [
                         'user' => $w['user'],
                         'relation' => $w['relation'],
                         'object' => $w['object'],
                     ], $writes),
-                    array_map(fn($d) => [
+                    array_map(static fn ($d): array => [
                         'user' => $d['user'],
                         'relation' => $d['relation'],
                         'object' => $d['object'],
-                    ], $deletes)
+                    ], $deletes),
                 );
             }
 
@@ -125,69 +104,19 @@ class WriteBehindCache
             $this->lastFlushTime = now()->toDateTimeString();
 
             return $stats;
-        } catch (\Exception $e) {
+        } catch (Exception $exception) {
             Log::error('Write-behind cache flush failed', [
-                'error' => $e->getMessage(),
+                'error' => $exception->getMessage(),
                 'writes' => count($writes),
                 'deletes' => count($deletes),
             ]);
 
-            throw $e;
+            throw $exception;
         }
     }
 
     /**
-     * Check if we should flush based on conditions
-     */
-    protected function checkFlushConditions(): void
-    {
-        $totalOperations = count($this->pendingWrites) + count($this->pendingDeletes);
-
-        // Flush if batch size reached
-        if ($totalOperations >= $this->batchSize) {
-            $this->scheduleFlush();
-            return;
-        }
-
-        // Flush if time interval passed
-        if ($this->lastFlushTime) {
-            $secondsSinceFlush = now()->timestamp - strtotime($this->lastFlushTime);
-            if ($secondsSinceFlush >= $this->flushInterval) {
-                $this->scheduleFlush();
-            }
-        }
-    }
-
-    /**
-     * Schedule a flush job
-     */
-    protected function scheduleFlush(): void
-    {
-        // Dispatch job to flush the cache
-        dispatch(new FlushWriteBehindCacheJob())->onQueue('openfga-write-behind');
-    }
-
-    /**
-     * Update the read cache immediately
-     */
-    protected function updateCache(string $user, string $relation, string $object, bool $allowed): void
-    {
-        $cacheKey = "openfga.check.{$user}.{$relation}.{$object}";
-        $ttl = config('openfga.cache.write_behind_ttl', 300);
-        
-        $this->cache->put($cacheKey, $allowed, $ttl);
-    }
-
-    /**
-     * Get a unique key for a tuple
-     */
-    protected function getTupleKey(string $user, string $relation, string $object): string
-    {
-        return md5("{$user}:{$relation}:{$object}");
-    }
-
-    /**
-     * Get pending operations count
+     * Get pending operations count.
      */
     public function getPendingCount(): array
     {
@@ -199,16 +128,7 @@ class WriteBehindCache
     }
 
     /**
-     * Clear all pending operations without flushing
-     */
-    public function clear(): void
-    {
-        $this->pendingWrites = [];
-        $this->pendingDeletes = [];
-    }
-
-    /**
-     * Get all pending operations
+     * Get all pending operations.
      */
     public function getPendingOperations(): array
     {
@@ -216,5 +136,95 @@ class WriteBehindCache
             'writes' => $this->pendingWrites,
             'deletes' => $this->pendingDeletes,
         ];
+    }
+
+    /**
+     * Add a write operation to the buffer.
+     *
+     * @param string $user
+     * @param string $relation
+     * @param string $object
+     */
+    public function write(string $user, string $relation, string $object): void
+    {
+        $key = $this->getTupleKey($user, $relation, $object);
+
+        // Remove from deletes if present
+        unset($this->pendingDeletes[$key]);
+
+        // Add to writes
+        $this->pendingWrites[$key] = [
+            'user' => $user,
+            'relation' => $relation,
+            'object' => $object,
+            'timestamp' => now()->timestamp,
+        ];
+
+        // Update cache immediately for read consistency
+        $this->updateCache($user, $relation, $object, true);
+
+        // Check if we should flush
+        $this->checkFlushConditions();
+    }
+
+    /**
+     * Check if we should flush based on conditions.
+     */
+    private function checkFlushConditions(): void
+    {
+        $totalOperations = count($this->pendingWrites) + count($this->pendingDeletes);
+
+        // Flush if batch size reached
+        if ($totalOperations >= $this->batchSize) {
+            $this->scheduleFlush();
+
+            return;
+        }
+
+        // Flush if time interval passed
+        if ($this->lastFlushTime) {
+            $secondsSinceFlush = now()->timestamp - strtotime($this->lastFlushTime);
+
+            if ($secondsSinceFlush >= $this->flushInterval) {
+                $this->scheduleFlush();
+            }
+        }
+    }
+
+    /**
+     * Get a unique key for a tuple.
+     *
+     * @param string $user
+     * @param string $relation
+     * @param string $object
+     */
+    private function getTupleKey(string $user, string $relation, string $object): string
+    {
+        return md5(sprintf('%s:%s:%s', $user, $relation, $object));
+    }
+
+    /**
+     * Schedule a flush job.
+     */
+    private function scheduleFlush(): void
+    {
+        // Dispatch job to flush the cache
+        dispatch(new FlushWriteBehindCacheJob)->onQueue('openfga-write-behind');
+    }
+
+    /**
+     * Update the read cache immediately.
+     *
+     * @param string $user
+     * @param string $relation
+     * @param string $object
+     * @param bool   $allowed
+     */
+    private function updateCache(string $user, string $relation, string $object, bool $allowed): void
+    {
+        $cacheKey = sprintf('openfga.check.%s.%s.%s', $user, $relation, $object);
+        $ttl = config('openfga.cache.write_behind_ttl', 300);
+
+        $this->cache->put($cacheKey, $allowed, $ttl);
     }
 }

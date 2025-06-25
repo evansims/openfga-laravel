@@ -5,40 +5,42 @@ declare(strict_types=1);
 namespace OpenFGA\Laravel\Http\Middleware;
 
 use Closure;
-use Illuminate\Http\Request;
-use Illuminate\Http\Response;
+use Illuminate\Http\{Request, Response};
 use OpenFGA\Laravel\Compatibility\SpatieCompatibility;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 /**
- * Spatie-compatible role middleware
- * 
+ * Spatie-compatible role middleware.
+ *
  * This middleware provides the same interface as Spatie's RoleMiddleware
  * but uses OpenFGA for authorization checks.
  */
-class SpatieRoleMiddleware
+final class SpatieRoleMiddleware
 {
-    private SpatieCompatibility $compatibility;
-
-    public function __construct(SpatieCompatibility $compatibility)
+    public function __construct(private readonly SpatieCompatibility $compatibility)
     {
-        $this->compatibility = $compatibility;
     }
 
     /**
      * Handle an incoming request.
+     *
+     * @param Request $request
+     * @param Closure $next
+     * @param string  $role
+     * @param ?string $guard
+     * @param ?string $context
      */
     public function handle(Request $request, Closure $next, string $role, ?string $guard = null, ?string $context = null): SymfonyResponse
     {
         $user = auth($guard)->user();
 
-        if (!$user) {
+        if (! $user) {
             return $this->unauthorized($request);
         }
 
         $roles = explode('|', $role);
 
-        if (!$this->compatibility->hasAnyRole($user, $roles, $context)) {
+        if (! $this->compatibility->hasAnyRole($user, $roles, $context)) {
             return $this->unauthorized($request);
         }
 
@@ -46,7 +48,9 @@ class SpatieRoleMiddleware
     }
 
     /**
-     * Handle unauthorized access
+     * Handle unauthorized access.
+     *
+     * @param Request $request
      */
     private function unauthorized(Request $request): SymfonyResponse
     {

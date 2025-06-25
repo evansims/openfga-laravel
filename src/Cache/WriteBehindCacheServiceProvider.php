@@ -4,27 +4,15 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Cache;
 
+use Exception;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\ServiceProvider;
+use Log;
 use OpenFGA\Laravel\OpenFgaManager;
+use Override;
 
-class WriteBehindCacheServiceProvider extends ServiceProvider
+final class WriteBehindCacheServiceProvider extends ServiceProvider
 {
-    /**
-     * Register services.
-     */
-    public function register(): void
-    {
-        $this->app->singleton(WriteBehindCache::class, function ($app) {
-            return new WriteBehindCache(
-                $app->make('cache')->store(config('openfga.cache.write_behind_store')),
-                $app->make('queue'),
-                $app->make(OpenFgaManager::class),
-                config('openfga.cache.write_behind_batch_size', 100),
-                config('openfga.cache.write_behind_flush_interval', 5)
-            );
-        });
-    }
-
     /**
      * Bootstrap services.
      */
@@ -42,7 +30,22 @@ class WriteBehindCacheServiceProvider extends ServiceProvider
     }
 
     /**
-     * Register periodic flush using scheduler
+     * Register services.
+     */
+    #[Override]
+    public function register(): void
+    {
+        $this->app->singleton(WriteBehindCache::class, static fn ($app): WriteBehindCache => new WriteBehindCache(
+            $app->make('cache')->store(config('openfga.cache.write_behind_store')),
+            $app->make('queue'),
+            $app->make(OpenFgaManager::class),
+            config('openfga.cache.write_behind_batch_size', 100),
+            config('openfga.cache.write_behind_flush_interval', 5),
+        ));
+    }
+
+    /**
+     * Register periodic flush using scheduler.
      */
     protected function registerPeriodicFlush(): void
     {
@@ -52,10 +55,10 @@ class WriteBehindCacheServiceProvider extends ServiceProvider
 
         // This would typically be done in the app's console kernel
         // But we can provide a helper method
-        $this->app->booted(function () {
-            $schedule = $this->app->make(\Illuminate\Console\Scheduling\Schedule::class);
-            
-            $schedule->call(function () {
+        $this->app->booted(function (): void {
+            $schedule = $this->app->make(Schedule::class);
+
+            $schedule->call(function (): void {
                 $cache = $this->app->make(WriteBehindCache::class);
                 $cache->flush();
             })->everyMinute()->name('openfga-write-behind-flush')->withoutOverlapping();
@@ -63,22 +66,22 @@ class WriteBehindCacheServiceProvider extends ServiceProvider
     }
 
     /**
-     * Register shutdown flush
+     * Register shutdown flush.
      */
     protected function registerShutdownFlush(): void
     {
-        register_shutdown_function(function () {
+        register_shutdown_function(function (): void {
             try {
                 $cache = $this->app->make(WriteBehindCache::class);
                 $pending = $cache->getPendingCount();
-                
-                if ($pending['total'] > 0) {
+
+                if (0 < $pending['total']) {
                     $cache->flush();
                 }
-            } catch (\Exception $e) {
+            } catch (Exception $exception) {
                 // Log but don't throw during shutdown
-                \Log::error('Failed to flush write-behind cache on shutdown', [
-                    'error' => $e->getMessage(),
+                Log::error('Failed to flush write-behind cache on shutdown', [
+                    'error' => $exception->getMessage(),
                 ]);
             }
         });

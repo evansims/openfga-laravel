@@ -8,18 +8,18 @@ use Illuminate\Console\Command;
 use OpenFGA\Laravel\Testing\IntegrationTestSetup;
 
 /**
- * Command to set up integration testing environment
+ * Command to set up integration testing environment.
  */
-class SetupIntegrationTestsCommand extends Command
+final class SetupIntegrationTestsCommand extends Command
 {
+    protected $description = 'Set up integration testing environment for OpenFGA Laravel';
+
     protected $signature = 'openfga:setup-integration-tests
                             {--docker : Start OpenFGA using Docker}
                             {--env : Create .env.testing file}
                             {--phpunit : Create PHPUnit configuration}
                             {--github : Create GitHub Actions workflow}
                             {--all : Set up everything}';
-
-    protected $description = 'Set up integration testing environment for OpenFGA Laravel';
 
     public function handle(): int
     {
@@ -29,8 +29,9 @@ class SetupIntegrationTestsCommand extends Command
         $setup = new IntegrationTestSetup($this);
 
         // Check if any option is provided, otherwise ask
-        if (!$this->hasAnyOption()) {
+        if (! $this->hasAnyOption()) {
             $this->interactiveSetup($setup);
+
             return 0;
         }
 
@@ -48,11 +49,23 @@ class SetupIntegrationTestsCommand extends Command
 
     private function hasAnyOption(): bool
     {
-        return $this->option('docker') || 
-               $this->option('env') || 
-               $this->option('phpunit') || 
-               $this->option('github') || 
-               $this->option('all');
+        if ($this->option('docker')) {
+            return true;
+        }
+
+        if ($this->option('env')) {
+            return true;
+        }
+
+        if ($this->option('phpunit')) {
+            return true;
+        }
+
+        if ($this->option('github')) {
+            return true;
+        }
+
+        return (bool) $this->option('all');
     }
 
     private function interactiveSetup(IntegrationTestSetup $setup): void
@@ -64,7 +77,7 @@ class SetupIntegrationTestsCommand extends Command
                 $this->info('✅ OpenFGA is running and accessible');
             } else {
                 $this->warn('⚠️  OpenFGA is not accessible at ' . env('OPENFGA_TEST_URL', 'http://localhost:8080'));
-                
+
                 if ($this->confirm('Would you like to start OpenFGA with Docker?')) {
                     $setup->startOpenFgaDocker();
                 }
@@ -89,7 +102,7 @@ class SetupIntegrationTestsCommand extends Command
         $this->info('Setting up everything...');
 
         // Check OpenFGA
-        if (!$setup->checkOpenFgaConnection()) {
+        if (! $setup->checkOpenFgaConnection()) {
             $this->warn('OpenFGA is not running');
             $setup->startOpenFgaDocker();
         } else {
@@ -105,7 +118,7 @@ class SetupIntegrationTestsCommand extends Command
     private function setupSelectedOptions(IntegrationTestSetup $setup): void
     {
         if ($this->option('docker')) {
-            if (!$setup->checkOpenFgaConnection()) {
+            if (! $setup->checkOpenFgaConnection()) {
                 $setup->startOpenFgaDocker();
             } else {
                 $this->info('OpenFGA is already running');

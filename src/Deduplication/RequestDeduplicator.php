@@ -4,24 +4,28 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Deduplication;
 
+use Exception;
 use Illuminate\Contracts\Cache\Repository as Cache;
 use Illuminate\Support\Str;
+use RuntimeException;
 
-class RequestDeduplicator
+use function sprintf;
+
+final class RequestDeduplicator
 {
-    protected Cache $cache;
-    protected array $config;
-    protected array $inFlight = [];
-    protected array $stats = [
+    private array $config;
+
+    private array $inFlight = [];
+
+    private array $stats = [
         'total_requests' => 0,
         'deduplicated' => 0,
         'cache_hits' => 0,
         'cache_misses' => 0,
     ];
 
-    public function __construct(Cache $cache, array $config = [])
+    public function __construct(protected Cache $cache, array $config = [])
     {
-        $this->cache = $cache;
         $this->config = array_merge([
             'enabled' => true,
             'ttl' => 60, // seconds
@@ -31,7 +35,21 @@ class RequestDeduplicator
     }
 
     /**
-     * Execute a request with deduplication
+     * Clear all cached results.
+     */
+    public function clear(): void
+    {
+        // This would need to be implemented based on your cache driver
+        // For tagged cache, you could use tags
+        $this->inFlight = [];
+    }
+
+    /**
+     * Execute a request with deduplication.
+     *
+     * @param string   $operation
+     * @param array    $params
+     * @param callable $callback
      */
     public function execute(string $operation, array $params, callable $callback)
     {
@@ -39,20 +57,23 @@ class RequestDeduplicator
             return $callback();
         }
 
-        $this->stats['total_requests']++;
-        
+        ++$this->stats['total_requests'];
+
         $key = $this->generateKey($operation, $params);
 
         // Check if we have a cached result
         $cached = $this->checkCache($key);
-        if ($cached !== null) {
-            $this->stats['cache_hits']++;
+
+        if (null !== $cached) {
+            ++$this->stats['cache_hits'];
+
             return $cached;
         }
 
         // Check if the same request is already in flight
         if ($this->isInFlight($key)) {
-            $this->stats['deduplicated']++;
+            ++$this->stats['deduplicated'];
+
             return $this->waitForInFlight($key);
         }
 
@@ -70,65 +91,111 @@ class RequestDeduplicator
             $this->removeInFlight($key, $result);
 
             return $result;
-        } catch (\Exception $e) {
+        } catch (Exception $exception) {
             // Remove from in-flight on error
             $this->removeInFlight($key, null);
-            throw $e;
+
+            throw $exception;
         }
     }
 
     /**
-     * Generate a cache key for the request
+     * Get deduplication statistics.
      */
-    protected function generateKey(string $operation, array $params): string
+    public function getStats(): array
     {
-        // Sort params for consistent key generation
-        ksort($params);
-        
-        $hash = md5($operation . ':' . json_encode($params));
-        
-        return "{$this->config['prefix']}:{$operation}:{$hash}";
+        $hitRate = 0 < $this->stats['total_requests']
+            ? round(($this->stats['cache_hits'] / $this->stats['total_requests']) * 100, 2)
+            : 0;
+
+        $deduplicationRate = 0 < $this->stats['total_requests']
+            ? round(($this->stats['deduplicated'] / $this->stats['total_requests']) * 100, 2)
+            : 0;
+
+        return array_merge($this->stats, [
+            'hit_rate' => $hitRate,
+            'deduplication_rate' => $deduplicationRate,
+        ]);
     }
 
     /**
-     * Check if we have a cached result
+     * Reset statistics.
      */
-    protected function checkCache(string $key): mixed
+    public function resetStats(): void
     {
-        $cached = $this->cache->get($key);
-        
-        if ($cached !== null) {
-            return unserialize($cached);
-        }
-
-        $this->stats['cache_misses']++;
-        return null;
+        $this->stats = [
+            'total_requests' => 0,
+            'deduplicated' => 0,
+            'cache_hits' => 0,
+            'cache_misses' => 0,
+        ];
     }
 
     /**
-     * Cache a result
+     * Cache a result.
+     *
+     * @param string $key
+     * @param mixed  $result
      */
-    protected function cacheResult(string $key, $result): void
+    private function cacheResult(string $key, $result): void
     {
         $this->cache->put(
             $key,
             serialize($result),
-            $this->config['ttl']
+            $this->config['ttl'],
         );
     }
 
     /**
-     * Check if a request is in flight
+     * Check if we have a cached result.
+     *
+     * @param string $key
      */
-    protected function isInFlight(string $key): bool
+    private function checkCache(string $key): mixed
     {
-        return isset($this->inFlight[$key]) || $this->cache->has("{$key}:inflight");
+        $cached = $this->cache->get($key);
+
+        if (null !== $cached) {
+            return unserialize($cached);
+        }
+
+        ++$this->stats['cache_misses'];
+
+        return null;
     }
 
     /**
-     * Mark a request as in flight
+     * Generate a cache key for the request.
+     *
+     * @param string $operation
+     * @param array  $params
      */
-    protected function markInFlight(string $key): void
+    private function generateKey(string $operation, array $params): string
+    {
+        // Sort params for consistent key generation
+        ksort($params);
+
+        $hash = md5($operation . ':' . json_encode($params));
+
+        return sprintf('%s:%s:%s', $this->config['prefix'], $operation, $hash);
+    }
+
+    /**
+     * Check if a request is in flight.
+     *
+     * @param string $key
+     */
+    private function isInFlight(string $key): bool
+    {
+        return isset($this->inFlight[$key]) || $this->cache->has($key . ':inflight');
+    }
+
+    /**
+     * Mark a request as in flight.
+     *
+     * @param string $key
+     */
+    private function markInFlight(string $key): void
     {
         $this->inFlight[$key] = [
             'started_at' => microtime(true),
@@ -138,16 +205,38 @@ class RequestDeduplicator
 
         // Also mark in cache for distributed systems
         $this->cache->put(
-            "{$key}:inflight",
+            $key . ':inflight',
             Str::uuid()->toString(),
-            $this->config['in_flight_ttl']
+            $this->config['in_flight_ttl'],
         );
     }
 
     /**
-     * Wait for an in-flight request to complete
+     * Remove from in-flight tracking.
+     *
+     * @param string $key
+     * @param mixed  $result
      */
-    protected function waitForInFlight(string $key): mixed
+    private function removeInFlight(string $key, $result): void
+    {
+        if (isset($this->inFlight[$key])) {
+            $this->inFlight[$key]['result'] = $result;
+            $this->inFlight[$key]['completed'] = true;
+
+            // Keep for a short time for other waiters
+            // In production, this would be handled differently
+            unset($this->inFlight[$key]);
+        }
+
+        $this->cache->forget($key . ':inflight');
+    }
+
+    /**
+     * Wait for an in-flight request to complete.
+     *
+     * @param string $key
+     */
+    private function waitForInFlight(string $key): mixed
     {
         $timeout = $this->config['in_flight_ttl'];
         $start = microtime(true);
@@ -160,85 +249,28 @@ class RequestDeduplicator
 
             // Check cache (request might have completed on another server)
             $cached = $this->checkCache($key);
-            if ($cached !== null) {
+
+            if (null !== $cached) {
                 return $cached;
             }
 
             // Check if still in flight in cache
-            if (! $this->cache->has("{$key}:inflight")) {
+            if (! $this->cache->has($key . ':inflight')) {
                 // Request completed, check cache again
                 $cached = $this->checkCache($key);
-                if ($cached !== null) {
+
+                if (null !== $cached) {
                     return $cached;
                 }
-                
+
                 // Request failed or timed out
-                throw new \RuntimeException('In-flight request failed or timed out');
+                throw new RuntimeException('In-flight request failed or timed out');
             }
 
             // Sleep for 10ms before checking again
             usleep(10000);
         }
 
-        throw new \RuntimeException('Timeout waiting for in-flight request');
-    }
-
-    /**
-     * Remove from in-flight tracking
-     */
-    protected function removeInFlight(string $key, $result): void
-    {
-        if (isset($this->inFlight[$key])) {
-            $this->inFlight[$key]['result'] = $result;
-            $this->inFlight[$key]['completed'] = true;
-            
-            // Keep for a short time for other waiters
-            // In production, this would be handled differently
-            unset($this->inFlight[$key]);
-        }
-
-        $this->cache->forget("{$key}:inflight");
-    }
-
-    /**
-     * Clear all cached results
-     */
-    public function clear(): void
-    {
-        // This would need to be implemented based on your cache driver
-        // For tagged cache, you could use tags
-        $this->inFlight = [];
-    }
-
-    /**
-     * Get deduplication statistics
-     */
-    public function getStats(): array
-    {
-        $hitRate = $this->stats['total_requests'] > 0
-            ? round(($this->stats['cache_hits'] / $this->stats['total_requests']) * 100, 2)
-            : 0;
-
-        $deduplicationRate = $this->stats['total_requests'] > 0
-            ? round(($this->stats['deduplicated'] / $this->stats['total_requests']) * 100, 2)
-            : 0;
-
-        return array_merge($this->stats, [
-            'hit_rate' => $hitRate,
-            'deduplication_rate' => $deduplicationRate,
-        ]);
-    }
-
-    /**
-     * Reset statistics
-     */
-    public function resetStats(): void
-    {
-        $this->stats = [
-            'total_requests' => 0,
-            'deduplicated' => 0,
-            'cache_hits' => 0,
-            'cache_misses' => 0,
-        ];
+        throw new RuntimeException('Timeout waiting for in-flight request');
     }
 }

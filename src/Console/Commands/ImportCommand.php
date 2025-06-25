@@ -4,11 +4,21 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Console\Commands;
 
+use Exception;
 use Illuminate\Console\Command;
 use OpenFGA\Laravel\Import\PermissionImporter;
 
-class ImportCommand extends Command
+use function sprintf;
+
+final class ImportCommand extends Command
 {
+    /**
+     * The console command description.
+     *
+     * @var string
+     */
+    protected $description = 'Import permissions from a file';
+
     /**
      * The name and signature of the console command.
      *
@@ -25,21 +35,17 @@ class ImportCommand extends Command
                             {--connection= : The OpenFGA connection to use}';
 
     /**
-     * The console command description.
-     *
-     * @var string
-     */
-    protected $description = 'Import permissions from a file';
-
-    /**
      * Execute the console command.
+     *
+     * @param PermissionImporter $importer
      */
     public function handle(PermissionImporter $importer): int
     {
         $file = $this->argument('file');
 
         if (! file_exists($file)) {
-            $this->error("File not found: {$file}");
+            $this->error('File not found: ' . $file);
+
             return self::FAILURE;
         }
 
@@ -63,30 +69,33 @@ class ImportCommand extends Command
             $this->warn('Clearing existing permissions is not yet implemented.');
         }
 
-        $this->info("Importing permissions from: {$file}");
+        $this->info('Importing permissions from: ' . $file);
 
         try {
             $stats = $importer->importFromFile($file, $options);
 
             $this->displayResults($stats);
 
-            return $stats['errors'] > 0 && ! $this->option('skip-errors') 
-                ? self::FAILURE 
+            return 0 < $stats['errors'] && ! $this->option('skip-errors')
+                ? self::FAILURE
                 : self::SUCCESS;
-        } catch (\Exception $e) {
-            $this->error("Import failed: {$e->getMessage()}");
+        } catch (Exception $exception) {
+            $this->error('Import failed: ' . $exception->getMessage());
+
             return self::FAILURE;
         }
     }
 
     /**
-     * Display import results
+     * Display import results.
+     *
+     * @param array $stats
      */
     protected function displayResults(array $stats): void
     {
         $this->newLine();
         $this->info('Import completed!');
-        
+
         $this->table(
             ['Metric', 'Count'],
             [
@@ -94,11 +103,12 @@ class ImportCommand extends Command
                 ['Imported', $stats['imported']],
                 ['Skipped', $stats['skipped']],
                 ['Errors', $stats['errors']],
-            ]
+            ],
         );
 
-        if ($stats['errors'] > 0) {
-            $this->warn("There were {$stats['errors']} errors during import.");
+        if (0 < $stats['errors']) {
+            $this->warn(sprintf('There were %s errors during import.', $stats['errors']));
+
             if (! $this->option('skip-errors')) {
                 $this->error('Import was halted due to errors.');
             }

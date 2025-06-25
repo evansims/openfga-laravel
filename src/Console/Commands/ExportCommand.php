@@ -4,11 +4,22 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Console\Commands;
 
+use Exception;
 use Illuminate\Console\Command;
 use OpenFGA\Laravel\Export\PermissionExporter;
 
-class ExportCommand extends Command
+use function count;
+use function sprintf;
+
+final class ExportCommand extends Command
 {
+    /**
+     * The console command description.
+     *
+     * @var string
+     */
+    protected $description = 'Export permissions to a file';
+
     /**
      * The name and signature of the console command.
      *
@@ -26,14 +37,9 @@ class ExportCommand extends Command
                             {--connection= : The OpenFGA connection to use}';
 
     /**
-     * The console command description.
-     *
-     * @var string
-     */
-    protected $description = 'Export permissions to a file';
-
-    /**
      * Execute the console command.
+     *
+     * @param PermissionExporter $exporter
      */
     public function handle(PermissionExporter $exporter): int
     {
@@ -55,49 +61,54 @@ class ExportCommand extends Command
         ];
 
         // Warn if no filters
-        if (empty($filters)) {
+        if ([] === $filters) {
             $this->warn('No filters specified. This will export ALL permissions.');
+
             if (! $this->confirm('Do you want to continue?')) {
                 return self::FAILURE;
             }
         }
 
-        $this->info("Exporting permissions to: {$file}");
+        $this->info('Exporting permissions to: ' . $file);
 
-        if (! empty($filters)) {
+        if ([] !== $filters) {
             $this->comment('Filters:');
+
             foreach ($filters as $key => $value) {
-                $this->comment("  {$key}: {$value}");
+                $this->comment(sprintf('  %s: %s', $key, $value));
             }
         }
 
         try {
             $count = $exporter->exportToFile($file, $filters, $options);
 
-            $this->info("✅ Successfully exported {$count} permissions to {$file}");
+            $this->info(sprintf('✅ Successfully exported %d permissions to %s', $count, $file));
 
             // Show file size
             $size = $this->formatFileSize(filesize($file));
-            $this->comment("File size: {$size}");
+            $this->comment('File size: ' . $size);
 
             return self::SUCCESS;
-        } catch (\Exception $e) {
-            $this->error("Export failed: {$e->getMessage()}");
+        } catch (Exception $exception) {
+            $this->error('Export failed: ' . $exception->getMessage());
+
             return self::FAILURE;
         }
     }
 
     /**
-     * Format file size for display
+     * Format file size for display.
+     *
+     * @param int $bytes
      */
     protected function formatFileSize(int $bytes): string
     {
         $units = ['B', 'KB', 'MB', 'GB'];
         $i = 0;
 
-        while ($bytes >= 1024 && $i < count($units) - 1) {
+        while (1024 <= $bytes && $i < count($units) - 1) {
             $bytes /= 1024;
-            $i++;
+            ++$i;
         }
 
         return round($bytes, 2) . ' ' . $units[$i];

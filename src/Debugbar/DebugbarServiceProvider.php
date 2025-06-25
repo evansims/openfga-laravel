@@ -7,22 +7,10 @@ namespace OpenFGA\Laravel\Debugbar;
 use Barryvdh\Debugbar\Facades\Debugbar;
 use Illuminate\Support\ServiceProvider;
 use OpenFGA\Laravel\OpenFgaManager;
+use Override;
 
-class DebugbarServiceProvider extends ServiceProvider
+final class DebugbarServiceProvider extends ServiceProvider
 {
-    /**
-     * Register services.
-     */
-    public function register(): void
-    {
-        // Only register if Debugbar is available
-        if (! class_exists(Debugbar::class)) {
-            return;
-        }
-
-        $this->app->singleton(OpenFgaCollector::class);
-    }
-
     /**
      * Bootstrap services.
      */
@@ -45,15 +33,27 @@ class DebugbarServiceProvider extends ServiceProvider
     }
 
     /**
-     * Wrap OpenFgaManager methods to collect metrics
+     * Register services.
+     */
+    #[Override]
+    public function register(): void
+    {
+        // Only register if Debugbar is available
+        if (! class_exists(Debugbar::class)) {
+            return;
+        }
+
+        $this->app->singleton(OpenFgaCollector::class);
+    }
+
+    /**
+     * Wrap OpenFgaManager methods to collect metrics.
      */
     protected function wrapOpenFgaManager(): void
     {
-        $this->app->extend(OpenFgaManager::class, function ($manager, $app) {
-            return new DebugbarOpenFgaManager(
-                $manager,
-                $app->make(OpenFgaCollector::class)
-            );
-        });
+        $this->app->extend(OpenFgaManager::class, static fn ($manager, $app): DebugbarOpenFgaManager => new DebugbarOpenFgaManager(
+            $manager,
+            $app->make(OpenFgaCollector::class),
+        ));
     }
 }

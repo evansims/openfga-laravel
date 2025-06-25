@@ -9,7 +9,7 @@ use OpenFGA\Laravel\Import\PermissionImporter;
 use OpenFGA\Laravel\OpenFgaManager;
 use OpenFGA\Laravel\Tests\TestCase;
 
-class ImportExportTest extends TestCase
+final class ImportExportTest extends TestCase
 {
     protected string $tempDir;
 
@@ -28,7 +28,35 @@ class ImportExportTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_export_to_json()
+    public function test_export_command(): void
+    {
+        $this->artisan('openfga:export', [
+            'file' => "{$this->tempDir}/cmd_export.json",
+            '--user' => 'user:123',
+        ])
+            ->expectsOutputToContain('Exporting permissions to:')
+            ->expectsOutputToContain('Successfully exported')
+            ->assertSuccessful();
+
+        $this->assertFileExists("{$this->tempDir}/cmd_export.json");
+    }
+
+    public function test_export_to_csv(): void
+    {
+        $manager = $this->mock(OpenFgaManager::class);
+        $exporter = new PermissionExporter($manager);
+
+        $file = "{$this->tempDir}/export.csv";
+        $count = $exporter->exportToFile($file, ['object' => 'document:1']);
+
+        $this->assertFileExists($file);
+
+        $lines = file($file);
+        $this->assertEquals('user,relation,object', trim($lines[0]));
+        $this->assertCount($count + 1, $lines); // +1 for header
+    }
+
+    public function test_export_to_json(): void
     {
         $manager = $this->mock(OpenFgaManager::class);
         $exporter = new PermissionExporter($manager);
@@ -45,22 +73,76 @@ class ImportExportTest extends TestCase
         $this->assertEquals($count, $content['metadata']['total']);
     }
 
-    public function test_export_to_csv()
+    public function test_import_command(): void
     {
-        $manager = $this->mock(OpenFgaManager::class);
-        $exporter = new PermissionExporter($manager);
+        // Create test file
+        $data = ['permissions' => [
+            ['user' => 'user:1', 'relation' => 'owner', 'object' => 'document:1'],
+        ]];
+        $file = "{$this->tempDir}/cmd_import.json";
+        file_put_contents($file, json_encode($data));
 
-        $file = "{$this->tempDir}/export.csv";
-        $count = $exporter->exportToFile($file, ['object' => 'document:1']);
-
-        $this->assertFileExists($file);
-        
-        $lines = file($file);
-        $this->assertEquals('user,relation,object', trim($lines[0]));
-        $this->assertCount($count + 1, $lines); // +1 for header
+        $this->artisan('openfga:import', [
+            'file' => $file,
+            '--dry-run' => true,
+        ])
+            ->expectsOutputToContain('Running in dry-run mode')
+            ->expectsOutputToContain('Import completed!')
+            ->assertSuccessful();
     }
 
-    public function test_import_from_json()
+    public function test_import_command_file_not_found(): void
+    {
+        $this->artisan('openfga:import', [
+            'file' => '/nonexistent/file.json',
+        ])
+            ->expectsOutputToContain('File not found')
+            ->assertFailed();
+    }
+
+    public function test_import_dry_run(): void
+    {
+        $manager = $this->mock(OpenFgaManager::class);
+        $manager->shouldNotReceive('write'); // Should not write in dry run
+
+        $importer = new PermissionImporter($manager);
+
+        $data = [
+            'permissions' => [
+                ['user' => 'user:1', 'relation' => 'owner', 'object' => 'document:1'],
+            ],
+        ];
+
+        $file = "{$this->tempDir}/dryrun.json";
+        file_put_contents($file, json_encode($data));
+
+        $stats = $importer->importFromFile($file, ['dry_run' => true]);
+
+        $this->assertEquals(1, $stats['processed']);
+        $this->assertEquals(1, $stats['imported']);
+    }
+
+    public function test_import_from_csv(): void
+    {
+        $manager = $this->mock(OpenFgaManager::class);
+        $manager->shouldReceive('write')->once();
+
+        $importer = new PermissionImporter($manager);
+
+        $csv = "user,relation,object\n";
+        $csv .= "user:1,owner,document:1\n";
+        $csv .= "user:2,editor,document:1\n";
+
+        $file = "{$this->tempDir}/import.csv";
+        file_put_contents($file, $csv);
+
+        $stats = $importer->importFromFile($file);
+
+        $this->assertEquals(2, $stats['processed']);
+        $this->assertEquals(2, $stats['imported']);
+    }
+
+    public function test_import_from_json(): void
     {
         $manager = $this->mock(OpenFgaManager::class);
         $manager->shouldReceive('write')->once();
@@ -84,27 +166,7 @@ class ImportExportTest extends TestCase
         $this->assertEquals(0, $stats['errors']);
     }
 
-    public function test_import_from_csv()
-    {
-        $manager = $this->mock(OpenFgaManager::class);
-        $manager->shouldReceive('write')->once();
-
-        $importer = new PermissionImporter($manager);
-
-        $csv = "user,relation,object\n";
-        $csv .= "user:1,owner,document:1\n";
-        $csv .= "user:2,editor,document:1\n";
-
-        $file = "{$this->tempDir}/import.csv";
-        file_put_contents($file, $csv);
-
-        $stats = $importer->importFromFile($file);
-
-        $this->assertEquals(2, $stats['processed']);
-        $this->assertEquals(2, $stats['imported']);
-    }
-
-    public function test_import_with_validation_errors()
+    public function test_import_with_validation_errors(): void
     {
         $manager = $this->mock(OpenFgaManager::class);
         $importer = new PermissionImporter($manager);
@@ -124,67 +186,5 @@ class ImportExportTest extends TestCase
         $this->assertEquals(2, $stats['processed']);
         $this->assertEquals(1, $stats['imported']);
         $this->assertEquals(1, $stats['skipped']);
-    }
-
-    public function test_import_dry_run()
-    {
-        $manager = $this->mock(OpenFgaManager::class);
-        $manager->shouldNotReceive('write'); // Should not write in dry run
-
-        $importer = new PermissionImporter($manager);
-
-        $data = [
-            'permissions' => [
-                ['user' => 'user:1', 'relation' => 'owner', 'object' => 'document:1'],
-            ],
-        ];
-
-        $file = "{$this->tempDir}/dryrun.json";
-        file_put_contents($file, json_encode($data));
-
-        $stats = $importer->importFromFile($file, ['dry_run' => true]);
-
-        $this->assertEquals(1, $stats['processed']);
-        $this->assertEquals(1, $stats['imported']);
-    }
-
-    public function test_export_command()
-    {
-        $this->artisan('openfga:export', [
-            'file' => "{$this->tempDir}/cmd_export.json",
-            '--user' => 'user:123',
-        ])
-            ->expectsOutputToContain('Exporting permissions to:')
-            ->expectsOutputToContain('Successfully exported')
-            ->assertSuccessful();
-
-        $this->assertFileExists("{$this->tempDir}/cmd_export.json");
-    }
-
-    public function test_import_command()
-    {
-        // Create test file
-        $data = ['permissions' => [
-            ['user' => 'user:1', 'relation' => 'owner', 'object' => 'document:1'],
-        ]];
-        $file = "{$this->tempDir}/cmd_import.json";
-        file_put_contents($file, json_encode($data));
-
-        $this->artisan('openfga:import', [
-            'file' => $file,
-            '--dry-run' => true,
-        ])
-            ->expectsOutputToContain('Running in dry-run mode')
-            ->expectsOutputToContain('Import completed!')
-            ->assertSuccessful();
-    }
-
-    public function test_import_command_file_not_found()
-    {
-        $this->artisan('openfga:import', [
-            'file' => '/nonexistent/file.json',
-        ])
-            ->expectsOutputToContain('File not found')
-            ->assertFailed();
     }
 }

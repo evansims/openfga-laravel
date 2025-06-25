@@ -7,19 +7,51 @@ namespace OpenFGA\Laravel\Testing;
 use Closure;
 
 /**
- * Provides pre-configured mock scenarios for common testing situations
+ * Provides pre-configured mock scenarios for common testing situations.
  */
-class MockScenarios
+final class MockScenarios
 {
-    private FakeOpenFga $fake;
-
-    public function __construct(FakeOpenFga $fake)
+    public function __construct(private readonly FakeOpenFga $fake)
     {
-        $this->fake = $fake;
     }
 
     /**
-     * Set up a basic user-document scenario
+     * Create a scenario builder.
+     *
+     * @param FakeOpenFga $fake
+     */
+    public static function create(FakeOpenFga $fake): self
+    {
+        return new self($fake);
+    }
+
+    /**
+     * Set up an API access control scenario.
+     */
+    public function apiAccessControl(): self
+    {
+        $this->fake->reset();
+
+        // API clients
+        $this->fake->grant('client:mobile-app', 'read', 'api:users');
+        $this->fake->grant('client:mobile-app', 'read', 'api:posts');
+
+        $this->fake->grant('client:admin-dashboard', 'read', 'api:users');
+        $this->fake->grant('client:admin-dashboard', 'write', 'api:users');
+        $this->fake->grant('client:admin-dashboard', 'read', 'api:analytics');
+
+        $this->fake->grant('client:third-party', 'read', 'api:public-data');
+
+        // Rate limits (as relationships)
+        $this->fake->grant('client:mobile-app', 'standard_limit', 'api:rate-limiter');
+        $this->fake->grant('client:admin-dashboard', 'premium_limit', 'api:rate-limiter');
+        $this->fake->grant('client:third-party', 'basic_limit', 'api:rate-limiter');
+
+        return $this;
+    }
+
+    /**
+     * Set up a basic user-document scenario.
      */
     public function basicUserDocument(): self
     {
@@ -27,10 +59,10 @@ class MockScenarios
 
         // User 1 owns document 1
         $this->fake->grant('user:1', 'owner', 'document:1');
-        
+
         // User 2 can edit document 1
         $this->fake->grant('user:2', 'editor', 'document:1');
-        
+
         // User 3 can only view document 1
         $this->fake->grant('user:3', 'viewer', 'document:1');
 
@@ -38,54 +70,7 @@ class MockScenarios
     }
 
     /**
-     * Set up an organization hierarchy scenario
-     */
-    public function organizationHierarchy(): self
-    {
-        $this->fake->reset();
-
-        // Organization structure
-        $this->fake->grant('user:ceo', 'admin', 'organization:acme');
-        $this->fake->grant('user:cto', 'admin', 'organization:acme');
-        $this->fake->grant('user:manager1', 'manager', 'department:engineering');
-        $this->fake->grant('user:manager2', 'manager', 'department:sales');
-        
-        // Department members
-        $this->fake->grant('user:dev1', 'member', 'department:engineering');
-        $this->fake->grant('user:dev2', 'member', 'department:engineering');
-        $this->fake->grant('user:sales1', 'member', 'department:sales');
-
-        // Department belongs to organization
-        $this->fake->grant('department:engineering', 'department', 'organization:acme');
-        $this->fake->grant('department:sales', 'department', 'organization:acme');
-
-        return $this;
-    }
-
-    /**
-     * Set up a multi-tenant scenario
-     */
-    public function multiTenant(): self
-    {
-        $this->fake->reset();
-
-        // Tenant A
-        $this->fake->grant('user:alice', 'admin', 'tenant:a');
-        $this->fake->grant('user:bob', 'member', 'tenant:a');
-        $this->fake->grant('resource:1', 'tenant', 'tenant:a');
-        $this->fake->grant('resource:2', 'tenant', 'tenant:a');
-
-        // Tenant B
-        $this->fake->grant('user:charlie', 'admin', 'tenant:b');
-        $this->fake->grant('user:david', 'member', 'tenant:b');
-        $this->fake->grant('resource:3', 'tenant', 'tenant:b');
-        $this->fake->grant('resource:4', 'tenant', 'tenant:b');
-
-        return $this;
-    }
-
-    /**
-     * Set up a collaborative editing scenario
+     * Set up a collaborative editing scenario.
      */
     public function collaborativeEditing(): self
     {
@@ -111,7 +96,23 @@ class MockScenarios
     }
 
     /**
-     * Set up a content moderation scenario
+     * Combine multiple scenarios.
+     *
+     * @param array $scenarios
+     */
+    public function combine(array $scenarios): self
+    {
+        foreach ($scenarios as $scenario) {
+            if (method_exists($this, $scenario)) {
+                $this->{$scenario}();
+            }
+        }
+
+        return $this;
+    }
+
+    /**
+     * Set up a content moderation scenario.
      */
     public function contentModeration(): self
     {
@@ -120,7 +121,7 @@ class MockScenarios
         // Moderators
         $this->fake->grant('user:mod1', 'moderator', 'forum:general');
         $this->fake->grant('user:mod2', 'moderator', 'forum:tech');
-        
+
         // Global moderator
         $this->fake->grant('user:admin', 'global_moderator', 'platform:main');
         $this->fake->grant('forum:general', 'forum', 'platform:main');
@@ -136,28 +137,19 @@ class MockScenarios
     }
 
     /**
-     * Set up a workflow approval scenario
+     * Add custom scenario.
+     *
+     * @param Closure $setup
      */
-    public function workflowApproval(): self
+    public function custom(Closure $setup): self
     {
-        $this->fake->reset();
-
-        // Approval chain
-        $this->fake->grant('user:employee', 'submitter', 'request:expense-123');
-        $this->fake->grant('user:manager', 'approver_level_1', 'request:expense-123');
-        $this->fake->grant('user:director', 'approver_level_2', 'request:expense-123');
-        $this->fake->grant('user:cfo', 'approver_level_3', 'request:expense-123');
-
-        // Department relationships
-        $this->fake->grant('user:employee', 'member', 'department:sales');
-        $this->fake->grant('user:manager', 'manager', 'department:sales');
-        $this->fake->grant('department:sales', 'department', 'organization:acme');
+        $setup($this->fake);
 
         return $this;
     }
 
     /**
-     * Set up a file system scenario
+     * Set up a file system scenario.
      */
     public function fileSystem(): self
     {
@@ -182,32 +174,93 @@ class MockScenarios
     }
 
     /**
-     * Set up an API access control scenario
+     * Get the configured fake instance.
      */
-    public function apiAccessControl(): self
+    public function getFake(): FakeOpenFga
+    {
+        return $this->fake;
+    }
+
+    /**
+     * Set up a multi-tenant scenario.
+     */
+    public function multiTenant(): self
     {
         $this->fake->reset();
 
-        // API clients
-        $this->fake->grant('client:mobile-app', 'read', 'api:users');
-        $this->fake->grant('client:mobile-app', 'read', 'api:posts');
-        
-        $this->fake->grant('client:admin-dashboard', 'read', 'api:users');
-        $this->fake->grant('client:admin-dashboard', 'write', 'api:users');
-        $this->fake->grant('client:admin-dashboard', 'read', 'api:analytics');
+        // Tenant A
+        $this->fake->grant('user:alice', 'admin', 'tenant:a');
+        $this->fake->grant('user:bob', 'member', 'tenant:a');
+        $this->fake->grant('resource:1', 'tenant', 'tenant:a');
+        $this->fake->grant('resource:2', 'tenant', 'tenant:a');
 
-        $this->fake->grant('client:third-party', 'read', 'api:public-data');
-
-        // Rate limits (as relationships)
-        $this->fake->grant('client:mobile-app', 'standard_limit', 'api:rate-limiter');
-        $this->fake->grant('client:admin-dashboard', 'premium_limit', 'api:rate-limiter');
-        $this->fake->grant('client:third-party', 'basic_limit', 'api:rate-limiter');
+        // Tenant B
+        $this->fake->grant('user:charlie', 'admin', 'tenant:b');
+        $this->fake->grant('user:david', 'member', 'tenant:b');
+        $this->fake->grant('resource:3', 'tenant', 'tenant:b');
+        $this->fake->grant('resource:4', 'tenant', 'tenant:b');
 
         return $this;
     }
 
     /**
-     * Set up failure scenarios for testing error handling
+     * Set up an organization hierarchy scenario.
+     */
+    public function organizationHierarchy(): self
+    {
+        $this->fake->reset();
+
+        // Organization structure
+        $this->fake->grant('user:ceo', 'admin', 'organization:acme');
+        $this->fake->grant('user:cto', 'admin', 'organization:acme');
+        $this->fake->grant('user:manager1', 'manager', 'department:engineering');
+        $this->fake->grant('user:manager2', 'manager', 'department:sales');
+
+        // Department members
+        $this->fake->grant('user:dev1', 'member', 'department:engineering');
+        $this->fake->grant('user:dev2', 'member', 'department:engineering');
+        $this->fake->grant('user:sales1', 'member', 'department:sales');
+
+        // Department belongs to organization
+        $this->fake->grant('department:engineering', 'department', 'organization:acme');
+        $this->fake->grant('department:sales', 'department', 'organization:acme');
+
+        return $this;
+    }
+
+    /**
+     * Add specific denials to current scenario.
+     *
+     * @param array $denials
+     */
+    public function withDenials(array $denials): self
+    {
+        foreach ($denials as $denial) {
+            $this->fake->mockCheck(
+                $denial['user'],
+                $denial['relation'],
+                $denial['object'],
+                false,
+            );
+        }
+
+        return $this;
+    }
+
+    /**
+     * Set up delayed consistency scenario.
+     *
+     * @param int $delayMs
+     */
+    public function withEventualConsistency(int $delayMs = 100): self
+    {
+        // This would simulate eventual consistency in a real implementation
+        // For testing, we can use the fake's existing behavior
+        return $this;
+    }
+
+    /**
+     * Set up failure scenarios for testing error handling.
      */
     public function withFailures(): self
     {
@@ -222,56 +275,9 @@ class MockScenarios
     }
 
     /**
-     * Set up delayed consistency scenario
-     */
-    public function withEventualConsistency(int $delayMs = 100): self
-    {
-        // This would simulate eventual consistency in a real implementation
-        // For testing, we can use the fake's existing behavior
-        return $this;
-    }
-
-    /**
-     * Add custom scenario
-     */
-    public function custom(Closure $setup): self
-    {
-        $setup($this->fake);
-        return $this;
-    }
-
-    /**
-     * Get the configured fake instance
-     */
-    public function getFake(): FakeOpenFga
-    {
-        return $this->fake;
-    }
-
-    /**
-     * Create a scenario builder
-     */
-    public static function create(FakeOpenFga $fake): self
-    {
-        return new self($fake);
-    }
-
-    /**
-     * Combine multiple scenarios
-     */
-    public function combine(array $scenarios): self
-    {
-        foreach ($scenarios as $scenario) {
-            if (method_exists($this, $scenario)) {
-                $this->$scenario();
-            }
-        }
-
-        return $this;
-    }
-
-    /**
-     * Add specific permissions to current scenario
+     * Add specific permissions to current scenario.
+     *
+     * @param array $permissions
      */
     public function withPermissions(array $permissions): self
     {
@@ -279,7 +285,7 @@ class MockScenarios
             $this->fake->grant(
                 $permission['user'],
                 $permission['relation'],
-                $permission['object']
+                $permission['object'],
             );
         }
 
@@ -287,18 +293,22 @@ class MockScenarios
     }
 
     /**
-     * Add specific denials to current scenario
+     * Set up a workflow approval scenario.
      */
-    public function withDenials(array $denials): self
+    public function workflowApproval(): self
     {
-        foreach ($denials as $denial) {
-            $this->fake->mockCheck(
-                $denial['user'],
-                $denial['relation'],
-                $denial['object'],
-                false
-            );
-        }
+        $this->fake->reset();
+
+        // Approval chain
+        $this->fake->grant('user:employee', 'submitter', 'request:expense-123');
+        $this->fake->grant('user:manager', 'approver_level_1', 'request:expense-123');
+        $this->fake->grant('user:director', 'approver_level_2', 'request:expense-123');
+        $this->fake->grant('user:cfo', 'approver_level_3', 'request:expense-123');
+
+        // Department relationships
+        $this->fake->grant('user:employee', 'member', 'department:sales');
+        $this->fake->grant('user:manager', 'manager', 'department:sales');
+        $this->fake->grant('department:sales', 'department', 'organization:acme');
 
         return $this;
     }

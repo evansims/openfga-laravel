@@ -84,15 +84,11 @@ declare(strict_types=1);
 
 use App\Models\Document;
 use OpenFGA\Laravel\Facades\OpenFGA;
-use OpenFGA\Laravel\DTOs\PermissionCheckRequest;
 
 class DocumentController extends Controller
 {
     /**
      * Share a document with another user.
-     *
-     * @param Request  $request
-     * @param Document $document
      */
     public function share(Request $request, Document $document): RedirectResponse
     {
@@ -107,48 +103,14 @@ class DocumentController extends Controller
 
     /**
      * List documents the user can view.
-     *
-     * @return \Illuminate\View\View
      */
     public function index(): View
     {
-        // Get all documents the user can view
-        // This automatically queries OpenFGA and filters results
-        /** @var \Illuminate\Pagination\LengthAwarePaginator<Document> $documents */
         $documents = Document::whereUserCan(auth()->user(), 'viewer')
             ->latest()
             ->paginate();
 
         return view('documents.index', compact('documents'));
-    }
-
-    /**
-     * Batch check multiple permissions using the new DTO pattern.
-     *
-     * @param array<int, array{user: string, relation: string, object: string}> $checks
-     * @return array<string, bool>
-     */
-    public function batchCheckPermissions(array $checks): array
-    {
-        return OpenFGA::batchCheck($checks);
-    }
-
-    /**
-     * Use the enhanced DTO pattern for type-safe permission checks.
-     */
-    public function checkWithDto(Document $document): bool
-    {
-        $request = PermissionCheckRequest::fromUser(
-            user: auth()->user(),
-            relation: 'editor',
-            object: $document->authorizationObject()
-        );
-
-        return OpenFGA::check(
-            $request->userId,
-            $request->relation,
-            $request->object
-        );
     }
 }
 ```
@@ -162,7 +124,7 @@ class DocumentController extends Controller
 - [Configuration](docs/configuration.md)
 - [Eloquent Integration](docs/eloquent.md)
 - [Middleware](docs/middleware.md)
-- [Performance](docs/performance.md)
+- [Performance & Optimization](docs/performance.md)
 - [Testing](docs/testing.md)
 - [API Reference](docs/api-reference.md)
 

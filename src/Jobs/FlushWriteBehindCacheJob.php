@@ -4,24 +4,24 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Jobs;
 
+use Exception;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
-use Illuminate\Queue\InteractsWithQueue;
-use Illuminate\Queue\SerializesModels;
+use Illuminate\Queue\{InteractsWithQueue, SerializesModels};
 use Illuminate\Support\Facades\Log;
 use OpenFGA\Laravel\Cache\WriteBehindCache;
+use Throwable;
 
-class FlushWriteBehindCacheJob implements ShouldQueue
+final class FlushWriteBehindCacheJob implements ShouldQueue
 {
-    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+    use Dispatchable;
 
-    /**
-     * The number of times the job may be attempted.
-     *
-     * @var int
-     */
-    public $tries = 3;
+    use InteractsWithQueue;
+
+    use Queueable;
+
+    use SerializesModels;
 
     /**
      * The number of seconds the job can run before timing out.
@@ -29,6 +29,13 @@ class FlushWriteBehindCacheJob implements ShouldQueue
      * @var int
      */
     public $timeout = 30;
+
+    /**
+     * The number of times the job may be attempted.
+     *
+     * @var int
+     */
+    public $tries = 3;
 
     /**
      * Calculate the number of seconds to wait before retrying the job.
@@ -39,39 +46,11 @@ class FlushWriteBehindCacheJob implements ShouldQueue
     }
 
     /**
-     * Execute the job.
-     */
-    public function handle(WriteBehindCache $cache): void
-    {
-        $startTime = microtime(true);
-
-        try {
-            $stats = $cache->flush();
-            
-            $duration = microtime(true) - $startTime;
-
-            if ($stats['writes'] > 0 || $stats['deletes'] > 0) {
-                Log::info('Write-behind cache flushed', [
-                    'writes' => $stats['writes'],
-                    'deletes' => $stats['deletes'],
-                    'duration_ms' => round($duration * 1000, 2),
-                ]);
-            }
-        } catch (\Exception $e) {
-            Log::error('Write-behind cache flush failed', [
-                'error' => $e->getMessage(),
-                'attempt' => $this->attempts(),
-            ]);
-
-            // Rethrow to trigger retry
-            throw $e;
-        }
-    }
-
-    /**
      * Handle a job failure.
+     *
+     * @param Throwable $exception
      */
-    public function failed(\Throwable $exception): void
+    public function failed(Throwable $exception): void
     {
         Log::critical('Write-behind cache flush permanently failed', [
             'error' => $exception->getMessage(),
@@ -82,5 +61,37 @@ class FlushWriteBehindCacheJob implements ShouldQueue
         // 1. Send an alert
         // 2. Write to a dead letter queue
         // 3. Attempt manual recovery
+    }
+
+    /**
+     * Execute the job.
+     *
+     * @param WriteBehindCache $cache
+     */
+    public function handle(WriteBehindCache $cache): void
+    {
+        $startTime = microtime(true);
+
+        try {
+            $stats = $cache->flush();
+
+            $duration = microtime(true) - $startTime;
+
+            if (0 < $stats['writes'] || 0 < $stats['deletes']) {
+                Log::info('Write-behind cache flushed', [
+                    'writes' => $stats['writes'],
+                    'deletes' => $stats['deletes'],
+                    'duration_ms' => round($duration * 1000, 2),
+                ]);
+            }
+        } catch (Exception $exception) {
+            Log::error('Write-behind cache flush failed', [
+                'error' => $exception->getMessage(),
+                'attempt' => $this->attempts(),
+            ]);
+
+            // Rethrow to trigger retry
+            throw $exception;
+        }
     }
 }

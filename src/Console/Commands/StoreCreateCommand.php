@@ -4,12 +4,22 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Console\Commands;
 
+use Exception;
 use Illuminate\Console\Command;
 use OpenFGA\Laravel\OpenFgaManager;
 use RuntimeException;
 
-class StoreCreateCommand extends Command
+use function sprintf;
+
+final class StoreCreateCommand extends Command
 {
+    /**
+     * The console command description.
+     *
+     * @var string
+     */
+    protected $description = 'Create a new OpenFGA store';
+
     /**
      * The name and signature of the console command.
      *
@@ -22,14 +32,9 @@ class StoreCreateCommand extends Command
                             {--update-config : Update the configuration file with the new store ID}';
 
     /**
-     * The console command description.
-     *
-     * @var string
-     */
-    protected $description = 'Create a new OpenFGA store';
-
-    /**
      * Execute the console command.
+     *
+     * @param OpenFgaManager $manager
      */
     public function handle(OpenFgaManager $manager): int
     {
@@ -38,15 +43,15 @@ class StoreCreateCommand extends Command
         $modelFile = $this->option('model');
 
         try {
-            $this->info("Creating store '{$name}'...");
+            $this->info(sprintf("Creating store '%s'...", $name));
 
             // Note: Actual implementation would use the OpenFGA client to create the store
             // For now, we'll simulate the process
 
-            $storeId = $this->createStore($manager, $connection, $name);
+            $storeId = $this->createStore($name);
 
-            $this->info("✅ Store created successfully!");
-            $this->comment("Store ID: {$storeId}");
+            $this->info('✅ Store created successfully!');
+            $this->comment('Store ID: ' . $storeId);
 
             // Create initial model if provided
             if ($modelFile) {
@@ -61,80 +66,92 @@ class StoreCreateCommand extends Command
             $this->showNextSteps($storeId);
 
             return self::SUCCESS;
-        } catch (\Exception $e) {
-            $this->error("Failed to create store: {$e->getMessage()}");
+        } catch (Exception $exception) {
+            $this->error('Failed to create store: ' . $exception->getMessage());
+
             return self::FAILURE;
         }
     }
 
     /**
-     * Create the store
+     * Create initial model in the store.
+     *
+     * @param string $storeId
+     * @param string $modelFile
      */
-    private function createStore(OpenFgaManager $manager, ?string $connection, string $name): string
+    private function createInitialModel(string $storeId, string $modelFile): void
+    {
+        if (! file_exists($modelFile)) {
+            throw new RuntimeException('Model file not found: ' . $modelFile);
+        }
+
+        file_get_contents($modelFile);
+
+        $this->info('Creating initial model from: ' . $modelFile);
+
+        // Validate the model first
+        $this->call('openfga:model:validate', ['--file' => $modelFile]);
+
+        $this->comment('Model would be created in store: ' . $storeId);
+    }
+
+    /**
+     * Create the store.
+     *
+     * @param string $name
+     */
+    private function createStore(string $name): string
     {
         // Simulate store creation - in real implementation, this would use the OpenFGA API
         $storeId = 'store_' . substr(md5($name . time()), 0, 16);
 
         $this->warn('Note: Actual store creation requires OpenFGA API integration.');
-        $this->info("Simulated store creation for demonstration purposes.");
+        $this->info('Simulated store creation for demonstration purposes.');
 
         return $storeId;
     }
 
     /**
-     * Create initial model in the store
+     * Show next steps after store creation.
+     *
+     * @param string $storeId
      */
-    private function createInitialModel(string $storeId, string $modelFile): void
+    private function showNextSteps(string $storeId): void
     {
-        if (! file_exists($modelFile)) {
-            throw new RuntimeException("Model file not found: {$modelFile}");
-        }
-
-        $dsl = file_get_contents($modelFile);
-
-        $this->info("Creating initial model from: {$modelFile}");
-        
-        // Validate the model first
-        $this->call('openfga:model:validate', ['--file' => $modelFile]);
-
-        $this->comment("Model would be created in store: {$storeId}");
+        $this->newLine();
+        $this->info('Next steps:');
+        $this->comment('1. Update your .env file with the store ID:');
+        $this->line('   OPENFGA_STORE_ID=' . $storeId);
+        $this->comment('2. Create an authorization model:');
+        $this->line('   php artisan openfga:model:create MyModel --template=basic');
+        $this->comment('3. Start using OpenFGA in your application!');
     }
 
     /**
-     * Update configuration file with new store ID
+     * Update configuration file with new store ID.
+     *
+     * @param string  $storeId
+     * @param ?string $connection
      */
     private function updateConfiguration(string $storeId, ?string $connection): void
     {
         $configPath = config_path('openfga.php');
 
         if (! file_exists($configPath)) {
-            $this->warn("Configuration file not found. Please update your .env file manually:");
-            $this->comment("OPENFGA_STORE_ID={$storeId}");
+            $this->warn('Configuration file not found. Please update your .env file manually:');
+            $this->comment('OPENFGA_STORE_ID=' . $storeId);
+
             return;
         }
 
-        $this->info("Configuration update instructions:");
-        $this->comment("Add the following to your .env file:");
-        
+        $this->info('Configuration update instructions:');
+        $this->comment('Add the following to your .env file:');
+
         if ($connection) {
             $envPrefix = strtoupper($connection);
-            $this->comment("{$envPrefix}_OPENFGA_STORE_ID={$storeId}");
+            $this->comment(sprintf('%s_OPENFGA_STORE_ID=%s', $envPrefix, $storeId));
         } else {
-            $this->comment("OPENFGA_STORE_ID={$storeId}");
+            $this->comment('OPENFGA_STORE_ID=' . $storeId);
         }
-    }
-
-    /**
-     * Show next steps after store creation
-     */
-    private function showNextSteps(string $storeId): void
-    {
-        $this->newLine();
-        $this->info("Next steps:");
-        $this->comment("1. Update your .env file with the store ID:");
-        $this->line("   OPENFGA_STORE_ID={$storeId}");
-        $this->comment("2. Create an authorization model:");
-        $this->line("   php artisan openfga:model:create MyModel --template=basic");
-        $this->comment("3. Start using OpenFGA in your application!");
     }
 }

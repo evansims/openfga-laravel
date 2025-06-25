@@ -4,11 +4,22 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Console\Commands;
 
+use Exception;
 use Illuminate\Console\Command;
+use OpenFGA\Laravel\Events\PermissionChanged;
 use OpenFGA\Laravel\Webhooks\WebhookManager;
 
-class WebhookCommand extends Command
+use function sprintf;
+
+final class WebhookCommand extends Command
 {
+    /**
+     * The console command description.
+     *
+     * @var string
+     */
+    protected $description = 'Manage OpenFGA webhooks';
+
     /**
      * The name and signature of the console command.
      *
@@ -21,14 +32,9 @@ class WebhookCommand extends Command
                             {--event=permission.granted : Event type for testing}';
 
     /**
-     * The console command description.
-     *
-     * @var string
-     */
-    protected $description = 'Manage OpenFGA webhooks';
-
-    /**
      * Execute the console command.
+     *
+     * @param WebhookManager $webhookManager
      */
     public function handle(WebhookManager $webhookManager): int
     {
@@ -44,18 +50,77 @@ class WebhookCommand extends Command
     }
 
     /**
-     * List configured webhooks
+     * Disable a webhook.
+     *
+     * @param WebhookManager $webhookManager
+     */
+    private function disableWebhook(WebhookManager $webhookManager): int
+    {
+        $name = $this->argument('name');
+
+        if (! $name) {
+            $this->error('Please provide a webhook name');
+
+            return self::FAILURE;
+        }
+
+        $webhookManager->disable($name);
+        $this->info(sprintf("Webhook '%s' has been disabled.", $name));
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * Enable a webhook.
+     *
+     * @param WebhookManager $webhookManager
+     */
+    private function enableWebhook(WebhookManager $webhookManager): int
+    {
+        $name = $this->argument('name');
+
+        if (! $name) {
+            $this->error('Please provide a webhook name');
+
+            return self::FAILURE;
+        }
+
+        $webhookManager->enable($name);
+        $this->info(sprintf("Webhook '%s' has been enabled.", $name));
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * Handle invalid action.
+     *
+     * @param string $action
+     */
+    private function invalidAction(string $action): int
+    {
+        $this->error('Invalid action: ' . $action);
+        $this->comment('Valid actions are: list, test, enable, disable');
+
+        return self::FAILURE;
+    }
+
+    /**
+     * List configured webhooks.
+     *
+     * @param WebhookManager $webhookManager
      */
     private function listWebhooks(WebhookManager $webhookManager): int
     {
         $webhooks = $webhookManager->getWebhooks();
 
-        if (empty($webhooks)) {
+        if ([] === $webhooks) {
             $this->info('No webhooks configured.');
+
             return self::SUCCESS;
         }
 
         $rows = [];
+
         foreach ($webhooks as $name => $webhook) {
             $rows[] = [
                 $name,
@@ -71,7 +136,9 @@ class WebhookCommand extends Command
     }
 
     /**
-     * Test a webhook
+     * Test a webhook.
+     *
+     * @param WebhookManager $webhookManager
      */
     private function testWebhook(WebhookManager $webhookManager): int
     {
@@ -80,19 +147,20 @@ class WebhookCommand extends Command
 
         if (! $url) {
             $this->error('Please provide a webhook URL using --url option');
+
             return self::FAILURE;
         }
 
-        $this->info("Testing webhook: {$url}");
-        $this->comment("Sending test event: {$event}");
+        $this->info('Testing webhook: ' . $url);
+        $this->comment('Sending test event: ' . $event);
 
         // Create a test event
-        $testEvent = new \OpenFGA\Laravel\Events\PermissionChanged(
+        $testEvent = new PermissionChanged(
             user: 'user:test',
             relation: 'viewer',
             object: 'document:test',
             action: 'granted',
-            metadata: ['test' => true, 'timestamp' => now()->toIso8601String()]
+            metadata: ['test' => true, 'timestamp' => now()->toIso8601String()],
         );
 
         // Register temporary webhook
@@ -101,61 +169,17 @@ class WebhookCommand extends Command
         try {
             // Send the webhook
             $webhookManager->notifyPermissionChange($testEvent);
-            
+
             $this->info('✅ Webhook test completed. Check your endpoint logs.');
+
             return self::SUCCESS;
-        } catch (\Exception $e) {
-            $this->error("Webhook test failed: {$e->getMessage()}");
+        } catch (Exception $exception) {
+            $this->error('Webhook test failed: ' . $exception->getMessage());
+
             return self::FAILURE;
         } finally {
             // Clean up
             $webhookManager->unregister('test');
         }
-    }
-
-    /**
-     * Enable a webhook
-     */
-    private function enableWebhook(WebhookManager $webhookManager): int
-    {
-        $name = $this->argument('name');
-
-        if (! $name) {
-            $this->error('Please provide a webhook name');
-            return self::FAILURE;
-        }
-
-        $webhookManager->enable($name);
-        $this->info("Webhook '{$name}' has been enabled.");
-
-        return self::SUCCESS;
-    }
-
-    /**
-     * Disable a webhook
-     */
-    private function disableWebhook(WebhookManager $webhookManager): int
-    {
-        $name = $this->argument('name');
-
-        if (! $name) {
-            $this->error('Please provide a webhook name');
-            return self::FAILURE;
-        }
-
-        $webhookManager->disable($name);
-        $this->info("Webhook '{$name}' has been disabled.");
-
-        return self::SUCCESS;
-    }
-
-    /**
-     * Handle invalid action
-     */
-    private function invalidAction(string $action): int
-    {
-        $this->error("Invalid action: {$action}");
-        $this->comment('Valid actions are: list, test, enable, disable');
-        return self::FAILURE;
     }
 }

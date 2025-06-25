@@ -13,6 +13,7 @@ use Illuminate\Support\ServiceProvider;
 use InvalidArgumentException;
 use LogicException;
 use OpenFGA\{Client, ClientInterface};
+use OpenFGA\Laravel\Profiling\OpenFgaProfiler;
 use OpenFGA\Laravel\View\{JavaScriptHelper, MenuBuilder};
 use Override;
 use RuntimeException;
@@ -65,6 +66,7 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
                 Console\Commands\WebhookCommand::class,
                 Console\Commands\ImportCommand::class,
                 Console\Commands\ExportCommand::class,
+                Console\Commands\ProfileCommand::class,
             ]);
         }
 
@@ -74,6 +76,7 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
         $this->registerSpatieCompatibility();
         $this->registerDebugbarIntegration();
         $this->registerWebhooks();
+        $this->registerProfiling();
         $this->loadHelpers();
         $this->validateConfiguration();
     }
@@ -187,16 +190,6 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
     }
 
     /**
-     * Register Spatie Laravel Permission compatibility layer if enabled.
-     */
-    private function registerSpatieCompatibility(): void
-    {
-        if (config('spatie-compatibility.enabled', false)) {
-            $this->app->register(Providers\SpatieCompatibilityServiceProvider::class);
-        }
-    }
-
-    /**
      * Register Laravel Debugbar integration if available.
      */
     private function registerDebugbarIntegration(): void
@@ -204,14 +197,6 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
         if (class_exists(\Barryvdh\Debugbar\ServiceProvider::class)) {
             $this->app->register(Debugbar\DebugbarServiceProvider::class);
         }
-    }
-
-    /**
-     * Register webhook support.
-     */
-    private function registerWebhooks(): void
-    {
-        $this->app->register(Webhooks\WebhookServiceProvider::class);
     }
 
     /**
@@ -229,6 +214,15 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
 
         $this->app->alias(ClientInterface::class, 'openfga');
         $this->app->alias(ClientInterface::class, Client::class);
+    }
+
+    /**
+     * Register import/export services.
+     */
+    private function registerImportExport(): void
+    {
+        $this->app->bind(Import\PermissionImporter::class);
+        $this->app->bind(Export\PermissionExporter::class);
     }
 
     /**
@@ -278,6 +272,55 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
     }
 
     /**
+     * Register profiling services.
+     */
+    private function registerProfiling(): void
+    {
+        $this->app->singleton(OpenFgaProfiler::class);
+
+        if (config('openfga.profiling.enabled', false)) {
+            // Register profiling event listener
+            $this->app['events']->subscribe(Listeners\ProfileOpenFgaOperations::class);
+
+            // Register profiling middleware if web injection is enabled
+            if (config('openfga.profiling.inject_web_middleware', false) && $this->app->bound('router')) {
+                try {
+                    $router = $this->app->make('router');
+
+                    if (is_object($router) && method_exists($router, 'pushMiddlewareToGroup')) {
+                        $router->pushMiddlewareToGroup('web', Profiling\ProfilingMiddleware::class);
+                    }
+                } catch (BindingResolutionException) {
+                    // Router not available, skip
+                }
+            }
+
+            // Register Laravel Debugbar collector if enabled
+            if (config('openfga.profiling.debugbar.enabled', true) && class_exists(\Barryvdh\Debugbar\ServiceProvider::class) && $this->app->bound('debugbar')) {
+                try {
+                    $debugbar = $this->app->make('debugbar');
+
+                    if (is_object($debugbar) && method_exists($debugbar, 'addCollector')) {
+                        $debugbar->addCollector($this->app->make(config('openfga.profiling.debugbar.collector')));
+                    }
+                } catch (BindingResolutionException) {
+                    // Debugbar not available, skip
+                }
+            }
+        }
+    }
+
+    /**
+     * Register Spatie Laravel Permission compatibility layer if enabled.
+     */
+    private function registerSpatieCompatibility(): void
+    {
+        if (config('spatie-compatibility.enabled', false)) {
+            $this->app->register(Providers\SpatieCompatibilityServiceProvider::class);
+        }
+    }
+
+    /**
      * Register view helper services.
      */
     private function registerViewHelpers(): void
@@ -304,12 +347,11 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
     }
 
     /**
-     * Register import/export services.
+     * Register webhook support.
      */
-    private function registerImportExport(): void
+    private function registerWebhooks(): void
     {
-        $this->app->bind(Import\PermissionImporter::class);
-        $this->app->bind(Export\PermissionExporter::class);
+        $this->app->register(Webhooks\WebhookServiceProvider::class);
     }
 
     /**

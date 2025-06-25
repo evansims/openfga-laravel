@@ -4,17 +4,20 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Batch;
 
+use Exception;
 use Illuminate\Support\Facades\Log;
-use OpenFGA\Laravel\Events\BatchProcessed;
-use OpenFGA\Laravel\Events\BatchFailed;
+use OpenFGA\Laravel\Events\{BatchFailed, BatchProcessed};
 use OpenFGA\Laravel\OpenFgaManager;
+use RuntimeException;
 
-class BatchProcessor
+use function count;
+use function sprintf;
+
+final class BatchProcessor
 {
-    protected OpenFgaManager $manager;
-    protected BatchOptimizer $optimizer;
-    protected array $config;
-    protected array $stats = [
+    private array $config;
+
+    private array $stats = [
         'total_batches' => 0,
         'successful_batches' => 0,
         'failed_batches' => 0,
@@ -23,12 +26,10 @@ class BatchProcessor
     ];
 
     public function __construct(
-        OpenFgaManager $manager,
-        BatchOptimizer $optimizer,
-        array $config = []
+        protected OpenFgaManager $manager,
+        protected BatchOptimizer $optimizer,
+        array $config = [],
     ) {
-        $this->manager = $manager;
-        $this->optimizer = $optimizer;
         $this->config = array_merge([
             'max_retries' => 3,
             'retry_delay' => 1000, // milliseconds
@@ -39,12 +40,37 @@ class BatchProcessor
     }
 
     /**
-     * Process a large batch of operations
+     * Get processing statistics.
+     */
+    public function getStats(): array
+    {
+        $avgTime = 0 < $this->stats['total_batches']
+            ? $this->stats['total_time'] / $this->stats['total_batches']
+            : 0;
+
+        $avgOps = 0 < $this->stats['total_batches']
+            ? $this->stats['total_operations'] / $this->stats['total_batches']
+            : 0;
+
+        return array_merge($this->stats, [
+            'average_batch_time' => round($avgTime, 3),
+            'average_operations_per_batch' => round($avgOps, 2),
+            'success_rate' => 0 < $this->stats['total_batches']
+                ? round(($this->stats['successful_batches'] / $this->stats['total_batches']) * 100, 2)
+                : 0,
+        ]);
+    }
+
+    /**
+     * Process a large batch of operations.
+     *
+     * @param array $writes
+     * @param array $deletes
      */
     public function processBatch(array $writes, array $deletes = []): BatchResult
     {
         $startTime = microtime(true);
-        $this->stats['total_batches']++;
+        ++$this->stats['total_batches'];
 
         try {
             // Optimize the operations
@@ -64,7 +90,7 @@ class BatchProcessor
             // Calculate statistics
             $duration = microtime(true) - $startTime;
             $this->stats['total_time'] += $duration;
-            $this->stats['successful_batches']++;
+            ++$this->stats['successful_batches'];
 
             $result = new BatchResult(
                 success: true,
@@ -73,16 +99,16 @@ class BatchProcessor
                 failedOperations: $results['failed'],
                 duration: $duration,
                 optimizationStats: $this->optimizer->getStats(),
-                errors: $results['errors']
+                errors: $results['errors'],
             );
 
             // Dispatch event
             event(new BatchProcessed($result));
 
             return $result;
-        } catch (\Exception $e) {
-            $this->stats['failed_batches']++;
-            
+        } catch (Exception $exception) {
+            ++$this->stats['failed_batches'];
+
             $result = new BatchResult(
                 success: false,
                 totalOperations: count($writes) + count($deletes),
@@ -90,14 +116,14 @@ class BatchProcessor
                 failedOperations: count($writes) + count($deletes),
                 duration: microtime(true) - $startTime,
                 optimizationStats: $this->optimizer->getStats(),
-                errors: [$e->getMessage()]
+                errors: [$exception->getMessage()],
             );
 
             // Dispatch event
-            event(new BatchFailed($result, $e));
+            event(new BatchFailed($result, $exception));
 
             if ($this->config['fail_fast']) {
-                throw $e;
+                throw $exception;
             }
 
             return $result;
@@ -105,9 +131,44 @@ class BatchProcessor
     }
 
     /**
-     * Create chunks from operations
+     * Process operations in parallel (if supported).
+     *
+     * @param array $operations
      */
-    protected function createChunks(array $writes, array $deletes): array
+    public function processParallel(array $operations): BatchResult
+    {
+        if (! $this->config['parallel_processing']) {
+            return $this->processBatch($operations);
+        }
+
+        // This would require additional implementation with process forking
+        // or using a queue system for true parallel processing
+        throw new RuntimeException('Parallel processing not yet implemented');
+    }
+
+    /**
+     * Reset statistics.
+     */
+    public function resetStats(): void
+    {
+        $this->stats = [
+            'total_batches' => 0,
+            'successful_batches' => 0,
+            'failed_batches' => 0,
+            'total_operations' => 0,
+            'total_time' => 0,
+        ];
+
+        $this->optimizer->resetStats();
+    }
+
+    /**
+     * Create chunks from operations.
+     *
+     * @param array $writes
+     * @param array $deletes
+     */
+    private function createChunks(array $writes, array $deletes): array
     {
         $writeChunks = $this->optimizer->chunkOperations($writes);
         $deleteChunks = $this->optimizer->chunkOperations($deletes);
@@ -115,7 +176,7 @@ class BatchProcessor
         $chunks = [];
         $maxChunks = max(count($writeChunks), count($deleteChunks));
 
-        for ($i = 0; $i < $maxChunks; $i++) {
+        for ($i = 0; $i < $maxChunks; ++$i) {
             $chunks[] = [
                 'writes' => $writeChunks[$i] ?? [],
                 'deletes' => $deleteChunks[$i] ?? [],
@@ -126,9 +187,11 @@ class BatchProcessor
     }
 
     /**
-     * Process chunks with retry logic
+     * Process chunks with retry logic.
+     *
+     * @param array $chunks
      */
-    protected function processChunks(array $chunks): array
+    private function processChunks(array $chunks): array
     {
         $processed = 0;
         $failed = 0;
@@ -136,23 +199,22 @@ class BatchProcessor
 
         foreach ($chunks as $index => $chunk) {
             $chunkSize = count($chunk['writes']) + count($chunk['deletes']);
-            
+
             try {
                 $this->processChunkWithRetry($chunk);
                 $processed += $chunkSize;
 
                 // Progress callback
                 if ($this->config['progress_callback']) {
-                    call_user_func(
-                        $this->config['progress_callback'],
+                    ($this->config['progress_callback'])(
                         $index + 1,
                         count($chunks),
                         $processed
                     );
                 }
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 $failed += $chunkSize;
-                $errors[] = "Chunk {$index}: {$e->getMessage()}";
+                $errors[] = sprintf('Chunk %s: %s', $index, $e->getMessage());
 
                 if ($this->config['fail_fast']) {
                     throw $e;
@@ -168,9 +230,11 @@ class BatchProcessor
     }
 
     /**
-     * Process a single chunk with retry logic
+     * Process a single chunk with retry logic.
+     *
+     * @param array $chunk
      */
-    protected function processChunkWithRetry(array $chunk): void
+    private function processChunkWithRetry(array $chunk): void
     {
         $attempts = 0;
         $lastException = null;
@@ -178,9 +242,10 @@ class BatchProcessor
         while ($attempts < $this->config['max_retries']) {
             try {
                 $this->manager->write($chunk['writes'], $chunk['deletes']);
+
                 return;
-            } catch (\Exception $e) {
-                $attempts++;
+            } catch (Exception $e) {
+                ++$attempts;
                 $lastException = $e;
 
                 if ($attempts < $this->config['max_retries']) {
@@ -195,57 +260,5 @@ class BatchProcessor
         }
 
         throw $lastException;
-    }
-
-    /**
-     * Process operations in parallel (if supported)
-     */
-    public function processParallel(array $operations): BatchResult
-    {
-        if (! $this->config['parallel_processing']) {
-            return $this->processBatch($operations);
-        }
-
-        // This would require additional implementation with process forking
-        // or using a queue system for true parallel processing
-        throw new \RuntimeException('Parallel processing not yet implemented');
-    }
-
-    /**
-     * Get processing statistics
-     */
-    public function getStats(): array
-    {
-        $avgTime = $this->stats['total_batches'] > 0
-            ? $this->stats['total_time'] / $this->stats['total_batches']
-            : 0;
-
-        $avgOps = $this->stats['total_batches'] > 0
-            ? $this->stats['total_operations'] / $this->stats['total_batches']
-            : 0;
-
-        return array_merge($this->stats, [
-            'average_batch_time' => round($avgTime, 3),
-            'average_operations_per_batch' => round($avgOps, 2),
-            'success_rate' => $this->stats['total_batches'] > 0
-                ? round(($this->stats['successful_batches'] / $this->stats['total_batches']) * 100, 2)
-                : 0,
-        ]);
-    }
-
-    /**
-     * Reset statistics
-     */
-    public function resetStats(): void
-    {
-        $this->stats = [
-            'total_batches' => 0,
-            'successful_batches' => 0,
-            'failed_batches' => 0,
-            'total_operations' => 0,
-            'total_time' => 0,
-        ];
-        
-        $this->optimizer->resetStats();
     }
 }

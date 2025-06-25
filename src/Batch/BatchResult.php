@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Batch;
 
-class BatchResult
+final class BatchResult
 {
     public function __construct(
         public readonly bool $success,
@@ -13,15 +13,16 @@ class BatchResult
         public readonly int $failedOperations,
         public readonly float $duration,
         public readonly array $optimizationStats = [],
-        public readonly array $errors = []
-    ) {}
+        public readonly array $errors = [],
+    ) {
+    }
 
     /**
-     * Get operations per second
+     * Get operations per second.
      */
     public function getOperationsPerSecond(): float
     {
-        if ($this->duration === 0.0) {
+        if (0.0 === $this->duration) {
             return 0;
         }
 
@@ -29,27 +30,7 @@ class BatchResult
     }
 
     /**
-     * Get success rate
-     */
-    public function getSuccessRate(): float
-    {
-        if ($this->totalOperations === 0) {
-            return 0;
-        }
-
-        return round(($this->processedOperations / $this->totalOperations) * 100, 2);
-    }
-
-    /**
-     * Check if batch was partially successful
-     */
-    public function isPartialSuccess(): bool
-    {
-        return $this->processedOperations > 0 && $this->failedOperations > 0;
-    }
-
-    /**
-     * Get optimization reduction percentage
+     * Get optimization reduction percentage.
      */
     public function getOptimizationReduction(): float
     {
@@ -57,7 +38,27 @@ class BatchResult
     }
 
     /**
-     * Convert to array
+     * Get success rate.
+     */
+    public function getSuccessRate(): float
+    {
+        if (0 === $this->totalOperations) {
+            return 0;
+        }
+
+        return round(($this->processedOperations / $this->totalOperations) * 100, 2);
+    }
+
+    /**
+     * Check if batch was partially successful.
+     */
+    public function isPartialSuccess(): bool
+    {
+        return 0 < $this->processedOperations && 0 < $this->failedOperations;
+    }
+
+    /**
+     * Convert to array.
      */
     public function toArray(): array
     {

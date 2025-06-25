@@ -6,10 +6,14 @@ namespace OpenFGA\Laravel\Batch;
 
 use Illuminate\Support\Collection;
 
-class BatchOptimizer
+use function count;
+use function sprintf;
+
+final class BatchOptimizer
 {
-    protected array $config;
-    protected array $stats = [
+    private array $config;
+
+    private array $stats = [
         'original_operations' => 0,
         'optimized_operations' => 0,
         'duplicates_removed' => 0,
@@ -29,12 +33,82 @@ class BatchOptimizer
     }
 
     /**
-     * Optimize a batch of write operations
+     * Chunk operations for processing.
+     *
+     * @param array $operations
+     */
+    public function chunkOperations(array $operations): array
+    {
+        return array_chunk($operations, $this->config['chunk_size']);
+    }
+
+    /**
+     * Get optimization statistics.
+     */
+    public function getStats(): array
+    {
+        $reduction = 0 < $this->stats['original_operations']
+            ? round((1 - ($this->stats['optimized_operations'] / $this->stats['original_operations'])) * 100, 2)
+            : 0;
+
+        return array_merge($this->stats, [
+            'reduction_percentage' => $reduction,
+        ]);
+    }
+
+    /**
+     * Optimize mixed writes and deletes.
+     *
+     * @param array $writes
+     * @param array $deletes
+     */
+    public function optimizeMixed(array $writes, array $deletes): array
+    {
+        // Convert to unified format for processing
+        $operations = [];
+
+        foreach ($writes as $write) {
+            $operations[] = array_merge($write, ['operation' => 'write']);
+        }
+
+        foreach ($deletes as $delete) {
+            $operations[] = array_merge($delete, ['operation' => 'delete']);
+        }
+
+        // Optimize
+        $collection = collect($operations);
+
+        // Remove operations that cancel each other out
+        $collection = $this->removeCancelingOperations($collection);
+
+        // Separate back into writes and deletes
+        $optimizedWrites = $collection
+            ->where('operation', 'write')
+            ->map(static fn ($op): array => array_diff_key($op, ['operation' => '']))
+            ->values()
+            ->toArray();
+
+        $optimizedDeletes = $collection
+            ->where('operation', 'delete')
+            ->map(static fn ($op): array => array_diff_key($op, ['operation' => '']))
+            ->values()
+            ->toArray();
+
+        return [
+            'writes' => $optimizedWrites,
+            'deletes' => $optimizedDeletes,
+        ];
+    }
+
+    /**
+     * Optimize a batch of write operations.
+     *
+     * @param array $writes
      */
     public function optimizeWrites(array $writes): array
     {
         $this->stats['original_operations'] = count($writes);
-        
+
         $collection = collect($writes);
 
         // Step 1: Remove exact duplicates
@@ -64,104 +138,57 @@ class BatchOptimizer
     }
 
     /**
-     * Optimize mixed writes and deletes
+     * Reset statistics.
      */
-    public function optimizeMixed(array $writes, array $deletes): array
+    public function resetStats(): void
     {
-        // Convert to unified format for processing
-        $operations = [];
-        
-        foreach ($writes as $write) {
-            $operations[] = array_merge($write, ['operation' => 'write']);
-        }
-        
-        foreach ($deletes as $delete) {
-            $operations[] = array_merge($delete, ['operation' => 'delete']);
-        }
-
-        // Optimize
-        $collection = collect($operations);
-        
-        // Remove operations that cancel each other out
-        $collection = $this->removeCancelingOperations($collection);
-        
-        // Separate back into writes and deletes
-        $optimizedWrites = $collection
-            ->where('operation', 'write')
-            ->map(fn($op) => array_diff_key($op, ['operation' => '']))
-            ->values()
-            ->toArray();
-            
-        $optimizedDeletes = $collection
-            ->where('operation', 'delete')
-            ->map(fn($op) => array_diff_key($op, ['operation' => '']))
-            ->values()
-            ->toArray();
-
-        return [
-            'writes' => $optimizedWrites,
-            'deletes' => $optimizedDeletes,
+        $this->stats = [
+            'original_operations' => 0,
+            'optimized_operations' => 0,
+            'duplicates_removed' => 0,
+            'conflicts_resolved' => 0,
+            'operations_merged' => 0,
         ];
     }
 
     /**
-     * Remove duplicate operations
+     * Get a unique key for an operation.
+     *
+     * @param array $operation
      */
-    protected function removeDuplicates(Collection $operations): Collection
+    private function getOperationKey(array $operation): string
     {
-        $unique = $operations->unique(function ($op) {
-            return $this->getOperationKey($op);
-        });
+        $user = $operation['user'] ?? '';
+        $relation = $operation['relation'] ?? '';
+        $object = $operation['object'] ?? '';
 
-        $this->stats['duplicates_removed'] = $operations->count() - $unique->count();
-
-        return $unique;
+        return sprintf('%s:%s:%s', $user, $relation, $object);
     }
 
     /**
-     * Resolve conflicting operations
+     * Merge related operations.
+     *
+     * @param Collection $operations
      */
-    protected function resolveConflicts(Collection $operations): Collection
-    {
-        $grouped = $operations->groupBy(function ($op) {
-            return $this->getOperationKey($op);
-        });
-
-        $resolved = $grouped->map(function ($group) {
-            if ($group->count() === 1) {
-                return $group->first();
-            }
-
-            // Multiple operations on same tuple - keep the last one
-            $this->stats['conflicts_resolved']++;
-            return $group->last();
-        });
-
-        return $resolved->values();
-    }
-
-    /**
-     * Merge related operations
-     */
-    protected function mergeRelated(Collection $operations): Collection
+    private function mergeRelated(Collection $operations): Collection
     {
         // Group by object to find related operations
-        $grouped = $operations->groupBy(fn($op) => $op['object'] ?? '');
+        $grouped = $operations->groupBy(static fn ($op): mixed => $op['object'] ?? '');
 
         $merged = collect();
 
-        foreach ($grouped as $object => $group) {
+        foreach ($grouped as $group) {
             // Check if we can merge operations on the same object
-            $relations = $group->groupBy(fn($op) => $op['user'] ?? '');
-            
-            foreach ($relations as $user => $userOps) {
-                if ($userOps->count() > 1) {
+            $relations = $group->groupBy(static fn ($op): mixed => $op['user'] ?? '');
+
+            foreach ($relations as $relation) {
+                if (1 < $relation->count()) {
                     // Multiple relations for same user-object pair
                     // Could be merged in some cases
-                    $this->stats['operations_merged'] += $userOps->count() - 1;
+                    $this->stats['operations_merged'] += $relation->count() - 1;
                 }
-                
-                $merged = $merged->concat($userOps);
+
+                $merged = $merged->concat($relation);
             }
         }
 
@@ -169,15 +196,15 @@ class BatchOptimizer
     }
 
     /**
-     * Remove operations that cancel each other out
+     * Remove operations that cancel each other out.
+     *
+     * @param Collection $operations
      */
-    protected function removeCancelingOperations(Collection $operations): Collection
+    private function removeCancelingOperations(Collection $operations): Collection
     {
-        $grouped = $operations->groupBy(function ($op) {
-            return $this->getOperationKey($op);
-        });
+        $grouped = $operations->groupBy(fn ($op): string => $this->getOperationKey($op));
 
-        return $grouped->map(function ($group) {
+        return $grouped->map(static function ($group) {
             $writes = $group->where('operation', 'write');
             $deletes = $group->where('operation', 'delete');
 
@@ -192,67 +219,58 @@ class BatchOptimizer
     }
 
     /**
-     * Sort operations for optimal processing
+     * Remove duplicate operations.
+     *
+     * @param Collection $operations
      */
-    protected function sortOperations(Collection $operations): Collection
+    private function removeDuplicates(Collection $operations): Collection
+    {
+        $unique = $operations->unique(fn ($op): string => $this->getOperationKey($op));
+
+        $this->stats['duplicates_removed'] = $operations->count() - $unique->count();
+
+        return $unique;
+    }
+
+    /**
+     * Resolve conflicting operations.
+     *
+     * @param Collection $operations
+     */
+    private function resolveConflicts(Collection $operations): Collection
+    {
+        $grouped = $operations->groupBy(fn ($op): string => $this->getOperationKey($op));
+
+        $resolved = $grouped->map(function ($group) {
+            if (1 === $group->count()) {
+                return $group->first();
+            }
+
+            // Multiple operations on same tuple - keep the last one
+            ++$this->stats['conflicts_resolved'];
+
+            return $group->last();
+        });
+
+        return $resolved->values();
+    }
+
+    /**
+     * Sort operations for optimal processing.
+     *
+     * @param Collection $operations
+     */
+    private function sortOperations(Collection $operations): Collection
     {
         return $operations->sortBy([
             // Sort by object type first (for better cache locality)
-            fn($op) => explode(':', $op['object'] ?? '')[0],
+            static fn ($op): string => explode(':', $op['object'] ?? '')[0],
             // Then by object ID
-            fn($op) => $op['object'] ?? '',
+            static fn ($op) => $op['object'] ?? '',
             // Then by user
-            fn($op) => $op['user'] ?? '',
+            static fn ($op) => $op['user'] ?? '',
             // Finally by relation
-            fn($op) => $op['relation'] ?? '',
+            static fn ($op) => $op['relation'] ?? '',
         ]);
-    }
-
-    /**
-     * Get a unique key for an operation
-     */
-    protected function getOperationKey(array $operation): string
-    {
-        $user = $operation['user'] ?? '';
-        $relation = $operation['relation'] ?? '';
-        $object = $operation['object'] ?? '';
-        
-        return "{$user}:{$relation}:{$object}";
-    }
-
-    /**
-     * Chunk operations for processing
-     */
-    public function chunkOperations(array $operations): array
-    {
-        return array_chunk($operations, $this->config['chunk_size']);
-    }
-
-    /**
-     * Get optimization statistics
-     */
-    public function getStats(): array
-    {
-        $reduction = $this->stats['original_operations'] > 0
-            ? round((1 - ($this->stats['optimized_operations'] / $this->stats['original_operations'])) * 100, 2)
-            : 0;
-
-        return array_merge($this->stats, [
-            'reduction_percentage' => $reduction,
-        ]);
-    }
-
-    /**
-     * Reset statistics
-     */
-    public function resetStats(): void
-    {
-        $this->stats = [
-            'original_operations' => 0,
-            'optimized_operations' => 0,
-            'duplicates_removed' => 0,
-            'conflicts_resolved' => 0,
-            'operations_merged' => 0,
-        ];
     }
 }

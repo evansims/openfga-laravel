@@ -244,4 +244,35 @@ return [
             // ],
         ],
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Performance Profiling Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Configure performance profiling to monitor and optimize OpenFGA operations.
+    | Profiling can help identify slow queries and performance bottlenecks.
+    |
+    */
+
+    'profiling' => [
+        'enabled' => env('OPENFGA_PROFILING_ENABLED', false),
+        'slow_query_threshold' => env('OPENFGA_SLOW_QUERY_THRESHOLD', 100), // milliseconds
+        'log_slow_queries' => env('OPENFGA_LOG_SLOW_QUERIES', true),
+        'inject_web_middleware' => env('OPENFGA_INJECT_WEB_MIDDLEWARE', false),
+        
+        // Laravel Debugbar integration
+        'debugbar' => [
+            'enabled' => env('OPENFGA_DEBUGBAR_ENABLED', true),
+            'collector' => \OpenFga\Laravel\Debugbar\OpenFgaCollector::class,
+        ],
+        
+        // Profiling storage
+        'storage' => [
+            'driver' => env('OPENFGA_PROFILING_STORAGE', 'memory'), // memory, database, file
+            'table' => 'openfga_profiles',
+            'path' => storage_path('openfga/profiles'),
+            'ttl' => env('OPENFGA_PROFILING_TTL', 3600), // 1 hour
+        ],
+    ],
 ];

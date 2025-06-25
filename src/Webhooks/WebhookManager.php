@@ -4,54 +4,26 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Webhooks;
 
+use Exception;
 use Illuminate\Http\Client\Factory as Http;
 use Illuminate\Support\Facades\Log;
 use OpenFGA\Laravel\Events\PermissionChanged;
 
-class WebhookManager
-{
-    protected array $webhooks = [];
-    protected Http $http;
+use function in_array;
 
-    public function __construct(Http $http)
+final class WebhookManager
+{
+    private array $webhooks = [];
+
+    public function __construct(protected Http $http)
     {
-        $this->http = $http;
         $this->webhooks = config('openfga.webhooks', []);
     }
 
     /**
-     * Register a webhook endpoint
-     */
-    public function register(string $name, string $url, array $events = [], array $headers = []): void
-    {
-        $this->webhooks[$name] = [
-            'url' => $url,
-            'events' => $events,
-            'headers' => $headers,
-            'active' => true,
-        ];
-    }
-
-    /**
-     * Unregister a webhook
-     */
-    public function unregister(string $name): void
-    {
-        unset($this->webhooks[$name]);
-    }
-
-    /**
-     * Enable a webhook
-     */
-    public function enable(string $name): void
-    {
-        if (isset($this->webhooks[$name])) {
-            $this->webhooks[$name]['active'] = true;
-        }
-    }
-
-    /**
-     * Disable a webhook
+     * Disable a webhook.
+     *
+     * @param string $name
      */
     public function disable(string $name): void
     {
@@ -61,7 +33,29 @@ class WebhookManager
     }
 
     /**
-     * Send webhook notifications for a permission change event
+     * Enable a webhook.
+     *
+     * @param string $name
+     */
+    public function enable(string $name): void
+    {
+        if (isset($this->webhooks[$name])) {
+            $this->webhooks[$name]['active'] = true;
+        }
+    }
+
+    /**
+     * Get registered webhooks.
+     */
+    public function getWebhooks(): array
+    {
+        return $this->webhooks;
+    }
+
+    /**
+     * Send webhook notifications for a permission change event.
+     *
+     * @param PermissionChanged $event
      */
     public function notifyPermissionChange(PermissionChanged $event): void
     {
@@ -77,28 +71,39 @@ class WebhookManager
     }
 
     /**
-     * Check if webhook should be sent for this event
+     * Register a webhook endpoint.
+     *
+     * @param string $name
+     * @param string $url
+     * @param array  $events
+     * @param array  $headers
      */
-    protected function shouldSendWebhook(array $webhook, PermissionChanged $event): bool
+    public function register(string $name, string $url, array $events = [], array $headers = []): void
     {
-        // Check if webhook is active
-        if (! ($webhook['active'] ?? true)) {
-            return false;
-        }
-
-        // Check if webhook listens to all events or this specific event
-        $events = $webhook['events'] ?? [];
-        if (empty($events) || in_array('*', $events)) {
-            return true;
-        }
-
-        return in_array($event->getEventType(), $events);
+        $this->webhooks[$name] = [
+            'url' => $url,
+            'events' => $events,
+            'headers' => $headers,
+            'active' => true,
+        ];
     }
 
     /**
-     * Build webhook payload
+     * Unregister a webhook.
+     *
+     * @param string $name
      */
-    protected function buildPayload(PermissionChanged $event): array
+    public function unregister(string $name): void
+    {
+        unset($this->webhooks[$name]);
+    }
+
+    /**
+     * Build webhook payload.
+     *
+     * @param PermissionChanged $event
+     */
+    private function buildPayload(PermissionChanged $event): array
     {
         return [
             'event' => $event->getEventType(),
@@ -116,9 +121,13 @@ class WebhookManager
     }
 
     /**
-     * Send webhook request
+     * Send webhook request.
+     *
+     * @param string $name
+     * @param array  $webhook
+     * @param array  $payload
      */
-    protected function sendWebhook(string $name, array $webhook, array $payload): void
+    private function sendWebhook(string $name, array $webhook, array $payload): void
     {
         try {
             $response = $this->http
@@ -134,19 +143,34 @@ class WebhookManager
                     'response' => $response->body(),
                 ]);
             }
-        } catch (\Exception $e) {
+        } catch (Exception $exception) {
             Log::error('OpenFGA webhook error', [
                 'webhook' => $name,
-                'error' => $e->getMessage(),
+                'error' => $exception->getMessage(),
             ]);
         }
     }
 
     /**
-     * Get registered webhooks
+     * Check if webhook should be sent for this event.
+     *
+     * @param array             $webhook
+     * @param PermissionChanged $event
      */
-    public function getWebhooks(): array
+    private function shouldSendWebhook(array $webhook, PermissionChanged $event): bool
     {
-        return $this->webhooks;
+        // Check if webhook is active
+        if (! ($webhook['active'] ?? true)) {
+            return false;
+        }
+
+        // Check if webhook listens to all events or this specific event
+        $events = $webhook['events'] ?? [];
+
+        if (empty($events) || in_array('*', $events, true)) {
+            return true;
+        }
+
+        return in_array($event->getEventType(), $events, true);
     }
 }

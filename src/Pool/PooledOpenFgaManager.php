@@ -5,36 +5,25 @@ declare(strict_types=1);
 namespace OpenFGA\Laravel\Pool;
 
 use OpenFGA\Laravel\OpenFgaManager;
+use Override;
 
-class PooledOpenFgaManager extends OpenFgaManager
+final class PooledOpenFgaManager extends OpenFgaManager
 {
     protected ?ConnectionPool $pool = null;
 
     /**
-     * Get or create the connection pool
+     * Destructor to ensure pool is shut down.
      */
-    protected function getPool(): ConnectionPool
+    public function __destruct()
     {
-        if (! $this->pool) {
-            $config = $this->getConnectionConfig($this->getDefaultConnection());
-            
-            $poolConfig = array_merge($config, [
-                'max_connections' => config('openfga.pool.max_connections', 10),
-                'min_connections' => config('openfga.pool.min_connections', 2),
-                'max_idle_time' => config('openfga.pool.max_idle_time', 300),
-                'connection_timeout' => config('openfga.pool.connection_timeout', 5),
-            ]);
-
-            $this->pool = new ConnectionPool($poolConfig);
-        }
-
-        return $this->pool;
+        $this->shutdownPool();
     }
 
     /**
-     * Override check method to use pooled connection
+     * Override check method to use pooled connection.
      */
-    public function check(string $user, string $relation, string $object): bool
+    #[Override]
+    public function check(string $user, string $relation, string $object, array $contextualTuples = [], array $context = [], ?string $connection = null): bool
     {
         if (! config('openfga.pool.enabled', false)) {
             return parent::check($user, $relation, $object);
@@ -45,7 +34,7 @@ class PooledOpenFgaManager extends OpenFgaManager
                 user: $user,
                 relation: $relation,
                 object: $object,
-                authorizationModelId: $this->getModelId()
+                authorizationModelId: $this->getModelId(),
             );
 
             if ($this->shouldThrowExceptions()) {
@@ -57,34 +46,11 @@ class PooledOpenFgaManager extends OpenFgaManager
     }
 
     /**
-     * Override write method to use pooled connection
-     */
-    public function write(array $writes = [], array $deletes = []): void
-    {
-        if (! config('openfga.pool.enabled', false)) {
-            parent::write($writes, $deletes);
-            return;
-        }
-
-        $this->getPool()->execute(function ($client) use ($writes, $deletes) {
-            $result = $client->write(
-                writes: $writes,
-                deletes: $deletes,
-                authorizationModelId: $this->getModelId()
-            );
-
-            if ($this->shouldThrowExceptions()) {
-                $result->unwrap();
-            }
-        });
-    }
-
-    /**
-     * Get pool statistics
+     * Get pool statistics.
      */
     public function getPoolStats(): array
     {
-        if (! $this->pool) {
+        if (! $this->pool instanceof ConnectionPool) {
             return [
                 'enabled' => false,
                 'message' => 'Connection pool not initialized',
@@ -99,21 +65,59 @@ class PooledOpenFgaManager extends OpenFgaManager
     }
 
     /**
-     * Shutdown the connection pool
+     * Shutdown the connection pool.
      */
     public function shutdownPool(): void
     {
-        if ($this->pool) {
+        if ($this->pool instanceof ConnectionPool) {
             $this->pool->shutdown();
             $this->pool = null;
         }
     }
 
     /**
-     * Destructor to ensure pool is shut down
+     * Override write method to use pooled connection.
      */
-    public function __destruct()
+    #[Override]
+    public function write(array $writes = [], array $deletes = [], ?string $connection = null): void
     {
-        $this->shutdownPool();
+        if (! config('openfga.pool.enabled', false)) {
+            parent::write($writes, $deletes);
+
+            return;
+        }
+
+        $this->getPool()->execute(function ($client) use ($writes, $deletes): void {
+            $result = $client->write(
+                writes: $writes,
+                deletes: $deletes,
+                authorizationModelId: $this->getModelId(),
+            );
+
+            if ($this->shouldThrowExceptions()) {
+                $result->unwrap();
+            }
+        });
+    }
+
+    /**
+     * Get or create the connection pool.
+     */
+    protected function getPool(): ConnectionPool
+    {
+        if (! $this->pool instanceof ConnectionPool) {
+            $config = $this->getConnectionConfig($this->getDefaultConnection());
+
+            $poolConfig = array_merge($config, [
+                'max_connections' => config('openfga.pool.max_connections', 10),
+                'min_connections' => config('openfga.pool.min_connections', 2),
+                'max_idle_time' => config('openfga.pool.max_idle_time', 300),
+                'connection_timeout' => config('openfga.pool.connection_timeout', 5),
+            ]);
+
+            $this->pool = new ConnectionPool($poolConfig);
+        }
+
+        return $this->pool;
     }
 }

@@ -4,47 +4,24 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Export;
 
-use Illuminate\Support\Collection;
 use OpenFGA\Laravel\OpenFgaManager;
+use RuntimeException;
 
-class PermissionExporter
+use function count;
+use function function_exists;
+
+final class PermissionExporter
 {
-    protected OpenFgaManager $manager;
-    protected array $options = [];
+    private array $options = [];
 
-    public function __construct(OpenFgaManager $manager)
+    public function __construct(protected OpenFgaManager $manager)
     {
-        $this->manager = $manager;
     }
 
     /**
-     * Export permissions to a file
-     */
-    public function exportToFile(string $filename, array $filters = [], array $options = []): int
-    {
-        $this->options = array_merge([
-            'format' => $this->detectFormat($filename),
-            'include_metadata' => true,
-            'pretty_print' => true,
-        ], $options);
-
-        $permissions = $this->collectPermissions($filters);
-        $count = count($permissions);
-
-        $content = match ($this->options['format']) {
-            'json' => $this->exportJson($permissions),
-            'csv' => $this->exportCsv($permissions),
-            'yaml' => $this->exportYaml($permissions),
-            default => throw new \RuntimeException("Unsupported format: {$this->options['format']}"),
-        };
-
-        file_put_contents($filename, $content);
-
-        return $count;
-    }
-
-    /**
-     * Export permissions to array
+     * Export permissions to array.
+     *
+     * @param array $filters
      */
     public function exportToArray(array $filters = []): array
     {
@@ -67,9 +44,41 @@ class PermissionExporter
     }
 
     /**
-     * Collect permissions based on filters
+     * Export permissions to a file.
+     *
+     * @param string $filename
+     * @param array  $filters
+     * @param array  $options
      */
-    protected function collectPermissions(array $filters): array
+    public function exportToFile(string $filename, array $filters = [], array $options = []): int
+    {
+        $this->options = array_merge([
+            'format' => $this->detectFormat($filename),
+            'include_metadata' => true,
+            'pretty_print' => true,
+        ], $options);
+
+        $permissions = $this->collectPermissions($filters);
+        $count = count($permissions);
+
+        $content = match ($this->options['format']) {
+            'json' => $this->exportJson($permissions),
+            'csv' => $this->exportCsv($permissions),
+            'yaml' => $this->exportYaml($permissions),
+            default => throw new RuntimeException('Unsupported format: ' . $this->options['format']),
+        };
+
+        file_put_contents($filename, $content);
+
+        return $count;
+    }
+
+    /**
+     * Collect permissions based on filters.
+     *
+     * @param array $filters
+     */
+    private function collectPermissions(array $filters): array
     {
         // Note: In a real implementation, this would query OpenFGA
         // For now, we'll simulate with example data
@@ -98,32 +107,35 @@ class PermissionExporter
 
         // Apply additional filters
         if (isset($filters['relation'])) {
-            $permissions = array_filter($permissions, fn($p) => $p['relation'] === $filters['relation']);
+            $permissions = array_filter($permissions, static fn ($p): bool => $p['relation'] === $filters['relation']);
         }
 
         return array_values($permissions);
     }
 
     /**
-     * Export to JSON format
+     * Detect format from filename.
+     *
+     * @param string $filename
      */
-    protected function exportJson(array $permissions): string
+    private function detectFormat(string $filename): string
     {
-        $data = $this->options['include_metadata'] 
-            ? $this->exportToArray([])
-            : $permissions;
+        $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
 
-        $flags = $this->options['pretty_print'] 
-            ? JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES 
-            : 0;
-
-        return json_encode($data, $flags);
+        return match ($extension) {
+            'json' => 'json',
+            'csv' => 'csv',
+            'yml', 'yaml' => 'yaml',
+            default => throw new RuntimeException('Cannot detect format from extension: ' . $extension),
+        };
     }
 
     /**
-     * Export to CSV format
+     * Export to CSV format.
+     *
+     * @param array $permissions
      */
-    protected function exportCsv(array $permissions): string
+    private function exportCsv(array $permissions): string
     {
         $output = fopen('php://temp', 'r+');
 
@@ -147,12 +159,32 @@ class PermissionExporter
     }
 
     /**
-     * Export to YAML format
+     * Export to JSON format.
+     *
+     * @param array $permissions
      */
-    protected function exportYaml(array $permissions): string
+    private function exportJson(array $permissions): string
+    {
+        $data = $this->options['include_metadata']
+            ? $this->exportToArray([])
+            : $permissions;
+
+        $flags = $this->options['pretty_print']
+            ? JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES
+            : 0;
+
+        return json_encode($data, $flags);
+    }
+
+    /**
+     * Export to YAML format.
+     *
+     * @param array $permissions
+     */
+    private function exportYaml(array $permissions): string
     {
         if (! function_exists('yaml_emit')) {
-            throw new \RuntimeException('YAML extension not installed');
+            throw new RuntimeException('YAML extension not installed');
         }
 
         $data = $this->options['include_metadata']
@@ -163,37 +195,24 @@ class PermissionExporter
     }
 
     /**
-     * Detect format from filename
+     * Simulate getting all permissions (dangerous in production).
      */
-    protected function detectFormat(string $filename): string
+    private function getAllPermissions(): array
     {
-        $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
-
-        return match ($extension) {
-            'json' => 'json',
-            'csv' => 'csv',
-            'yml', 'yaml' => 'yaml',
-            default => throw new \RuntimeException("Cannot detect format from extension: {$extension}"),
-        };
-    }
-
-    /**
-     * Simulate getting permissions for a user
-     */
-    protected function getPermissionsForUser(string $user): array
-    {
-        // In real implementation, would use listObjects
+        // This would be very expensive in production
         return [
-            ['user' => $user, 'relation' => 'owner', 'object' => 'document:1'],
-            ['user' => $user, 'relation' => 'editor', 'object' => 'document:2'],
-            ['user' => $user, 'relation' => 'viewer', 'object' => 'folder:shared'],
+            ['user' => 'user:1', 'relation' => 'owner', 'object' => 'document:1'],
+            ['user' => 'user:2', 'relation' => 'editor', 'object' => 'document:1'],
+            ['user' => 'user:3', 'relation' => 'viewer', 'object' => 'document:1'],
         ];
     }
 
     /**
-     * Simulate getting permissions for an object
+     * Simulate getting permissions for an object.
+     *
+     * @param string $object
      */
-    protected function getPermissionsForObject(string $object): array
+    private function getPermissionsForObject(string $object): array
     {
         // In real implementation, would use listUsers
         return [
@@ -204,28 +223,32 @@ class PermissionExporter
     }
 
     /**
-     * Simulate getting permissions for an object type
+     * Simulate getting permissions for an object type.
+     *
+     * @param string $type
      */
-    protected function getPermissionsForObjectType(string $type): array
+    private function getPermissionsForObjectType(string $type): array
     {
         // In real implementation, would query all objects of type
         return [
-            ['user' => 'user:1', 'relation' => 'owner', 'object' => "{$type}:1"],
-            ['user' => 'user:1', 'relation' => 'owner', 'object' => "{$type}:2"],
-            ['user' => 'user:2', 'relation' => 'editor', 'object' => "{$type}:1"],
+            ['user' => 'user:1', 'relation' => 'owner', 'object' => $type . ':1'],
+            ['user' => 'user:1', 'relation' => 'owner', 'object' => $type . ':2'],
+            ['user' => 'user:2', 'relation' => 'editor', 'object' => $type . ':1'],
         ];
     }
 
     /**
-     * Simulate getting all permissions (dangerous in production)
+     * Simulate getting permissions for a user.
+     *
+     * @param string $user
      */
-    protected function getAllPermissions(): array
+    private function getPermissionsForUser(string $user): array
     {
-        // This would be very expensive in production
+        // In real implementation, would use listObjects
         return [
-            ['user' => 'user:1', 'relation' => 'owner', 'object' => 'document:1'],
-            ['user' => 'user:2', 'relation' => 'editor', 'object' => 'document:1'],
-            ['user' => 'user:3', 'relation' => 'viewer', 'object' => 'document:1'],
+            ['user' => $user, 'relation' => 'owner', 'object' => 'document:1'],
+            ['user' => $user, 'relation' => 'editor', 'object' => 'document:2'],
+            ['user' => $user, 'relation' => 'viewer', 'object' => 'folder:shared'],
         ];
     }
 }

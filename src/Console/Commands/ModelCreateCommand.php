@@ -4,15 +4,115 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Console\Commands;
 
+use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Support\Str;
 use OpenFGA\Laravel\OpenFgaManager;
+use Override;
 use RuntimeException;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
-class ModelCreateCommand extends Command
+use function sprintf;
+
+final class ModelCreateCommand extends Command
 {
+    /**
+     * Predefined model templates.
+     */
+    private const array TEMPLATES = [
+        'basic' => <<<'DSL'
+            model
+              schema 1.1
+
+            type user
+
+            type document
+              relations
+                define owner: [user]
+                define editor: [user]
+                define viewer: [user] or editor or owner
+            DSL,
+        'organization' => <<<'DSL'
+            model
+              schema 1.1
+
+            type user
+
+            type organization
+              relations
+                define admin: [user]
+                define member: [user] or admin
+
+            type department
+              relations
+                define parent: [organization]
+                define manager: [user]
+                define member: [user] or manager or admin from parent
+
+            type project
+              relations
+                define department: [department]
+                define owner: [user]
+                define contributor: [user] or member from department
+                define viewer: [user] or contributor
+            DSL,
+        'rbac' => <<<'DSL'
+            model
+              schema 1.1
+
+            type user
+
+            type role
+              relations
+                define assignee: [user]
+
+            type permission
+              relations
+                define granted: [role]
+
+            type resource
+              relations
+                define can_create: [user] or assignee from granted
+                define can_read: [user] or assignee from granted
+                define can_update: [user] or assignee from granted
+                define can_delete: [user] or assignee from granted
+                define owner: [user]
+            DSL,
+        'document' => <<<'DSL'
+            model
+              schema 1.1
+
+            type user
+
+            type group
+              relations
+                define member: [user]
+
+            type folder
+              relations
+                define parent: [folder]
+                define owner: [user]
+                define editor: [user, group#member] or owner
+                define viewer: [user, group#member] or editor or viewer from parent
+
+            type document
+              relations
+                define parent: [folder]
+                define owner: [user]
+                define editor: [user, group#member] or owner or editor from parent
+                define viewer: [user, group#member] or editor or viewer from parent
+                define commenter: [user, group#member] or viewer
+            DSL,
+    ];
+
+    /**
+     * The console command description.
+     *
+     * @var string
+     */
+    protected $description = 'Create a new OpenFGA authorization model from DSL';
+
     /**
      * The name and signature of the console command.
      *
@@ -26,103 +126,9 @@ class ModelCreateCommand extends Command
                             {--force : Overwrite existing model file}';
 
     /**
-     * The console command description.
-     *
-     * @var string
-     */
-    protected $description = 'Create a new OpenFGA authorization model from DSL';
-
-    /**
-     * Predefined model templates
-     */
-    private const TEMPLATES = [
-        'basic' => <<<'DSL'
-model
-  schema 1.1
-
-type user
-
-type document
-  relations
-    define owner: [user]
-    define editor: [user]
-    define viewer: [user] or editor or owner
-DSL,
-        'organization' => <<<'DSL'
-model
-  schema 1.1
-
-type user
-
-type organization
-  relations
-    define admin: [user]
-    define member: [user] or admin
-
-type department
-  relations
-    define parent: [organization]
-    define manager: [user]
-    define member: [user] or manager or admin from parent
-
-type project
-  relations
-    define department: [department]
-    define owner: [user]
-    define contributor: [user] or member from department
-    define viewer: [user] or contributor
-DSL,
-        'rbac' => <<<'DSL'
-model
-  schema 1.1
-
-type user
-
-type role
-  relations
-    define assignee: [user]
-
-type permission
-  relations
-    define granted: [role]
-
-type resource
-  relations
-    define can_create: [user] or assignee from granted
-    define can_read: [user] or assignee from granted
-    define can_update: [user] or assignee from granted
-    define can_delete: [user] or assignee from granted
-    define owner: [user]
-DSL,
-        'document' => <<<'DSL'
-model
-  schema 1.1
-
-type user
-
-type group
-  relations
-    define member: [user]
-
-type folder
-  relations
-    define parent: [folder]
-    define owner: [user]
-    define editor: [user, group#member] or owner
-    define viewer: [user, group#member] or editor or viewer from parent
-
-type document
-  relations
-    define parent: [folder]
-    define owner: [user]
-    define editor: [user, group#member] or owner or editor from parent
-    define viewer: [user, group#member] or editor or viewer from parent
-    define commenter: [user, group#member] or viewer
-DSL,
-    ];
-
-    /**
      * Execute the console command.
+     *
+     * @param OpenFgaManager $manager
      */
     public function handle(OpenFgaManager $manager): int
     {
@@ -136,8 +142,9 @@ DSL,
 
         // Check if file already exists
         if (! $this->option('force') && file_exists($filename)) {
-            $this->error("Model file already exists: {$filename}");
+            $this->error('Model file already exists: ' . $filename);
             $this->info('Use --force to overwrite the existing file.');
+
             return self::FAILURE;
         }
 
@@ -151,71 +158,35 @@ DSL,
         // Save the DSL file
         try {
             $this->saveDslFile($filename, $dsl);
-            $this->info("Model DSL saved to: {$filename}");
-        } catch (RuntimeException $e) {
-            $this->error("Failed to save model file: {$e->getMessage()}");
+            $this->info('Model DSL saved to: ' . $filename);
+        } catch (RuntimeException $runtimeException) {
+            $this->error('Failed to save model file: ' . $runtimeException->getMessage());
+
             return self::FAILURE;
         }
 
         // Optionally create the model in OpenFGA
         if ($this->confirm('Do you want to create this model in OpenFGA now?')) {
-            return $this->createModelInOpenFga($manager, $connection, $dsl, $name);
+            return $this->createModelInOpenFga($manager, $connection, $dsl);
         }
 
         $this->info('You can create the model later using:');
-        $this->comment("php artisan openfga:model:validate --file={$filename} --create");
+        $this->comment(sprintf('php artisan openfga:model:validate --file=%s --create', $filename));
 
         return self::SUCCESS;
     }
 
     /**
-     * Generate filename for the model
+     * Format the command output.
      */
-    private function generateFilename(string $name): string
+    #[Override]
+    protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        $directory = storage_path('openfga/models');
-
-        if (! is_dir($directory)) {
-            mkdir($directory, 0755, true);
-        }
-
-        $filename = Str::snake($name) . '_model.fga';
-
-        return $directory . '/' . $filename;
+        return parent::execute($input, $output);
     }
 
     /**
-     * Get DSL content from file or template
-     */
-    private function getDslContent(?string $filePath, ?string $template): ?string
-    {
-        // If a file is specified, read from it
-        if ($filePath) {
-            if (! file_exists($filePath)) {
-                $this->error("File not found: {$filePath}");
-                return null;
-            }
-
-            return file_get_contents($filePath);
-        }
-
-        // If a template is specified, use it
-        if ($template) {
-            if (! isset(self::TEMPLATES[$template])) {
-                $this->error("Unknown template: {$template}");
-                $this->info('Available templates: ' . implode(', ', array_keys(self::TEMPLATES)));
-                return null;
-            }
-
-            return self::TEMPLATES[$template];
-        }
-
-        // Interactive model builder
-        return $this->buildModelInteractively();
-    }
-
-    /**
-     * Build a model interactively
+     * Build a model interactively.
      */
     private function buildModelInteractively(): string
     {
@@ -232,7 +203,7 @@ DSL,
 
             $relations = [];
 
-            $this->info("Defining relations for type '{$typeName}'");
+            $this->info(sprintf("Defining relations for type '%s'", $typeName));
 
             while (true) {
                 $relationName = $this->ask('Enter relation name (or press enter to finish)');
@@ -241,17 +212,17 @@ DSL,
                     break;
                 }
 
-                $allowedTypes = $this->ask("Allowed types for '{$relationName}' (comma-separated, e.g., user, group#member)", 'user');
-                $allowedTypesArray = array_map('trim', explode(',', $allowedTypes));
+                $allowedTypes = $this->ask(sprintf("Allowed types for '%s' (comma-separated, e.g., user, group#member)", $relationName), 'user');
+                $allowedTypesArray = array_map('trim', explode(',', (string) $allowedTypes));
 
                 $relations[$relationName] = [
                     'allowed' => $allowedTypesArray,
                     'inherited' => [],
                 ];
 
-                if ($this->confirm("Does '{$relationName}' inherit from other relations?")) {
+                if ($this->confirm(sprintf("Does '%s' inherit from other relations?", $relationName))) {
                     $inherited = $this->ask('Enter inherited relations (comma-separated)');
-                    $relations[$relationName]['inherited'] = array_map('trim', explode(',', $inherited));
+                    $relations[$relationName]['inherited'] = array_map('trim', explode(',', (string) $inherited));
                 }
             }
 
@@ -262,20 +233,54 @@ DSL,
     }
 
     /**
-     * Generate DSL from type definitions
+     * Create model in OpenFGA.
+     *
+     * @param OpenFgaManager $manager
+     * @param ?string        $connection
+     * @param string         $dsl
+     */
+    private function createModelInOpenFga(OpenFgaManager $manager, ?string $connection, string $dsl): int
+    {
+        try {
+            $client = $manager->connection($connection);
+
+            $this->info('Creating model in OpenFGA...');
+
+            // Here we would normally use the OpenFGA client to create the model
+            // For now, we'll show a message since the actual implementation
+            // depends on the OpenFGA PHP SDK methods
+
+            $this->comment('Model DSL:');
+            $this->line($dsl);
+
+            $this->warn('Note: Actual model creation requires OpenFGA API integration.');
+            $this->info('The model DSL has been saved and can be uploaded to OpenFGA using the dashboard or API.');
+
+            return self::SUCCESS;
+        } catch (Exception $exception) {
+            $this->error('Failed to create model: ' . $exception->getMessage());
+
+            return self::FAILURE;
+        }
+    }
+
+    /**
+     * Generate DSL from type definitions.
+     *
+     * @param array $types
      */
     private function generateDsl(array $types): string
     {
         $dsl = "model\n  schema 1.1\n\n";
 
         foreach ($types as $typeName => $relations) {
-            $dsl .= "type {$typeName}\n";
+            $dsl .= sprintf('type %s%s', $typeName, PHP_EOL);
 
             if (! empty($relations)) {
                 $dsl .= "  relations\n";
 
                 foreach ($relations as $relationName => $config) {
-                    $dsl .= "    define {$relationName}: ";
+                    $dsl .= sprintf('    define %s: ', $relationName);
 
                     $definition = '[' . implode(', ', $config['allowed']) . ']';
 
@@ -294,49 +299,70 @@ DSL,
     }
 
     /**
-     * Save DSL to file
+     * Generate filename for the model.
+     *
+     * @param string $name
+     */
+    private function generateFilename(string $name): string
+    {
+        $directory = storage_path('openfga/models');
+
+        if (! is_dir($directory)) {
+            mkdir($directory, 0o755, true);
+        }
+
+        $filename = Str::snake($name) . '_model.fga';
+
+        return $directory . '/' . $filename;
+    }
+
+    /**
+     * Get DSL content from file or template.
+     *
+     * @param ?string $filePath
+     * @param ?string $template
+     */
+    private function getDslContent(?string $filePath, ?string $template): ?string
+    {
+        // If a file is specified, read from it
+        if ($filePath) {
+            if (! file_exists($filePath)) {
+                $this->error('File not found: ' . $filePath);
+
+                return null;
+            }
+
+            return file_get_contents($filePath);
+        }
+
+        // If a template is specified, use it
+        if ($template) {
+            if (! isset(self::TEMPLATES[$template])) {
+                $this->error('Unknown template: ' . $template);
+                $this->info('Available templates: ' . implode(', ', array_keys(self::TEMPLATES)));
+
+                return null;
+            }
+
+            return self::TEMPLATES[$template];
+        }
+
+        // Interactive model builder
+        return $this->buildModelInteractively();
+    }
+
+    /**
+     * Save DSL to file.
+     *
+     * @param string $filename
+     * @param string $dsl
      */
     private function saveDslFile(string $filename, string $dsl): void
     {
         $result = file_put_contents($filename, $dsl);
 
-        if ($result === false) {
+        if (false === $result) {
             throw new RuntimeException('Failed to write file');
         }
-    }
-
-    /**
-     * Create model in OpenFGA
-     */
-    private function createModelInOpenFga(OpenFgaManager $manager, ?string $connection, string $dsl, string $name): int
-    {
-        try {
-            $client = $manager->connection($connection);
-
-            $this->info('Creating model in OpenFGA...');
-
-            // Here we would normally use the OpenFGA client to create the model
-            // For now, we'll show a message since the actual implementation
-            // depends on the OpenFGA PHP SDK methods
-
-            $this->comment('Model DSL:');
-            $this->line($dsl);
-
-            $this->warn('Note: Actual model creation requires OpenFGA API integration.');
-            $this->info('The model DSL has been saved and can be uploaded to OpenFGA using the dashboard or API.');
-
-            return self::SUCCESS;
-        } catch (\Exception $e) {
-            $this->error("Failed to create model: {$e->getMessage()}");
-            return self::FAILURE;
-        }
-    }
-
-    /**
-     * Format the command output
-     */
-    protected function execute(InputInterface $input, OutputInterface $output): int
-    {
-        return parent::execute($input, $output);
     }
 }

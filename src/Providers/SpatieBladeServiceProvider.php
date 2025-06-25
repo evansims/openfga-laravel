@@ -7,20 +7,15 @@ namespace OpenFGA\Laravel\Providers;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\ServiceProvider;
 use OpenFGA\Laravel\Compatibility\SpatieCompatibility;
+use Override;
+
+use function is_array;
 
 /**
- * Service provider for Spatie-compatible Blade directives
+ * Service provider for Spatie-compatible Blade directives.
  */
-class SpatieBladeServiceProvider extends ServiceProvider
+final class SpatieBladeServiceProvider extends ServiceProvider
 {
-    /**
-     * Register any application services.
-     */
-    public function register(): void
-    {
-        $this->app->singleton(SpatieCompatibility::class);
-    }
-
     /**
      * Bootstrap any application services.
      */
@@ -30,121 +25,150 @@ class SpatieBladeServiceProvider extends ServiceProvider
     }
 
     /**
-     * Register Spatie-compatible Blade directives
+     * Register any application services.
+     */
+    #[Override]
+    public function register(): void
+    {
+        $this->app->singleton(SpatieCompatibility::class);
+    }
+
+    /**
+     * Register Spatie-compatible Blade directives.
      */
     private function registerSpatieBladeDirectives(): void
     {
         // @hasrole directive
-        Blade::if('hasrole', function ($role, $context = null) {
+        Blade::if('hasrole', static function ($role, $context = null) {
             $user = auth()->user();
-            if (!$user) {
+
+            if (! $user) {
                 return false;
             }
 
             $compatibility = app(SpatieCompatibility::class);
+
             return $compatibility->hasRole($user, $role, $context);
         });
 
         // @hasanyrole directive
-        Blade::if('hasanyrole', function ($roles, $context = null) {
+        Blade::if('hasanyrole', static function ($roles, $context = null) {
             $user = auth()->user();
-            if (!$user) {
+
+            if (! $user) {
                 return false;
             }
 
             $rolesArray = is_array($roles) ? $roles : explode('|', $roles);
             $compatibility = app(SpatieCompatibility::class);
+
             return $compatibility->hasAnyRole($user, $rolesArray, $context);
         });
 
         // @hasallroles directive
-        Blade::if('hasallroles', function ($roles, $context = null) {
+        Blade::if('hasallroles', static function ($roles, $context = null) {
             $user = auth()->user();
-            if (!$user) {
+
+            if (! $user) {
                 return false;
             }
 
             $rolesArray = is_array($roles) ? $roles : explode('|', $roles);
             $compatibility = app(SpatieCompatibility::class);
+
             return $compatibility->hasAllRoles($user, $rolesArray, $context);
         });
 
         // @haspermission directive
-        Blade::if('haspermission', function ($permission, $model = null) {
+        Blade::if('haspermission', static function ($permission, $model = null) {
             $user = auth()->user();
-            if (!$user) {
+
+            if (! $user) {
                 return false;
             }
 
             $compatibility = app(SpatieCompatibility::class);
+
             return $compatibility->hasPermissionTo($user, $permission, $model);
         });
 
         // @hasanypermission directive
-        Blade::if('hasanypermission', function ($permissions, $model = null) {
+        Blade::if('hasanypermission', static function ($permissions, $model = null) {
             $user = auth()->user();
-            if (!$user) {
+
+            if (! $user) {
                 return false;
             }
 
             $permissionsArray = is_array($permissions) ? $permissions : explode('|', $permissions);
             $compatibility = app(SpatieCompatibility::class);
+
             return $compatibility->hasAnyPermission($user, $permissionsArray, $model);
         });
 
         // @hasallpermissions directive
-        Blade::if('hasallpermissions', function ($permissions, $model = null) {
+        Blade::if('hasallpermissions', static function ($permissions, $model = null) {
             $user = auth()->user();
-            if (!$user) {
+
+            if (! $user) {
                 return false;
             }
 
             $permissionsArray = is_array($permissions) ? $permissions : explode('|', $permissions);
             $compatibility = app(SpatieCompatibility::class);
+
             return $compatibility->hasAllPermissions($user, $permissionsArray, $model);
         });
 
         // @unlessrole directive
-        Blade::if('unlessrole', function ($role, $context = null) {
+        Blade::if('unlessrole', static function ($role, $context = null): bool {
             $user = auth()->user();
-            if (!$user) {
+
+            if (! $user) {
                 return true;
             }
 
             $compatibility = app(SpatieCompatibility::class);
-            return !$compatibility->hasRole($user, $role, $context);
+
+            return ! $compatibility->hasRole($user, $role, $context);
         });
 
         // @unlesspermission directive
-        Blade::if('unlesspermission', function ($permission, $model = null) {
+        Blade::if('unlesspermission', static function ($permission, $model = null): bool {
             $user = auth()->user();
-            if (!$user) {
+
+            if (! $user) {
                 return true;
             }
 
             $compatibility = app(SpatieCompatibility::class);
-            return !$compatibility->hasPermissionTo($user, $permission, $model);
+
+            return ! $compatibility->hasPermissionTo($user, $permission, $model);
         });
 
         // Enhanced @role directive with guard support
-        Blade::if('role', function ($role, $guard = null, $context = null) {
+        Blade::if('role', static function ($role, $guard = null, $context = null) {
             $user = auth($guard)->user();
-            if (!$user) {
+
+            if (! $user) {
                 return false;
             }
 
             $compatibility = app(SpatieCompatibility::class);
+
             return $compatibility->hasRole($user, $role, $context);
         });
 
         // Enhanced @permission directive with guard support
-        Blade::if('permission', function ($permission, $guard = null, $model = null) {
+        Blade::if('permission', static function ($permission, $guard = null, $model = null) {
             $user = auth($guard)->user();
-            if (!$user) {
+
+            if (! $user) {
                 return false;
             }
 
             $compatibility = app(SpatieCompatibility::class);
+
             return $compatibility->hasPermissionTo($user, $permission, $model);
         });
     }

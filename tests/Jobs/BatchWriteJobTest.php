@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Tests\Jobs;
 
+use DateTimeImmutable;
 use OpenFGA\Laravel\Jobs\BatchWriteJob;
 use OpenFGA\Laravel\Testing\FakesOpenFga;
 use OpenFGA\Laravel\Tests\TestCase;
@@ -68,7 +69,7 @@ final class BatchWriteJobTest extends TestCase
 
         $retryUntil = $job->retryUntil();
 
-        $this->assertInstanceOf(\DateTimeImmutable::class, $retryUntil);
+        $this->assertInstanceOf(DateTimeImmutable::class, $retryUntil);
         $this->assertGreaterThan(now(), $retryUntil);
     }
 }

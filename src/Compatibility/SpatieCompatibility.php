@@ -8,16 +8,18 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use OpenFGA\Laravel\Facades\OpenFga;
 
+use function in_array;
+
 /**
- * Spatie Laravel Permission compatibility layer
- * 
+ * Spatie Laravel Permission compatibility layer.
+ *
  * This class provides familiar Spatie syntax while using OpenFGA under the hood.
  * Allows for gradual migration from Spatie to OpenFGA.
  */
-class SpatieCompatibility
+final class SpatieCompatibility
 {
     /**
-     * Permission to relation mapping for common Spatie permissions
+     * Permission to relation mapping for common Spatie permissions.
      */
     private array $permissionMapping = [
         'edit posts' => 'editor',
@@ -31,7 +33,7 @@ class SpatieCompatibility
     ];
 
     /**
-     * Role to relation mapping for common Spatie roles
+     * Role to relation mapping for common Spatie roles.
      */
     private array $roleMapping = [
         'admin' => 'admin',
@@ -42,18 +44,154 @@ class SpatieCompatibility
     ];
 
     /**
-     * Check if user has permission (Spatie-style)
+     * Add custom permission mapping.
+     *
+     * @param string $permission
+     * @param string $relation
      */
-    public function hasPermissionTo(Model $user, string $permission, ?Model $model = null): bool
+    public function addPermissionMapping(string $permission, string $relation): void
     {
-        $relation = $this->mapPermissionToRelation($permission);
-        $object = $model ? $model->authorizationObject() : $this->getDefaultObject($permission);
-
-        return OpenFga::check($user->authorizationUser(), $relation, $object);
+        $this->permissionMapping[$permission] = $relation;
     }
 
     /**
-     * Check if user has any of the given permissions
+     * Add custom role mapping.
+     *
+     * @param string $role
+     * @param string $relation
+     */
+    public function addRoleMapping(string $role, string $relation): void
+    {
+        $this->roleMapping[$role] = $relation;
+    }
+
+    /**
+     * Assign role to user (Spatie-style).
+     *
+     * @param Model   $user
+     * @param string  $role
+     * @param ?string $context
+     */
+    public function assignRole(Model $user, string $role, ?string $context = null): void
+    {
+        $relation = $this->mapRoleToRelation($role);
+        $object = $context ?? 'organization:main';
+
+        OpenFga::grant($user->authorizationUser(), $relation, $object);
+    }
+
+    /**
+     * Get all permissions for user (simulated).
+     *
+     * @param Model   $user
+     * @param ?string $context
+     */
+    public function getAllPermissions(Model $user, ?string $context = null): Collection
+    {
+        // This is a simplified version - in practice, you'd use OpenFGA's expand API
+        $permissions = collect();
+
+        foreach (array_keys($this->permissionMapping) as $permission) {
+            if ($this->hasPermissionTo($user, $permission)) {
+                $permissions->push($permission);
+            }
+        }
+
+        return $permissions;
+    }
+
+    /**
+     * Get current permission mappings.
+     */
+    public function getPermissionMappings(): array
+    {
+        return $this->permissionMapping;
+    }
+
+    /**
+     * Get current role mappings.
+     */
+    public function getRoleMappings(): array
+    {
+        return $this->roleMapping;
+    }
+
+    /**
+     * Get all roles for user (simulated).
+     *
+     * @param Model   $user
+     * @param ?string $context
+     */
+    public function getRoleNames(Model $user, ?string $context = null): Collection
+    {
+        $roles = collect();
+
+        foreach (array_keys($this->roleMapping) as $role) {
+            if ($this->hasRole($user, $role, $context)) {
+                $roles->push($role);
+            }
+        }
+
+        return $roles;
+    }
+
+    /**
+     * Give permission to user (Spatie-style).
+     *
+     * @param Model  $user
+     * @param string $permission
+     * @param ?Model $model
+     */
+    public function givePermissionTo(Model $user, string $permission, ?Model $model = null): void
+    {
+        $relation = $this->mapPermissionToRelation($permission);
+        $object = $model instanceof Model ? $model->authorizationObject() : $this->getDefaultObject($permission);
+
+        OpenFga::grant($user->authorizationUser(), $relation, $object);
+    }
+
+    /**
+     * Check if user has all of the given permissions.
+     *
+     * @param Model  $user
+     * @param array  $permissions
+     * @param ?Model $model
+     */
+    public function hasAllPermissions(Model $user, array $permissions, ?Model $model = null): bool
+    {
+        foreach ($permissions as $permission) {
+            if (! $this->hasPermissionTo($user, $permission, $model)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Check if user has all of the given roles.
+     *
+     * @param Model   $user
+     * @param array   $roles
+     * @param ?string $context
+     */
+    public function hasAllRoles(Model $user, array $roles, ?string $context = null): bool
+    {
+        foreach ($roles as $role) {
+            if (! $this->hasRole($user, $role, $context)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Check if user has any of the given permissions.
+     *
+     * @param Model  $user
+     * @param array  $permissions
+     * @param ?Model $model
      */
     public function hasAnyPermission(Model $user, array $permissions, ?Model $model = null): bool
     {
@@ -67,32 +205,11 @@ class SpatieCompatibility
     }
 
     /**
-     * Check if user has all of the given permissions
-     */
-    public function hasAllPermissions(Model $user, array $permissions, ?Model $model = null): bool
-    {
-        foreach ($permissions as $permission) {
-            if (!$this->hasPermissionTo($user, $permission, $model)) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    /**
-     * Check if user has role (Spatie-style)
-     */
-    public function hasRole(Model $user, string $role, ?string $context = null): bool
-    {
-        $relation = $this->mapRoleToRelation($role);
-        $object = $context ?? 'organization:main';
-
-        return OpenFga::check($user->authorizationUser(), $relation, $object);
-    }
-
-    /**
-     * Check if user has any of the given roles
+     * Check if user has any of the given roles.
+     *
+     * @param Model   $user
+     * @param array   $roles
+     * @param ?string $context
      */
     public function hasAnyRole(Model $user, array $roles, ?string $context = null): bool
     {
@@ -106,32 +223,41 @@ class SpatieCompatibility
     }
 
     /**
-     * Check if user has all of the given roles
+     * Check if user has permission (Spatie-style).
+     *
+     * @param Model  $user
+     * @param string $permission
+     * @param ?Model $model
      */
-    public function hasAllRoles(Model $user, array $roles, ?string $context = null): bool
+    public function hasPermissionTo(Model $user, string $permission, ?Model $model = null): bool
     {
-        foreach ($roles as $role) {
-            if (!$this->hasRole($user, $role, $context)) {
-                return false;
-            }
-        }
+        $relation = $this->mapPermissionToRelation($permission);
+        $object = $model instanceof Model ? $model->authorizationObject() : $this->getDefaultObject($permission);
 
-        return true;
+        return OpenFga::check($user->authorizationUser(), $relation, $object);
     }
 
     /**
-     * Assign role to user (Spatie-style)
+     * Check if user has role (Spatie-style).
+     *
+     * @param Model   $user
+     * @param string  $role
+     * @param ?string $context
      */
-    public function assignRole(Model $user, string $role, ?string $context = null): void
+    public function hasRole(Model $user, string $role, ?string $context = null): bool
     {
         $relation = $this->mapRoleToRelation($role);
         $object = $context ?? 'organization:main';
 
-        OpenFga::grant($user->authorizationUser(), $relation, $object);
+        return OpenFga::check($user->authorizationUser(), $relation, $object);
     }
 
     /**
-     * Remove role from user
+     * Remove role from user.
+     *
+     * @param Model   $user
+     * @param string  $role
+     * @param ?string $context
      */
     public function removeRole(Model $user, string $role, ?string $context = null): void
     {
@@ -142,107 +268,100 @@ class SpatieCompatibility
     }
 
     /**
-     * Give permission to user (Spatie-style)
-     */
-    public function givePermissionTo(Model $user, string $permission, ?Model $model = null): void
-    {
-        $relation = $this->mapPermissionToRelation($permission);
-        $object = $model ? $model->authorizationObject() : $this->getDefaultObject($permission);
-
-        OpenFga::grant($user->authorizationUser(), $relation, $object);
-    }
-
-    /**
-     * Revoke permission from user
+     * Revoke permission from user.
+     *
+     * @param Model  $user
+     * @param string $permission
+     * @param ?Model $model
      */
     public function revokePermissionTo(Model $user, string $permission, ?Model $model = null): void
     {
         $relation = $this->mapPermissionToRelation($permission);
-        $object = $model ? $model->authorizationObject() : $this->getDefaultObject($permission);
+        $object = $model instanceof Model ? $model->authorizationObject() : $this->getDefaultObject($permission);
 
         OpenFga::revoke($user->authorizationUser(), $relation, $object);
     }
 
     /**
-     * Get all permissions for user (simulated)
-     */
-    public function getAllPermissions(Model $user, ?string $context = null): Collection
-    {
-        // This is a simplified version - in practice, you'd use OpenFGA's expand API
-        $permissions = collect();
-        $object = $context ?? 'organization:main';
-
-        foreach (array_keys($this->permissionMapping) as $permission) {
-            if ($this->hasPermissionTo($user, $permission)) {
-                $permissions->push($permission);
-            }
-        }
-
-        return $permissions;
-    }
-
-    /**
-     * Get all roles for user (simulated)
-     */
-    public function getRoleNames(Model $user, ?string $context = null): Collection
-    {
-        $roles = collect();
-        
-        foreach (array_keys($this->roleMapping) as $role) {
-            if ($this->hasRole($user, $role, $context)) {
-                $roles->push($role);
-            }
-        }
-
-        return $roles;
-    }
-
-    /**
-     * Sync roles for user
-     */
-    public function syncRoles(Model $user, array $roles, ?string $context = null): void
-    {
-        $currentRoles = $this->getRoleNames($user, $context);
-        
-        // Remove roles not in the new list
-        foreach ($currentRoles as $currentRole) {
-            if (!in_array($currentRole, $roles)) {
-                $this->removeRole($user, $currentRole, $context);
-            }
-        }
-
-        // Add new roles
-        foreach ($roles as $role) {
-            if (!$currentRoles->contains($role)) {
-                $this->assignRole($user, $role, $context);
-            }
-        }
-    }
-
-    /**
-     * Sync permissions for user
+     * Sync permissions for user.
+     *
+     * @param Model  $user
+     * @param array  $permissions
+     * @param ?Model $model
      */
     public function syncPermissions(Model $user, array $permissions, ?Model $model = null): void
     {
         $currentPermissions = $this->getAllPermissions($user);
-        
+
         // Remove permissions not in the new list
         foreach ($currentPermissions as $currentPermission) {
-            if (!in_array($currentPermission, $permissions)) {
+            if (! in_array($currentPermission, $permissions, true)) {
                 $this->revokePermissionTo($user, $currentPermission, $model);
             }
         }
 
         // Add new permissions
         foreach ($permissions as $permission) {
-            if (!$currentPermissions->contains($permission)) {
+            if (! $currentPermissions->contains($permission)) {
                 $this->givePermissionTo($user, $permission, $model);
             }
         }
     }
 
     /**
-     * Map Spatie permission to OpenFGA relation
+     * Sync roles for user.
+     *
+     * @param Model   $user
+     * @param array   $roles
+     * @param ?string $context
+     */
+    public function syncRoles(Model $user, array $roles, ?string $context = null): void
+    {
+        $currentRoles = $this->getRoleNames($user, $context);
+
+        // Remove roles not in the new list
+        foreach ($currentRoles as $currentRole) {
+            if (! in_array($currentRole, $roles, true)) {
+                $this->removeRole($user, $currentRole, $context);
+            }
+        }
+
+        // Add new roles
+        foreach ($roles as $role) {
+            if (! $currentRoles->contains($role)) {
+                $this->assignRole($user, $role, $context);
+            }
+        }
+    }
+
+    /**
+     * Get default object for permission when no model is provided.
+     *
+     * @param string $permission
+     */
+    private function getDefaultObject(string $permission): string
+    {
+        // Extract resource type from permission
+        if (str_contains($permission, 'post')) {
+            return 'post:*';
+        }
+
+        if (str_contains($permission, 'article')) {
+            return 'article:*';
+        }
+
+        if (str_contains($permission, 'user')) {
+            return 'organization:main';
+        }
+
+        // Default to organization context
+        return 'organization:main';
+    }
+
+    /**
+     * Map Spatie permission to OpenFGA relation.
+     *
+     * @param string $permission
      */
     private function mapPermissionToRelation(string $permission): string
     {
@@ -272,68 +391,12 @@ class SpatieCompatibility
     }
 
     /**
-     * Map Spatie role to OpenFGA relation
+     * Map Spatie role to OpenFGA relation.
+     *
+     * @param string $role
      */
     private function mapRoleToRelation(string $role): string
     {
         return $this->roleMapping[$role] ?? $role;
-    }
-
-    /**
-     * Get default object for permission when no model is provided
-     */
-    private function getDefaultObject(string $permission): string
-    {
-        // Extract resource type from permission
-        if (str_contains($permission, 'post')) {
-            return 'post:*';
-        }
-
-        if (str_contains($permission, 'article')) {
-            return 'article:*';
-        }
-
-        if (str_contains($permission, 'user')) {
-            return 'organization:main';
-        }
-
-        if (str_contains($permission, 'admin')) {
-            return 'organization:main';
-        }
-
-        // Default to organization context
-        return 'organization:main';
-    }
-
-    /**
-     * Add custom permission mapping
-     */
-    public function addPermissionMapping(string $permission, string $relation): void
-    {
-        $this->permissionMapping[$permission] = $relation;
-    }
-
-    /**
-     * Add custom role mapping
-     */
-    public function addRoleMapping(string $role, string $relation): void
-    {
-        $this->roleMapping[$role] = $relation;
-    }
-
-    /**
-     * Get current permission mappings
-     */
-    public function getPermissionMappings(): array
-    {
-        return $this->permissionMapping;
-    }
-
-    /**
-     * Get current role mappings
-     */
-    public function getRoleMappings(): array
-    {
-        return $this->roleMapping;
     }
 }

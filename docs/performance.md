@@ -1,701 +1,411 @@
-# Performance Optimization Guide
+# OpenFGA Laravel - Performance Best Practices
 
-This guide covers best practices and techniques for optimizing the performance of OpenFGA authorization in your Laravel application.
+This guide covers performance optimization strategies for OpenFGA Laravel to ensure your authorization system scales efficiently.
+
+## Table of Contents
+
+- [Caching Strategies](#caching-strategies)
+- [Batch Operations](#batch-operations)
+- [Connection Pooling](#connection-pooling)
+- [Queue Integration](#queue-integration)
+- [Database Optimization](#database-optimization)
+- [Monitoring & Profiling](#monitoring--profiling)
+- [Common Pitfalls](#common-pitfalls)
 
 ## Caching Strategies
 
 ### Enable Caching
 
-The most effective way to improve performance is to enable caching:
+The most significant performance improvement comes from enabling caching:
 
-```php
-// config/openfga.php
-'cache' => [
-    'enabled' => true,
-    'store' => 'redis',  // Use a fast cache driver
-    'ttl' => 300,        // 5 minutes
-    'prefix' => 'openfga',
-],
+```env
+OPENFGA_CACHE_ENABLED=true
+OPENFGA_CACHE_TTL=300  # 5 minutes
+```
+
+### Use Tagged Caching
+
+For granular cache invalidation, use a cache store that supports tagging (Redis, Memcached):
+
+```env
+OPENFGA_CACHE_STORE=redis
+OPENFGA_CACHE_TAGS_ENABLED=true
 ```
 
 ### Cache Warming
 
-Pre-populate the cache with frequently checked permissions:
+Pre-load frequently checked permissions:
 
 ```php
-namespace App\Jobs;
+use OpenFga\Laravel\Facades\OpenFga;
 
-use App\Models\User;
-use OpenFGA\Laravel\Facades\OpenFga;
-use Illuminate\Support\Facades\Cache;
+// Warm cache for common permissions
+$commonChecks = [
+    ['user:123', 'read', 'document:456'],
+    ['user:123', 'write', 'document:456'],
+    // ...
+];
 
-class WarmPermissionCache
-{
-    public function handle()
-    {
-        $users = User::active()->get();
-        $criticalObjects = [
-            'system:admin',
-            'system:api',
-            'system:billing',
-        ];
-
-        foreach ($users as $user) {
-            foreach ($criticalObjects as $object) {
-                // Pre-check permissions to warm cache
-                OpenFga::check("user:{$user->id}", 'member', $object);
-            }
-        }
-    }
-}
+OpenFga::batchCheck($commonChecks);
 ```
 
-### Smart Cache Invalidation
+Use the artisan command for bulk warming:
 
-Invalidate cache selectively when permissions change:
+```bash
+php artisan openfga:warm-cache --user=123 --relations=read,write --type=document
+```
 
-```php
-namespace App\Listeners;
+### Write-Behind Cache
 
-use OpenFGA\Laravel\Events\PermissionGranted;
-use Illuminate\Support\Facades\Cache;
+For non-critical permission updates, enable write-behind caching:
 
-class InvalidatePermissionCache
-{
-    public function handle(PermissionGranted $event)
-    {
-        // Invalidate specific cache keys
-        $cacheKey = "openfga:check:{$event->user}:{$event->relation}:{$event->object}";
-        Cache::forget($cacheKey);
-
-        // Invalidate related caches
-        $userType = explode(':', $event->user)[0];
-        $objectType = explode(':', $event->object)[0];
-
-        Cache::tags(["openfga:{$userType}", "openfga:{$objectType}"])->flush();
-    }
-}
+```env
+OPENFGA_WRITE_BEHIND_ENABLED=true
+OPENFGA_WRITE_BEHIND_BATCH_SIZE=100
+OPENFGA_WRITE_BEHIND_FLUSH_INTERVAL=5
 ```
 
 ## Batch Operations
 
-### Use Batch Writes
+### Batch Checks
 
-Always batch multiple permission operations:
-
-```php
-// ❌ Bad - Multiple individual operations
-foreach ($users as $user) {
-    OpenFga::grant("user:{$user->id}", 'viewer', "document:{$document->id}");
-}
-
-// ✅ Good - Single batch operation
-$writes = $users->map(fn($user) => [
-    "user:{$user->id}", 'viewer', "document:{$document->id}"
-])->toArray();
-
-OpenFga::writeBatch(writes: $writes);
-```
-
-### Batch Permission Checks
-
-Check multiple permissions in a single request:
+Always use batch checks when checking multiple permissions:
 
 ```php
-// ❌ Bad - Multiple individual checks
-$canView = OpenFga::check($user, 'viewer', $document);
-$canEdit = OpenFga::check($user, 'editor', $document);
-$canDelete = OpenFga::check($user, 'owner', $document);
+// ❌ Inefficient - Multiple API calls
+$canRead = OpenFga::check('user:123', 'read', 'document:1');
+$canWrite = OpenFga::check('user:123', 'write', 'document:1');
+$canDelete = OpenFga::check('user:123', 'delete', 'document:1');
 
-// ✅ Good - Single batch check
-$permissions = OpenFga::batchCheck([
-    [$user, 'viewer', $document],
-    [$user, 'editor', $document],
-    [$user, 'owner', $document],
+// ✅ Efficient - Single API call
+$results = OpenFga::batchCheck([
+    ['user:123', 'read', 'document:1'],
+    ['user:123', 'write', 'document:1'],
+    ['user:123', 'delete', 'document:1'],
 ]);
-
-[$canView, $canEdit, $canDelete] = $permissions;
 ```
 
-### Implement Batch Check Helper
+### Batch Writes
+
+Group permission changes together:
 
 ```php
-namespace App\Services;
+// ❌ Inefficient - Multiple API calls
+OpenFga::grant('user:123', 'read', 'document:1');
+OpenFga::grant('user:123', 'write', 'document:1');
+OpenFga::grant('user:456', 'read', 'document:1');
 
-use OpenFGA\Laravel\Facades\OpenFga;
-use Illuminate\Support\Collection;
-
-class PermissionService
-{
-    public function checkMultiplePermissions(string $user, array $permissions, string $object): array
-    {
-        $checks = collect($permissions)->map(fn($permission) => [
-            $user, $permission, $object
-        ])->toArray();
-
-        $results = OpenFga::batchCheck($checks);
-
-        return array_combine($permissions, $results);
-    }
-}
-
-// Usage
-$permissions = $permissionService->checkMultiplePermissions(
-    "user:{$user->id}",
-    ['viewer', 'editor', 'owner'],
-    "document:{$document->id}"
-);
-// Returns: ['viewer' => true, 'editor' => true, 'owner' => false]
+// ✅ Efficient - Single API call
+OpenFga::writeBatch([
+    ['user:123', 'read', 'document:1'],
+    ['user:123', 'write', 'document:1'],
+    ['user:456', 'read', 'document:1'],
+]);
 ```
 
-## Query Optimization
+### Eloquent Batch Operations
 
-### Optimize whereUserCan Queries
-
-Use database joins to reduce the number of queries:
+Use collection methods for bulk model operations:
 
 ```php
-namespace App\Models;
+// Grant permissions to multiple users efficiently
+$document->grantBulk($users, 'read');
 
-use Illuminate\Database\Eloquent\Builder;
-
-class Document extends Model
-{
-    use HasAuthorization;
-
-    // Optimized scope that pre-filters in database
-    public function scopeWhereUserCanOptimized(Builder $query, $user, string $relation)
-    {
-        // First, get all object IDs from OpenFGA
-        $objectIds = Cache::remember(
-            "user_objects:{$user->id}:{$relation}:document",
-            300,
-            fn() => OpenFga::listObjects("user:{$user->id}", $relation, 'document')
-        );
-
-        // Extract just the IDs
-        $ids = collect($objectIds)->map(fn($obj) => explode(':', $obj)[1])->toArray();
-
-        // Use whereIn for efficient database query
-        return $query->whereIn('id', $ids);
-    }
-}
-```
-
-### Preload Permissions for Collections
-
-```php
-namespace App\Http\Resources;
-
-use Illuminate\Http\Resources\Json\ResourceCollection;
-use OpenFGA\Laravel\Facades\OpenFga;
-
-class DocumentCollection extends ResourceCollection
-{
-    private array $permissions = [];
-
-    public function __construct($resource)
-    {
-        parent::__construct($resource);
-
-        // Preload all permissions in one batch
-        $this->preloadPermissions();
-    }
-
-    private function preloadPermissions()
-    {
-        $user = "user:" . auth()->id();
-        $checks = [];
-
-        foreach ($this->collection as $document) {
-            foreach (['viewer', 'editor', 'owner'] as $relation) {
-                $checks[] = [$user, $relation, $document->authorizationObject()];
-            }
-        }
-
-        $results = OpenFga::batchCheck($checks);
-
-        // Map results back to documents
-        $index = 0;
-        foreach ($this->collection as $document) {
-            $this->permissions[$document->id] = [
-                'viewer' => $results[$index++],
-                'editor' => $results[$index++],
-                'owner' => $results[$index++],
-            ];
-        }
-    }
-
-    public function toArray($request)
-    {
-        return $this->collection->map(function ($document) {
-            return [
-                'id' => $document->id,
-                'title' => $document->title,
-                'permissions' => $this->permissions[$document->id] ?? [],
-            ];
-        });
-    }
-}
+// Check permissions for multiple models
+$readableDocuments = Document::whereUserCan($user, 'read')
+    ->chunk(1000, function ($documents) {
+        // Process documents in chunks
+    });
 ```
 
 ## Connection Pooling
 
-### Configure Connection Pooling
+Enable connection pooling for high-traffic applications:
+
+```env
+OPENFGA_POOL_ENABLED=true
+OPENFGA_POOL_MAX_CONNECTIONS=10
+OPENFGA_POOL_MIN_CONNECTIONS=2
+```
+
+Configure pool settings based on your load:
 
 ```php
 // config/openfga.php
-'connections' => [
-    'main' => [
-        // ... other config
-        'pool' => [
-            'enabled' => true,
-            'min_connections' => 2,
-            'max_connections' => 10,
-            'max_idle_time' => 60, // seconds
-        ],
-    ],
-],
-```
-
-### Implement Custom Connection Pool
-
-```php
-namespace App\Services;
-
-use OpenFGA\ClientInterface;
-use SplObjectStorage;
-
-class OpenFgaConnectionPool
-{
-    private SplObjectStorage $available;
-    private SplObjectStorage $inUse;
-    private array $config;
-    private int $created = 0;
-
-    public function __construct(array $config)
-    {
-        $this->config = $config;
-        $this->available = new SplObjectStorage();
-        $this->inUse = new SplObjectStorage();
-
-        // Create minimum connections
-        for ($i = 0; $i < $config['min_connections']; $i++) {
-            $this->createConnection();
-        }
-    }
-
-    public function acquire(): ClientInterface
-    {
-        if ($this->available->count() === 0) {
-            if ($this->created < $this->config['max_connections']) {
-                $this->createConnection();
-            } else {
-                // Wait for available connection
-                while ($this->available->count() === 0) {
-                    usleep(10000); // 10ms
-                }
-            }
-        }
-
-        $connection = $this->available->current();
-        $this->available->detach($connection);
-        $this->inUse->attach($connection);
-
-        return $connection;
-    }
-
-    public function release(ClientInterface $connection): void
-    {
-        $this->inUse->detach($connection);
-        $this->available->attach($connection);
-    }
-
-    private function createConnection(): void
-    {
-        $connection = app(ClientInterface::class);
-        $this->available->attach($connection);
-        $this->created++;
-    }
-}
-```
-
-## Queue Optimization
-
-### Configure Queue for Batch Operations
-
-```php
-// config/openfga.php
-'queue' => [
+'pool' => [
     'enabled' => true,
-    'connection' => 'redis',
-    'queue' => 'openfga-high', // Dedicated high-priority queue
-
-    'batch' => [
-        'size' => 1000,     // Larger batches for bulk operations
-        'timeout' => 300,   // 5 minutes for large batches
-    ],
-
-    'auto_queue' => [
-        'enabled' => true,
-        'threshold' => 100, // Auto-queue operations with >100 items
-    ],
+    'max_connections' => env('OPENFGA_POOL_MAX_CONNECTIONS', 10),
+    'min_connections' => env('OPENFGA_POOL_MIN_CONNECTIONS', 2),
+    'max_idle_time' => env('OPENFGA_POOL_MAX_IDLE_TIME', 300),
+    'connection_timeout' => env('OPENFGA_POOL_CONNECTION_TIMEOUT', 5),
 ],
 ```
 
-### Implement Smart Queuing
+## Queue Integration
+
+### Async Permission Updates
+
+Use queues for non-critical permission updates:
+
+```env
+OPENFGA_QUEUE_ENABLED=true
+OPENFGA_QUEUE_CONNECTION=redis
+OPENFGA_QUEUE_NAME=openfga-high
+```
+
+Example usage:
 
 ```php
-namespace App\Services;
+use OpenFga\Laravel\Jobs\BatchWriteJob;
 
-use OpenFGA\Laravel\Jobs\BatchWriteJob;
-use OpenFGA\Laravel\Facades\OpenFga;
+// Queue permission updates
+BatchWriteJob::dispatch($writes, $deletes)
+    ->onQueue('openfga-low'); // Use different queue priorities
+```
 
-class SmartPermissionWriter
-{
-    private array $pendingWrites = [];
-    private array $pendingDeletes = [];
+### Queue Worker Configuration
 
-    public function add(string $user, string $relation, string $object): void
-    {
-        $this->pendingWrites[] = [$user, $relation, $object];
+Optimize queue workers for OpenFGA jobs:
 
-        if (count($this->pendingWrites) >= 100) {
-            $this->flush();
-        }
-    }
+```bash
+# High priority queue for critical updates
+php artisan queue:work redis --queue=openfga-high --tries=3 --timeout=30
 
-    public function remove(string $user, string $relation, string $object): void
-    {
-        $this->pendingDeletes[] = [$user, $relation, $object];
-
-        if (count($this->pendingDeletes) >= 100) {
-            $this->flush();
-        }
-    }
-
-    public function flush(): void
-    {
-        if (empty($this->pendingWrites) && empty($this->pendingDeletes)) {
-            return;
-        }
-
-        $totalOperations = count($this->pendingWrites) + count($this->pendingDeletes);
-
-        if ($totalOperations > config('openfga.queue.auto_queue.threshold')) {
-            // Queue for async processing
-            BatchWriteJob::dispatch($this->pendingWrites, $this->pendingDeletes);
-        } else {
-            // Execute immediately
-            OpenFga::writeBatch(
-                writes: $this->pendingWrites,
-                deletes: $this->pendingDeletes
-            );
-        }
-
-        $this->pendingWrites = [];
-        $this->pendingDeletes = [];
-    }
-
-    public function __destruct()
-    {
-        $this->flush();
-    }
-}
+# Low priority queue for bulk operations
+php artisan queue:work redis --queue=openfga-low --tries=5 --timeout=120
 ```
 
 ## Database Optimization
 
-### Index Authorization Columns
+### Deduplication
 
-Add database indexes for faster queries:
+Enable request deduplication to prevent duplicate API calls:
 
 ```php
-use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
+use OpenFga\Laravel\Deduplication\RequestDeduplicator;
 
-class AddAuthorizationIndexes extends Migration
-{
-    public function up()
-    {
-        Schema::table('documents', function (Blueprint $table) {
-            $table->index(['team_id', 'created_at']);
-            $table->index(['user_id', 'status']);
-        });
-
-        // If you store permission metadata
-        Schema::table('permission_cache', function (Blueprint $table) {
-            $table->index(['user_type', 'user_id']);
-            $table->index(['object_type', 'object_id']);
-            $table->index(['relation']);
-            $table->index(['checked_at']);
-        });
-    }
-}
+// Deduplication is automatic for identical concurrent requests
+$results = OpenFga::withDeduplication()->batchCheck($checks);
 ```
 
-### Optimize Permission Queries
+### Optimize Contextual Tuples
+
+When using contextual tuples, batch them efficiently:
 
 ```php
-namespace App\Models;
-
-class Document extends Model
-{
-    use HasAuthorization;
-
-    // Eager load relationships needed for authorization
-    protected $with = ['team', 'owner'];
-
-    // Cache authorization object
-    protected $authorizationObjectCache;
-
-    public function authorizationObject(): string
-    {
-        if (!$this->authorizationObjectCache) {
-            $this->authorizationObjectCache = "document:{$this->team_id}:{$this->id}";
-        }
-
-        return $this->authorizationObjectCache;
-    }
-}
+// Include all necessary context in a single check
+$allowed = OpenFga::check('user:123', 'view', 'document:456', [
+    'contextual_tuples' => [
+        ['user:123', 'member', 'team:789'],
+        ['team:789', 'has_access', 'folder:abc'],
+    ],
+]);
 ```
 
 ## Monitoring & Profiling
 
-### Track Performance Metrics
+### Enable Profiling
+
+Enable profiling to identify bottlenecks:
+
+```env
+OPENFGA_PROFILING_ENABLED=true
+OPENFGA_SLOW_QUERY_THRESHOLD=100
+```
+
+### View Profiling Data
+
+```bash
+# View current profile
+php artisan openfga:profile
+
+# Show only slow queries
+php artisan openfga:profile --slow
+
+# Export as JSON for analysis
+php artisan openfga:profile --json > profile.json
+```
+
+### Laravel Debugbar Integration
+
+The package automatically integrates with Laravel Debugbar when available:
+
+```env
+OPENFGA_DEBUGBAR_ENABLED=true
+```
+
+### Custom Metrics
+
+Track custom metrics in your application:
 
 ```php
-namespace App\Listeners;
+use OpenFga\Laravel\Profiling\OpenFgaProfiler;
 
-use OpenFGA\Laravel\Events\PermissionChecked;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Redis;
+$profiler = app(OpenFgaProfiler::class);
+$profile = $profiler->startProfile('custom_operation', ['key' => 'value']);
 
-class TrackPermissionPerformance
+// Your operation here
+
+$profile->end(true);
+$profile->addMetadata('result_count', 42);
+```
+
+## Common Pitfalls
+
+### 1. N+1 Query Problem
+
+Avoid checking permissions in loops:
+
+```php
+// ❌ Bad - N+1 queries
+foreach ($documents as $document) {
+    if (OpenFga::check($user, 'read', $document->authorizationObject())) {
+        // Process document
+    }
+}
+
+// ✅ Good - Batch check
+$checks = $documents->map(fn($doc) => [
+    $user, 'read', $doc->authorizationObject()
+])->toArray();
+
+$results = OpenFga::batchCheck($checks);
+```
+
+### 2. Unnecessary Cache Invalidation
+
+Be strategic about cache invalidation:
+
+```php
+// ❌ Bad - Invalidates entire cache
+Cache::tags(['openfga'])->flush();
+
+// ✅ Good - Invalidate specific entries
+OpenFga::forgetCached('user:123', 'read', 'document:456');
+```
+
+### 3. Over-Fetching Relations
+
+Use `listObjects` efficiently:
+
+```php
+// ❌ Bad - Fetches all objects then filters
+$allDocuments = OpenFga::listObjects('user:123', 'read', 'document');
+$recentDocuments = collect($allDocuments)->filter(...);
+
+// ✅ Good - Filter at database level
+$documentIds = OpenFga::listObjects('user:123', 'read', 'document');
+$recentDocuments = Document::whereIn('id', $documentIds)
+    ->where('created_at', '>', now()->subDays(7))
+    ->get();
+```
+
+### 4. Synchronous Write-Behind Flushes
+
+Avoid synchronous flushes in request cycle:
+
+```php
+// ❌ Bad - Blocks request
+app(WriteBehindCache::class)->flush();
+
+// ✅ Good - Use scheduled job
+// In app/Console/Kernel.php
+$schedule->command('openfga:flush-write-behind')->everyMinute();
+```
+
+## Performance Benchmarks
+
+Run benchmarks to measure your setup:
+
+```bash
+# Basic benchmark
+php artisan openfga:benchmark
+
+# Detailed benchmark with custom parameters
+php artisan openfga:benchmark --operations=10000 --concurrent=100 --duration=60
+```
+
+Expected performance targets:
+
+- **Cached checks**: < 1ms
+- **Single API check**: < 50ms
+- **Batch check (100 items)**: < 200ms
+- **Write operations**: < 100ms
+- **List operations**: < 200ms
+
+## Optimization Checklist
+
+- [ ] Enable caching with appropriate TTL
+- [ ] Use tagged caching if available
+- [ ] Implement cache warming for hot paths
+- [ ] Use batch operations wherever possible
+- [ ] Enable connection pooling for high traffic
+- [ ] Configure queue workers for async operations
+- [ ] Enable request deduplication
+- [ ] Set up monitoring and profiling
+- [ ] Regular benchmark testing
+- [ ] Review slow query logs weekly
+
+## Advanced Optimizations
+
+### Custom Cache Keys
+
+Implement custom cache key strategies:
+
+```php
+use OpenFga\Laravel\Cache\CacheKeyGenerator;
+
+class CustomCacheKeyGenerator extends CacheKeyGenerator
 {
-    public function handle(PermissionChecked $event)
+    public function generate(string $user, string $relation, string $object): string
     {
-        // Track response times
-        Redis::hincrby('openfga:stats:checks', date('Y-m-d-H'), 1);
-
-        // Track slow queries
-        if ($event->duration > 100) { // > 100ms
-            Log::warning('Slow permission check', [
-                'user' => $event->user,
-                'relation' => $event->relation,
-                'object' => $event->object,
-                'duration' => $event->duration,
-                'cached' => $event->cached,
-            ]);
-
-            Redis::hincrby('openfga:stats:slow_checks', date('Y-m-d'), 1);
-        }
-
-        // Track cache hit rate
-        $key = $event->cached ? 'cache_hits' : 'cache_misses';
-        Redis::hincrby('openfga:stats:' . $key, date('Y-m-d'), 1);
+        // Include tenant context in cache key
+        $tenant = tenant()->id;
+        return "openfga:{$tenant}:{$user}:{$relation}:{$object}";
     }
 }
 ```
 
-### Performance Dashboard
+### Precomputed Permissions
+
+For extremely high-performance requirements, consider precomputing permissions:
 
 ```php
-namespace App\Http\Controllers\Admin;
-
-use Illuminate\Support\Facades\Redis;
-use Carbon\Carbon;
-
-class PerformanceController extends Controller
+// Scheduled job to precompute common permissions
+class PrecomputePermissions extends Command
 {
-    public function dashboard()
+    public function handle()
     {
-        $stats = [
-            'today' => $this->getStatsForDate(Carbon::today()),
-            'yesterday' => $this->getStatsForDate(Carbon::yesterday()),
-            'week' => $this->getStatsForPeriod(Carbon::now()->subWeek(), Carbon::now()),
-        ];
-
-        $slowQueries = $this->getSlowQueries();
-        $cacheHitRate = $this->calculateCacheHitRate();
-
-        return view('admin.performance', compact('stats', 'slowQueries', 'cacheHitRate'));
-    }
-
-    private function calculateCacheHitRate(): float
-    {
-        $hits = Redis::get('openfga:stats:cache_hits:' . date('Y-m-d')) ?? 0;
-        $misses = Redis::get('openfga:stats:cache_misses:' . date('Y-m-d')) ?? 0;
-        $total = $hits + $misses;
-
-        return $total > 0 ? ($hits / $total) * 100 : 0;
-    }
-}
-```
-
-## Best Practices
-
-### 1. Use Read Replicas
-
-Configure read replicas for permission checks:
-
-```php
-'connections' => [
-    'main' => [
-        'url' => env('OPENFGA_WRITE_URL'),
-        // ... other config
-    ],
-    'read' => [
-        'url' => env('OPENFGA_READ_URL'),
-        // ... other config
-    ],
-],
-
-// Use read connection for checks
-OpenFga::connection('read')->check($user, $relation, $object);
-```
-
-### 2. Implement Circuit Breaker
-
-Prevent cascading failures:
-
-```php
-namespace App\Services;
-
-use OpenFGA\Laravel\Facades\OpenFga;
-
-class CircuitBreakerOpenFga
-{
-    private int $failureCount = 0;
-    private ?Carbon $lastFailureTime = null;
-    private bool $isOpen = false;
-
-    public function check(...$args)
-    {
-        if ($this->isOpen && $this->shouldAttemptReset()) {
-            $this->isOpen = false;
+        $users = User::active()->get();
+        $documents = Document::recent()->get();
+        
+        $checks = [];
+        foreach ($users as $user) {
+            foreach ($documents as $document) {
+                foreach (['read', 'write'] as $relation) {
+                    $checks[] = [
+                        "user:{$user->id}",
+                        $relation,
+                        $document->authorizationObject(),
+                    ];
+                }
+            }
         }
-
-        if ($this->isOpen) {
-            return $this->getFallbackResponse();
-        }
-
-        try {
-            $result = OpenFga::check(...$args);
-            $this->onSuccess();
-            return $result;
-        } catch (\Exception $e) {
-            $this->onFailure();
-            throw $e;
-        }
-    }
-
-    private function onFailure(): void
-    {
-        $this->failureCount++;
-        $this->lastFailureTime = now();
-
-        if ($this->failureCount >= 5) {
-            $this->isOpen = true;
-            Log::error('OpenFGA circuit breaker opened');
-        }
-    }
-
-    private function onSuccess(): void
-    {
-        $this->failureCount = 0;
-        $this->lastFailureTime = null;
+        
+        // Warm cache with batch check
+        OpenFga::batchCheck($checks);
     }
 }
 ```
 
-### 3. Use Lazy Loading
+## Conclusion
 
-Load permissions only when needed:
+Following these best practices will ensure your OpenFGA Laravel implementation scales efficiently. Remember to:
 
-```php
-class Document extends Model
-{
-    private ?array $permissionsCache = null;
+1. **Measure first** - Use profiling to identify actual bottlenecks
+2. **Cache aggressively** - Most permission checks are read-heavy
+3. **Batch operations** - Reduce API calls through batching
+4. **Monitor continuously** - Set up alerts for slow queries
+5. **Optimize iteratively** - Start with quick wins, then tackle complex optimizations
 
-    public function getPermissionsAttribute(): array
-    {
-        if ($this->permissionsCache === null) {
-            $this->permissionsCache = [
-                'can_view' => $this->check('@me', 'viewer'),
-                'can_edit' => $this->check('@me', 'editor'),
-                'can_delete' => $this->check('@me', 'owner'),
-            ];
-        }
-
-        return $this->permissionsCache;
-    }
-}
-```
-
-### 4. Optimize Model Serialization
-
-Exclude unnecessary data:
-
-```php
-class DocumentResource extends JsonResource
-{
-    public function toArray($request)
-    {
-        return [
-            'id' => $this->id,
-            'title' => $this->title,
-            // Only include permissions if requested
-            $this->mergeWhen($request->has('include_permissions'), [
-                'permissions' => $this->permissions,
-            ]),
-        ];
-    }
-}
-```
-
-## Debugging Performance
-
-### Enable Query Logging
-
-```php
-// In development only
-if (app()->environment('local')) {
-    OpenFga::enableQueryLog();
-
-    // After requests
-    $queries = OpenFga::getQueryLog();
-    Log::debug('OpenFGA Queries', ['queries' => $queries]);
-}
-```
-
-### Use Laravel Debugbar Integration
-
-```php
-namespace App\Providers;
-
-use Barryvdh\Debugbar\Facades\Debugbar;
-use OpenFGA\Laravel\Events\PermissionChecked;
-
-class DebugbarServiceProvider extends ServiceProvider
-{
-    public function boot()
-    {
-        Event::listen(PermissionChecked::class, function ($event) {
-            Debugbar::addMessage(
-                "Check: {$event->user}#{$event->relation}@{$event->object} = " .
-                ($event->allowed ? 'allowed' : 'denied') .
-                " ({$event->duration}ms)",
-                'openfga'
-            );
-        });
-    }
-}
-```
-
-## Next Steps
-
-- Review [Troubleshooting Guide](troubleshooting.md)
-- Check the [API Reference](api-reference.md)
-- See [Example Application](https://github.com/openfga/laravel-example)
+For more help, see our [Troubleshooting Guide](TROUBLESHOOTING.md) or visit the [OpenFGA documentation](https://openfga.dev/docs).

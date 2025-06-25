@@ -2,15 +2,26 @@
 
 declare(strict_types=1);
 
+namespace OpenFGA\Laravel;
+
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Container\BindingResolutionException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use OpenFGA\Exceptions\ClientThrowable;
-use OpenFGA\Laravel\Contracts\{AuthorizationObject, AuthorizationType, AuthorizationUser, AuthorizationUserId};
+use OpenFGA\Laravel\Contracts\{
+    AuthorizationObject,
+    AuthorizationType,
+    AuthorizationUser,
+    AuthorizationUserId
+};
 use OpenFGA\Laravel\Helpers\ModelKeyHelper;
-use OpenFGA\Laravel\OpenFgaManager;
 use OpenFGA\Laravel\Query\AuthorizationQuery;
+
+use function function_exists;
+use function gettype;
+use function is_object;
+use function is_string;
 
 if (! function_exists('openfga_can')) {
     /**
@@ -26,8 +37,11 @@ if (! function_exists('openfga_can')) {
      * @throws Exception
      * @throws InvalidArgumentException
      */
-    function openfga_can(string $relation, $object, ?string $connection = null): bool
-    {
+    function openfga_can(
+        string $relation,
+        $object,
+        ?string $connection = null,
+    ): bool {
         if (! Auth::check()) {
             return false;
         }
@@ -42,7 +56,14 @@ if (! function_exists('openfga_can')) {
         $userId = openfga_resolve_user_id($user);
         $objectId = openfga_resolve_object($object);
 
-        return $manager->check($userId, $relation, $objectId, [], [], $connection);
+        return $manager->check(
+            $userId,
+            $relation,
+            $objectId,
+            [],
+            [],
+            $connection,
+        );
     }
 }
 
@@ -60,8 +81,11 @@ if (! function_exists('openfga_cannot')) {
      * @throws Exception
      * @throws InvalidArgumentException
      */
-    function openfga_cannot(string $relation, $object, ?string $connection = null): bool
-    {
+    function openfga_cannot(
+        string $relation,
+        $object,
+        ?string $connection = null,
+    ): bool {
         return ! openfga_can($relation, $object, $connection);
     }
 }
@@ -74,8 +98,11 @@ if (! function_exists('openfga_can_any')) {
      * @param mixed         $object
      * @param string|null   $connection
      */
-    function openfga_can_any(array $relations, $object, ?string $connection = null): bool
-    {
+    function openfga_can_any(
+        array $relations,
+        $object,
+        ?string $connection = null,
+    ): bool {
         foreach ($relations as $relation) {
             if (openfga_can($relation, $object, $connection)) {
                 return true;
@@ -94,8 +121,11 @@ if (! function_exists('openfga_can_all')) {
      * @param mixed         $object
      * @param string|null   $connection
      */
-    function openfga_can_all(array $relations, $object, ?string $connection = null): bool
-    {
+    function openfga_can_all(
+        array $relations,
+        $object,
+        ?string $connection = null,
+    ): bool {
         foreach ($relations as $relation) {
             if (! openfga_can($relation, $object, $connection)) {
                 return false;
@@ -120,8 +150,12 @@ if (! function_exists('openfga_grant')) {
      * @throws Exception
      * @throws InvalidArgumentException
      */
-    function openfga_grant($user, string $relation, $object, ?string $connection = null): void
-    {
+    function openfga_grant(
+        $user,
+        string $relation,
+        $object,
+        ?string $connection = null,
+    ): void {
         $manager = app(OpenFgaManager::class);
 
         $userId = openfga_resolve_user_id($user);
@@ -145,8 +179,12 @@ if (! function_exists('openfga_revoke')) {
      * @throws Exception
      * @throws InvalidArgumentException
      */
-    function openfga_revoke($user, string $relation, $object, ?string $connection = null): void
-    {
+    function openfga_revoke(
+        $user,
+        string $relation,
+        $object,
+        ?string $connection = null,
+    ): void {
         $manager = app(OpenFgaManager::class);
 
         $userId = openfga_resolve_user_id($user);
@@ -199,7 +237,10 @@ if (! function_exists('openfga_resolve_user_id')) {
         }
 
         // User object with alternative method
-        if (is_object($user) && method_exists($user, 'getAuthorizationUserId')) {
+        if (
+            is_object($user)
+            && method_exists($user, 'getAuthorizationUserId')
+        ) {
             /** @var AuthorizationUserId&object $user */
             return $user->getAuthorizationUserId();
         }
@@ -237,13 +278,20 @@ if (! function_exists('openfga_resolve_object')) {
         }
 
         // Model with authorization support
-        if (is_object($object) && method_exists($object, 'authorizationObject')) {
+        if (
+            is_object($object)
+            && method_exists($object, 'authorizationObject')
+        ) {
             /** @var AuthorizationObject&object $object */
             return $object->authorizationObject();
         }
 
         // Model with authorization type method
-        if (is_object($object) && method_exists($object, 'authorizationType') && method_exists($object, 'getKey')) {
+        if (
+            is_object($object)
+            && method_exists($object, 'authorizationType')
+            && method_exists($object, 'getKey')
+        ) {
             /** @var AuthorizationType&Model&object $object */
             $key = ModelKeyHelper::stringId($object);
             $type = $object->authorizationType();
@@ -255,7 +303,10 @@ if (! function_exists('openfga_resolve_object')) {
         // Check is_object first to satisfy Psalm's type checking
         if (is_object($object)) {
             /** @var object $object */
-            if (method_exists($object, 'getTable') && method_exists($object, 'getKey')) {
+            if (
+                method_exists($object, 'getTable')
+                && method_exists($object, 'getKey')
+            ) {
                 /** @var Model $object */
                 $key = ModelKeyHelper::stringId($object);
                 $table = $object->getTable();

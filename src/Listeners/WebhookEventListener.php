@@ -7,46 +7,17 @@ namespace OpenFGA\Laravel\Listeners;
 use OpenFGA\Laravel\Events\{PermissionChanged, PermissionChecked, PermissionGranted, PermissionRevoked};
 use OpenFGA\Laravel\Webhooks\WebhookManager;
 
-class WebhookEventListener
+final class WebhookEventListener
 {
     public function __construct(
-        protected WebhookManager $webhookManager
-    ) {}
-
-    /**
-     * Handle permission granted events
-     */
-    public function handlePermissionGranted(PermissionGranted $event): void
-    {
-        $this->webhookManager->notifyPermissionChange(
-            new PermissionChanged(
-                user: $event->user,
-                relation: $event->relation,
-                object: $event->object,
-                action: 'granted',
-                metadata: ['granted_at' => now()->toIso8601String()]
-            )
-        );
+        protected WebhookManager $webhookManager,
+    ) {
     }
 
     /**
-     * Handle permission revoked events
-     */
-    public function handlePermissionRevoked(PermissionRevoked $event): void
-    {
-        $this->webhookManager->notifyPermissionChange(
-            new PermissionChanged(
-                user: $event->user,
-                relation: $event->relation,
-                object: $event->object,
-                action: 'revoked',
-                metadata: ['revoked_at' => now()->toIso8601String()]
-            )
-        );
-    }
-
-    /**
-     * Handle permission checked events (optional, can be noisy)
+     * Handle permission checked events (optional, can be noisy).
+     *
+     * @param PermissionChecked $event
      */
     public function handlePermissionChecked(PermissionChecked $event): void
     {
@@ -64,13 +35,51 @@ class WebhookEventListener
                 metadata: [
                     'result' => $event->allowed,
                     'checked_at' => now()->toIso8601String(),
-                ]
-            )
+                ],
+            ),
+        );
+    }
+
+    /**
+     * Handle permission granted events.
+     *
+     * @param PermissionGranted $event
+     */
+    public function handlePermissionGranted(PermissionGranted $event): void
+    {
+        $this->webhookManager->notifyPermissionChange(
+            new PermissionChanged(
+                user: $event->user,
+                relation: $event->relation,
+                object: $event->object,
+                action: 'granted',
+                metadata: ['granted_at' => now()->toIso8601String()],
+            ),
+        );
+    }
+
+    /**
+     * Handle permission revoked events.
+     *
+     * @param PermissionRevoked $event
+     */
+    public function handlePermissionRevoked(PermissionRevoked $event): void
+    {
+        $this->webhookManager->notifyPermissionChange(
+            new PermissionChanged(
+                user: $event->user,
+                relation: $event->relation,
+                object: $event->object,
+                action: 'revoked',
+                metadata: ['revoked_at' => now()->toIso8601String()],
+            ),
         );
     }
 
     /**
      * Register the listeners for the subscriber.
+     *
+     * @param mixed $events
      */
     public function subscribe($events): array
     {

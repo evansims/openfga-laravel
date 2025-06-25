@@ -5,81 +5,91 @@ declare(strict_types=1);
 namespace OpenFGA\Laravel\Testing;
 
 use Closure;
-use Illuminate\Support\Collection;
 use OpenFGA\Laravel\Facades\OpenFga;
+use PHPUnit\Framework\AssertionFailedError;
+
+use function count;
+use function sprintf;
 
 /**
- * Performance testing utilities for OpenFGA operations
- * 
+ * Performance testing utilities for OpenFGA operations.
+ *
  * Provides tools to measure and assert performance characteristics
  * of authorization operations.
  */
-class PerformanceTesting
+final class PerformanceTesting
 {
     /**
-     * Performance metrics collected during tests
-     */
-    private array $metrics = [];
-
-    /**
-     * Whether to enable detailed timing
+     * Whether to enable detailed timing.
      */
     private bool $detailed = false;
 
     /**
-     * Memory usage tracking
+     * Performance metrics collected during tests.
      */
-    private array $memorySnapshots = [];
+    private array $metrics = [];
 
     /**
-     * Enable detailed timing
+     * Assert that an operation completes within a time limit.
+     *
+     * @param int     $milliseconds
+     * @param Closure $operation
+     * @param ?string $message
      */
-    public function enableDetailed(): self
+    public function assertCompletesWithin(int $milliseconds, Closure $operation, ?string $message = null): void
     {
-        $this->detailed = true;
-        return $this;
+        $metrics = $this->measure('assertion', $operation);
+
+        if ($metrics['duration'] > $milliseconds) {
+            $message ??= sprintf(
+                'Operation took %.2fms, expected less than %dms',
+                $metrics['duration'],
+                $milliseconds,
+            );
+
+            throw new AssertionFailedError($message);
+        }
     }
 
     /**
-     * Measure the performance of a single operation
+     * Assert that memory usage stays below a threshold.
+     *
+     * @param int     $bytes
+     * @param Closure $operation
+     * @param ?string $message
      */
-    public function measure(string $name, Closure $operation): array
+    public function assertMemoryUsageBelow(int $bytes, Closure $operation, ?string $message = null): void
     {
-        $startTime = microtime(true);
         $startMemory = memory_get_usage();
-        $startPeakMemory = memory_get_peak_usage();
+        $operation();
+        $memoryUsed = memory_get_usage() - $startMemory;
 
-        // Execute the operation
-        $result = $operation();
+        if ($memoryUsed > $bytes) {
+            $message ??= sprintf(
+                'Operation used %s of memory, expected less than %s',
+                $this->formatBytes($memoryUsed),
+                $this->formatBytes($bytes),
+            );
 
-        $endTime = microtime(true);
-        $endMemory = memory_get_usage();
-        $endPeakMemory = memory_get_peak_usage();
-
-        $metrics = [
-            'name' => $name,
-            'duration' => ($endTime - $startTime) * 1000, // Convert to milliseconds
-            'memory_used' => $endMemory - $startMemory,
-            'peak_memory' => $endPeakMemory - $startPeakMemory,
-            'timestamp' => now()->toIso8601String(),
-        ];
-
-        $this->metrics[] = $metrics;
-
-        return $metrics;
+            throw new AssertionFailedError($message);
+        }
     }
 
     /**
-     * Benchmark multiple operations
+     * Benchmark multiple operations.
+     *
+     * @param string  $name
+     * @param Closure $operation
+     * @param int     $iterations
      */
     public function benchmark(string $name, Closure $operation, int $iterations = 100): array
     {
         $results = [];
-        
+
         // Warm up (run once without measuring)
         $operation();
 
-        for ($i = 0; $i < $iterations; $i++) {
+        for ($i = 0; $i < $iterations; ++$i) {
             $startTime = microtime(true);
             $operation();
             $duration = (microtime(true) - $startTime) * 1000;
@@ -100,75 +110,20 @@ class PerformanceTesting
     }
 
     /**
-     * Measure permission check performance
-     */
-    public function measureCheck(string $user, string $relation, string $object, ?string $name = null): array
-    {
-        $name = $name ?? "check({$user}, {$relation}, {$object})";
-
-        return $this->measure($name, function () use ($user, $relation, $object) {
-            return OpenFga::check($user, $relation, $object);
-        });
-    }
-
-    /**
-     * Measure batch check performance
-     */
-    public function measureBatchCheck(array $checks, ?string $name = null): array
-    {
-        $name = $name ?? sprintf('batchCheck(%d checks)', count($checks));
-
-        return $this->measure($name, function () use ($checks) {
-            return OpenFga::batchCheck($checks);
-        });
-    }
-
-    /**
-     * Measure write performance
-     */
-    public function measureWrite(array $writes, array $deletes = [], ?string $name = null): array
-    {
-        $totalOps = count($writes) + count($deletes);
-        $name = $name ?? sprintf('write(%d operations)', $totalOps);
-
-        return $this->measure($name, function () use ($writes, $deletes) {
-            return OpenFga::writeBatch($writes, $deletes);
-        });
-    }
-
-    /**
-     * Measure expand performance
-     */
-    public function measureExpand(string $object, string $relation, ?string $name = null): array
-    {
-        $name = $name ?? "expand({$object}, {$relation})";
-
-        return $this->measure($name, function () use ($object, $relation) {
-            return OpenFga::expand($object, $relation);
-        });
-    }
-
-    /**
-     * Measure list objects performance
-     */
-    public function measureListObjects(string $user, string $relation, string $objectType, ?string $name = null): array
-    {
-        $name = $name ?? "listObjects({$user}, {$relation}, {$objectType})";
-
-        return $this->measure($name, function () use ($user, $relation, $objectType) {
-            return OpenFga::listObjects($user, $relation, $objectType);
-        });
-    }
-
-    /**
-     * Compare performance of two operations
+     * Compare performance of two operations.
+     *
+     * @param string  $name1
+     * @param Closure $operation1
+     * @param string  $name2
+     * @param Closure $operation2
+     * @param int     $iterations
      */
     public function compare(string $name1, Closure $operation1, string $name2, Closure $operation2, int $iterations = 50): array
     {
         $results1 = $this->benchmark($name1, $operation1, $iterations);
         $results2 = $this->benchmark($name2, $operation2, $iterations);
 
-        $comparison = [
+        return [
             'test1' => $results1,
             'test2' => $results2,
             'difference' => [
@@ -181,90 +136,73 @@ class PerformanceTesting
                 'mean' => $results2['mean'] / max($results1['mean'], 0.001),
                 'median' => $results2['median'] / max($results1['median'], 0.001),
             ],
-            'conclusion' => $results1['mean'] < $results2['mean'] ? 
-                "{$name1} is faster by " . round((1 - $results1['mean'] / $results2['mean']) * 100, 2) . "%" :
-                "{$name2} is faster by " . round((1 - $results2['mean'] / $results1['mean']) * 100, 2) . "%",
-        ];
-
-        return $comparison;
-    }
-
-    /**
-     * Profile memory usage during operation
-     */
-    public function profileMemory(string $name, Closure $operation, int $samples = 10): array
-    {
-        $this->memorySnapshots = [];
-        $interval = 0.001; // 1ms
-
-        // Start memory profiling in background
-        $profiling = true;
-        $startTime = microtime(true);
-        
-        // Take memory snapshots
-        $snapshots = [];
-        
-        // Execute operation
-        $result = $operation();
-        
-        $duration = microtime(true) - $startTime;
-        
-        // Calculate memory stats
-        $initialMemory = memory_get_usage();
-        $peakMemory = memory_get_peak_usage();
-        
-        return [
-            'name' => $name,
-            'duration' => $duration * 1000,
-            'memory_usage' => [
-                'initial' => $initialMemory,
-                'peak' => $peakMemory,
-                'difference' => $peakMemory - $initialMemory,
-            ],
-            'result' => $result,
+            'conclusion' => $results1['mean'] < $results2['mean'] ?
+                $name1 . ' is faster by ' . round((1 - $results1['mean'] / $results2['mean']) * 100, 2) . '%' :
+                $name2 . ' is faster by ' . round((1 - $results2['mean'] / $results1['mean']) * 100, 2) . '%',
         ];
     }
 
     /**
-     * Assert that an operation completes within a time limit
+     * Enable detailed timing.
      */
-    public function assertCompletesWithin(int $milliseconds, Closure $operation, ?string $message = null): void
+    public function enableDetailed(): self
     {
-        $metrics = $this->measure('assertion', $operation);
-        
-        if ($metrics['duration'] > $milliseconds) {
-            $message = $message ?? sprintf(
-                'Operation took %.2fms, expected less than %dms',
-                $metrics['duration'],
-                $milliseconds
-            );
-            
-            throw new \PHPUnit\Framework\AssertionFailedError($message);
-        }
+        $this->detailed = true;
+
+        return $this;
     }
 
     /**
-     * Assert that memory usage stays below a threshold
+     * Generate performance report.
      */
-    public function assertMemoryUsageBelow(int $bytes, Closure $operation, ?string $message = null): void
+    public function generateReport(): string
     {
-        $startMemory = memory_get_usage();
-        $operation();
-        $memoryUsed = memory_get_usage() - $startMemory;
-        
-        if ($memoryUsed > $bytes) {
-            $message = $message ?? sprintf(
-                'Operation used %s of memory, expected less than %s',
-                $this->formatBytes($memoryUsed),
-                $this->formatBytes($bytes)
-            );
-            
-            throw new \PHPUnit\Framework\AssertionFailedError($message);
+        $summary = $this->getSummary();
+
+        $report = "Performance Test Report\n";
+        $report .= "======================\n\n";
+
+        $report .= "Summary:\n";
+        $report .= sprintf("- Total Operations: %d\n", $summary['total_operations']);
+        $report .= sprintf("- Total Time: %.2fms\n", $summary['operations']['total_time'] ?? 0);
+        $report .= sprintf("- Average Time: %.2fms\n", $summary['operations']['average_time'] ?? 0);
+        $report .= sprintf("- Min Time: %.2fms\n", $summary['operations']['min_time'] ?? 0);
+        $report .= sprintf("- Max Time: %.2fms\n\n", $summary['operations']['max_time'] ?? 0);
+
+        if (! empty($summary['benchmarks'])) {
+            $report .= "Benchmarks:\n";
+
+            foreach ($summary['benchmarks'] as $benchmark) {
+                $report .= sprintf(
+                    "- %s: %.2fms (avg over %d iterations)\n",
+                    $benchmark['name'],
+                    $benchmark['mean'],
+                    $benchmark['iterations'],
+                );
+            }
+            $report .= "\n";
         }
+
+        if ($this->detailed) {
+            $report .= "Detailed Metrics:\n";
+
+            foreach ($this->metrics as $metric) {
+                if (isset($metric['duration'])) {
+                    $report .= sprintf(
+                        "- %s: %.2fms, Memory: %s\n",
+                        $metric['name'],
+                        $metric['duration'],
+                        $this->formatBytes($metric['memory_used'] ?? 0),
+                    );
+                }
+            }
+        }
+
+        return $report;
     }
 
     /**
-     * Get all collected metrics
+     * Get all collected metrics.
      */
     public function getMetrics(): array
     {
@@ -272,7 +210,7 @@ class PerformanceTesting
     }
 
     /**
-     * Get metrics summary
+     * Get metrics summary.
      */
     public function getSummary(): array
     {
@@ -293,7 +231,7 @@ class PerformanceTesting
                 'min_time' => $operations->min(),
                 'max_time' => $operations->max(),
             ],
-            'benchmarks' => $benchmarks->map(fn($b) => [
+            'benchmarks' => $benchmarks->map(static fn ($b): array => [
                 'name' => $b['name'],
                 'mean' => $b['mean'],
                 'iterations' => $b['iterations'],
@@ -302,104 +240,200 @@ class PerformanceTesting
     }
 
     /**
-     * Generate performance report
+     * Measure the performance of a single operation.
+     *
+     * @param string  $name
+     * @param Closure $operation
      */
-    public function generateReport(): string
+    public function measure(string $name, Closure $operation): array
     {
-        $summary = $this->getSummary();
-        
-        $report = "Performance Test Report\n";
-        $report .= "======================\n\n";
-        
-        $report .= "Summary:\n";
-        $report .= sprintf("- Total Operations: %d\n", $summary['total_operations']);
-        $report .= sprintf("- Total Time: %.2fms\n", $summary['operations']['total_time'] ?? 0);
-        $report .= sprintf("- Average Time: %.2fms\n", $summary['operations']['average_time'] ?? 0);
-        $report .= sprintf("- Min Time: %.2fms\n", $summary['operations']['min_time'] ?? 0);
-        $report .= sprintf("- Max Time: %.2fms\n\n", $summary['operations']['max_time'] ?? 0);
-        
-        if (!empty($summary['benchmarks'])) {
-            $report .= "Benchmarks:\n";
-            foreach ($summary['benchmarks'] as $benchmark) {
-                $report .= sprintf(
-                    "- %s: %.2fms (avg over %d iterations)\n",
-                    $benchmark['name'],
-                    $benchmark['mean'],
-                    $benchmark['iterations']
-                );
-            }
-            $report .= "\n";
-        }
-        
-        if ($this->detailed) {
-            $report .= "Detailed Metrics:\n";
-            foreach ($this->metrics as $metric) {
-                if (isset($metric['duration'])) {
-                    $report .= sprintf(
-                        "- %s: %.2fms, Memory: %s\n",
-                        $metric['name'],
-                        $metric['duration'],
-                        $this->formatBytes($metric['memory_used'] ?? 0)
-                    );
-                }
-            }
-        }
-        
-        return $report;
+        $startTime = microtime(true);
+        $startMemory = memory_get_usage();
+        $startPeakMemory = memory_get_peak_usage();
+
+        // Execute the operation
+        $operation();
+
+        $endTime = microtime(true);
+        $endMemory = memory_get_usage();
+        $endPeakMemory = memory_get_peak_usage();
+
+        $metrics = [
+            'name' => $name,
+            'duration' => ($endTime - $startTime) * 1000, // Convert to milliseconds
+            'memory_used' => $endMemory - $startMemory,
+            'peak_memory' => $endPeakMemory - $startPeakMemory,
+            'timestamp' => now()->toIso8601String(),
+        ];
+
+        $this->metrics[] = $metrics;
+
+        return $metrics;
     }
 
     /**
-     * Reset all metrics
+     * Measure batch check performance.
+     *
+     * @param array   $checks
+     * @param ?string $name
+     */
+    public function measureBatchCheck(array $checks, ?string $name = null): array
+    {
+        $name ??= sprintf('batchCheck(%d checks)', count($checks));
+
+        return $this->measure($name, static fn () => OpenFga::batchCheck($checks));
+    }
+
+    /**
+     * Measure permission check performance.
+     *
+     * @param string  $user
+     * @param string  $relation
+     * @param string  $object
+     * @param ?string $name
+     */
+    public function measureCheck(string $user, string $relation, string $object, ?string $name = null): array
+    {
+        $name ??= sprintf('check(%s, %s, %s)', $user, $relation, $object);
+
+        return $this->measure($name, static fn () => OpenFga::check($user, $relation, $object));
+    }
+
+    /**
+     * Measure expand performance.
+     *
+     * @param string  $object
+     * @param string  $relation
+     * @param ?string $name
+     */
+    public function measureExpand(string $object, string $relation, ?string $name = null): array
+    {
+        $name ??= sprintf('expand(%s, %s)', $object, $relation);
+
+        return $this->measure($name, static fn () => OpenFga::expand($object, $relation));
+    }
+
+    /**
+     * Measure list objects performance.
+     *
+     * @param string  $user
+     * @param string  $relation
+     * @param string  $objectType
+     * @param ?string $name
+     */
+    public function measureListObjects(string $user, string $relation, string $objectType, ?string $name = null): array
+    {
+        $name ??= sprintf('listObjects(%s, %s, %s)', $user, $relation, $objectType);
+
+        return $this->measure($name, static fn () => OpenFga::listObjects($user, $relation, $objectType));
+    }
+
+    /**
+     * Measure write performance.
+     *
+     * @param array   $writes
+     * @param array   $deletes
+     * @param ?string $name
+     */
+    public function measureWrite(array $writes, array $deletes = [], ?string $name = null): array
+    {
+        $totalOps = count($writes) + count($deletes);
+        $name ??= sprintf('write(%d operations)', $totalOps);
+
+        return $this->measure($name, static fn () => OpenFga::writeBatch($writes, $deletes));
+    }
+
+    /**
+     * Profile memory usage during operation.
+     *
+     * @param string  $name
+     * @param Closure $operation
+     * @param int     $samples
+     */
+    public function profileMemory(string $name, Closure $operation, int $samples = 10): array
+    {
+        $startTime = microtime(true);
+
+        // Execute operation
+        $result = $operation();
+
+        $duration = microtime(true) - $startTime;
+
+        // Calculate memory stats
+        $initialMemory = memory_get_usage();
+        $peakMemory = memory_get_peak_usage();
+
+        return [
+            'name' => $name,
+            'duration' => $duration * 1000,
+            'memory_usage' => [
+                'initial' => $initialMemory,
+                'peak' => $peakMemory,
+                'difference' => $peakMemory - $initialMemory,
+            ],
+            'result' => $result,
+        ];
+    }
+
+    /**
+     * Reset all metrics.
      */
     public function reset(): self
     {
         $this->metrics = [];
-        $this->memorySnapshots = [];
+
         return $this;
     }
 
     /**
-     * Calculate statistics for a set of measurements
+     * Calculate statistics for a set of measurements.
+     *
+     * @param array $values
      */
     private function calculateStats(array $values): array
     {
         sort($values);
         $count = count($values);
-        
+
         return [
             'mean' => array_sum($values) / $count,
-            'median' => $values[intval($count / 2)],
+            'median' => $values[(int) ($count / 2)],
             'min' => min($values),
             'max' => max($values),
-            'p95' => $values[intval($count * 0.95)],
-            'p99' => $values[intval($count * 0.99)],
+            'p95' => $values[(int) ($count * 0.95)],
+            'p99' => $values[(int) ($count * 0.99)],
             'stddev' => $this->calculateStdDev($values),
         ];
     }
 
     /**
-     * Calculate standard deviation
+     * Calculate standard deviation.
+     *
+     * @param array $values
      */
     private function calculateStdDev(array $values): float
     {
         $mean = array_sum($values) / count($values);
-        $variance = array_sum(array_map(fn($x) => pow($x - $mean, 2), $values)) / count($values);
+        $variance = array_sum(array_map(static fn ($x): float | int => ($x - $mean) ** 2, $values)) / count($values);
+
         return sqrt($variance);
     }
 
     /**
-     * Format bytes to human readable format
+     * Format bytes to human readable format.
+     *
+     * @param int $bytes
      */
     private function formatBytes(int $bytes): string
     {
         $units = ['B', 'KB', 'MB', 'GB'];
         $i = 0;
-        
-        while (abs($bytes) >= 1024 && $i < count($units) - 1) {
+
+        while (1024 <= abs($bytes) && $i < count($units) - 1) {
             $bytes /= 1024;
-            $i++;
+            ++$i;
         }
-        
+
         return round($bytes, 2) . ' ' . $units[$i];
     }
 }
