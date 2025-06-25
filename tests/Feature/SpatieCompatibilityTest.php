@@ -4,16 +4,15 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Tests\Feature;
 
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use OpenFGA\Laravel\Compatibility\SpatieCompatibility;
 use OpenFGA\Laravel\Testing\FakesOpenFga;
-use OpenFGA\Laravel\Tests\{TestCase, User};
+use OpenFGA\Laravel\Tests\{FeatureTestCase, User};
 
-final class SpatieCompatibilityTest extends TestCase
+final class SpatieCompatibilityTest extends FeatureTestCase
 {
     use FakesOpenFga;
-    use RefreshDatabase;
 
     private SpatieCompatibility $compatibility;
 
@@ -90,8 +89,8 @@ final class SpatieCompatibilityTest extends TestCase
     public function test_has_all_permissions_works(): void
     {
         $fake = $this->getFakeOpenFga();
-        $fake->grant($this->user->authorizationUser(), 'editor', 'post:123');
-        $fake->grant($this->user->authorizationUser(), 'viewer', 'post:123');
+        $fake->grant($this->user->authorizationUser(), 'editor', 'post:*');
+        $fake->grant($this->user->authorizationUser(), 'viewer', 'post:*');
 
         $result = $this->compatibility->hasAllPermissions(
             $this->user,
@@ -115,7 +114,7 @@ final class SpatieCompatibilityTest extends TestCase
     public function test_has_any_permission_works(): void
     {
         $fake = $this->getFakeOpenFga();
-        $fake->grant($this->user->authorizationUser(), 'viewer', 'post:123');
+        $fake->grant($this->user->authorizationUser(), 'viewer', 'post:*');
 
         $result = $this->compatibility->hasAnyPermission(
             $this->user,
@@ -138,7 +137,7 @@ final class SpatieCompatibilityTest extends TestCase
     public function test_has_permission_to_works(): void
     {
         $fake = $this->getFakeOpenFga();
-        $fake->grant($this->user->authorizationUser(), 'editor', 'post:123');
+        $fake->grant($this->user->authorizationUser(), 'editor', 'post:*');
 
         $result = $this->compatibility->hasPermissionTo($this->user, 'edit posts');
 
@@ -157,7 +156,7 @@ final class SpatieCompatibilityTest extends TestCase
 
     public function test_model_context_works(): void
     {
-        $post = new class {
+        $post = new class extends Model {
             public function authorizationObject(): string
             {
                 return 'post:123';

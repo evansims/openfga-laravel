@@ -82,18 +82,20 @@ describe('HasAuthorization Trait', function (): void {
         Container::setInstance($this->container);
         App::setFacadeApplication($this->container);
 
-        // Mock config for tests
-        $this->container->instance('config', new class {
-            public function get($key, $default = null)
-            {
-                $configs = [
-                    'openfga.cleanup_on_delete' => true,
-                    'openfga.replicate_permissions' => false,
-                ];
-
-                return $configs[$key] ?? $default;
-            }
-        });
+        // Mock config using Mockery
+        $configMock = \Mockery::mock('config');
+        $configMock->shouldReceive('get')
+            ->with('openfga.cleanup_on_delete', \Mockery::any())
+            ->andReturn(true);
+        $configMock->shouldReceive('get')
+            ->with('openfga.replicate_permissions', \Mockery::any())
+            ->andReturn(false);
+        $configMock->shouldReceive('get')
+            ->andReturnUsing(function ($key, $default = null) {
+                return $default;
+            });
+            
+        $this->container->instance('config', $configMock);
 
         $this->config = [
             'default' => 'main',

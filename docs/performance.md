@@ -37,7 +37,7 @@ OPENFGA_CACHE_TAGS_ENABLED=true
 Pre-load frequently checked permissions:
 
 ```php
-use OpenFga\Laravel\Facades\OpenFga;
+use OpenFGA\Laravel\Facades\OpenFga;
 
 // Warm cache for common permissions
 $commonChecks = [
@@ -156,7 +156,7 @@ OPENFGA_QUEUE_NAME=openfga-high
 Example usage:
 
 ```php
-use OpenFga\Laravel\Jobs\BatchWriteJob;
+use OpenFGA\Laravel\Jobs\BatchWriteJob;
 
 // Queue permission updates
 BatchWriteJob::dispatch($writes, $deletes)
@@ -182,7 +182,7 @@ php artisan queue:work redis --queue=openfga-low --tries=5 --timeout=120
 Enable request deduplication to prevent duplicate API calls:
 
 ```php
-use OpenFga\Laravel\Deduplication\RequestDeduplicator;
+use OpenFGA\Laravel\Deduplication\RequestDeduplicator;
 
 // Deduplication is automatic for identical concurrent requests
 $results = OpenFga::withDeduplication()->batchCheck($checks);
@@ -239,7 +239,7 @@ OPENFGA_DEBUGBAR_ENABLED=true
 Track custom metrics in your application:
 
 ```php
-use OpenFga\Laravel\Profiling\OpenFgaProfiler;
+use OpenFGA\Laravel\Profiling\OpenFgaProfiler;
 
 $profiler = app(OpenFgaProfiler::class);
 $profile = $profiler->startProfile('custom_operation', ['key' => 'value']);
@@ -353,7 +353,7 @@ Expected performance targets:
 Implement custom cache key strategies:
 
 ```php
-use OpenFga\Laravel\Cache\CacheKeyGenerator;
+use OpenFGA\Laravel\Cache\CacheKeyGenerator;
 
 class CustomCacheKeyGenerator extends CacheKeyGenerator
 {
@@ -378,7 +378,7 @@ class PrecomputePermissions extends Command
     {
         $users = User::active()->get();
         $documents = Document::recent()->get();
-        
+
         $checks = [];
         foreach ($users as $user) {
             foreach ($documents as $document) {
@@ -391,7 +391,7 @@ class PrecomputePermissions extends Command
                 }
             }
         }
-        
+
         // Warm cache with batch check
         OpenFga::batchCheck($checks);
     }

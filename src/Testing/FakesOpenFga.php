@@ -147,6 +147,16 @@ trait FakesOpenFga // @phpstan-ignore trait.unused
                 return $this->fake->expand($object, $relation);
             }
 
+            public function batchCheck(array $checks, ?string $connection = null): array
+            {
+                return $this->fake->batchCheck($checks);
+            }
+            
+            public function listUsers(string $object, string $relation, array $userFilters = [], array $contextualTuples = [], array $context = [], ?string $connection = null): array
+            {
+                return $this->fake->listUsers($object, $relation);
+            }
+
             public function writeBatch(array $writes = [], array $deletes = [], ?string $connection = null): void
             {
                 $this->fake->writeBatch($writes, $deletes);

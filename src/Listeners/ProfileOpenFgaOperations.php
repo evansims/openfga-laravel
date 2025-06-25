@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace OpenFga\Laravel\Listeners;
+namespace OpenFGA\Laravel\Listeners;
 
-use OpenFga\Laravel\Events\{BatchCheckPerformed, CheckPerformed, ExpandPerformed, ListObjectsPerformed, ListRelationsPerformed, ListUsersPerformed, ReadPerformed, WritePerformed};
-use OpenFga\Laravel\Profiling\OpenFgaProfiler;
+use OpenFGA\Laravel\Events\{BatchCheckPerformed, CheckPerformed, ExpandPerformed, ListObjectsPerformed, ListRelationsPerformed, ListUsersPerformed, ReadPerformed, WritePerformed};
+use OpenFGA\Laravel\Profiling\OpenFgaProfiler;
 
 use function count;
 

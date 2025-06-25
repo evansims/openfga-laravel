@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Log;
 use OpenFGA\Laravel\Events\PermissionChanged;
 
 use function in_array;
+use function is_array;
 
 final class WebhookManager
 {
@@ -62,6 +63,11 @@ final class WebhookManager
         $payload = $this->buildPayload($event);
 
         foreach ($this->webhooks as $name => $webhook) {
+            // Skip if webhook is not properly configured
+            if (! is_array($webhook)) {
+                continue;
+            }
+
             if (! $this->shouldSendWebhook($webhook, $event)) {
                 continue;
             }

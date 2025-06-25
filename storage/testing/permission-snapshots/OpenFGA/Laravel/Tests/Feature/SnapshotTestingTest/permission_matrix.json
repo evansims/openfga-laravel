@@ -1,0 +1,35 @@
+{
+    "name": "permission_matrix",
+    "timestamp": "2025-06-25T05:57:21+00:00",
+    "snapshot": {
+        "permission_matrix": {
+            "user:admin:admin:organization:acme": true,
+            "user:admin:editor:organization:acme": false,
+            "user:admin:viewer:organization:acme": false,
+            "user:admin:admin:post:1": false,
+            "user:admin:editor:post:1": false,
+            "user:admin:viewer:post:1": false,
+            "user:admin:admin:post:2": false,
+            "user:admin:editor:post:2": false,
+            "user:admin:viewer:post:2": false,
+            "user:editor:admin:organization:acme": false,
+            "user:editor:editor:organization:acme": false,
+            "user:editor:viewer:organization:acme": false,
+            "user:editor:admin:post:1": false,
+            "user:editor:editor:post:1": true,
+            "user:editor:viewer:post:1": false,
+            "user:editor:admin:post:2": false,
+            "user:editor:editor:post:2": true,
+            "user:editor:viewer:post:2": false,
+            "user:viewer:admin:organization:acme": false,
+            "user:viewer:editor:organization:acme": false,
+            "user:viewer:viewer:organization:acme": false,
+            "user:viewer:admin:post:1": false,
+            "user:viewer:editor:post:1": false,
+            "user:viewer:viewer:post:1": true,
+            "user:viewer:admin:post:2": false,
+            "user:viewer:editor:post:2": false,
+            "user:viewer:viewer:post:2": false
+        }
+    }
+}

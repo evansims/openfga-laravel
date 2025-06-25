@@ -6,10 +6,11 @@ namespace OpenFGA\Laravel\Testing;
 
 use Closure;
 use Exception;
-use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
+use Orchestra\Testbench\TestCase as BaseTestCase;
 use Illuminate\Support\Facades\Config;
 use OpenFGA\{Client, ClientInterface};
 use OpenFGA\Laravel\OpenFgaManager;
+use OpenFGA\Laravel\OpenFgaServiceProvider;
 use RuntimeException;
 
 use function sprintf;
@@ -30,6 +31,16 @@ abstract class IntegrationTestCase extends BaseTestCase
     protected ?string $testModelId = null;
 
     protected ?string $testStoreId = null;
+
+    /**
+     * Get package providers.
+     */
+    protected function getPackageProviders($app): array
+    {
+        return [
+            OpenFgaServiceProvider::class,
+        ];
+    }
 
     /**
      * Assert permission check with retries for eventual consistency.

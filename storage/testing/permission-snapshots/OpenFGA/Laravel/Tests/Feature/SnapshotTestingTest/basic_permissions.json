@@ -1,0 +1,84 @@
+{
+    "name": "basic_permissions",
+    "timestamp": "2025-06-25T05:57:21+00:00",
+    "snapshot": {
+        "user_permissions": {
+            "user:1": [
+                {
+                    "user": "user:1",
+                    "relation": "owner",
+                    "object": "document:1",
+                    "allowed": true
+                },
+                {
+                    "user": "user:1",
+                    "relation": "editor",
+                    "object": "document:1",
+                    "allowed": false
+                },
+                {
+                    "user": "user:1",
+                    "relation": "viewer",
+                    "object": "document:1",
+                    "allowed": false
+                },
+                {
+                    "user": "user:1",
+                    "relation": "owner",
+                    "object": "document:2",
+                    "allowed": false
+                },
+                {
+                    "user": "user:1",
+                    "relation": "editor",
+                    "object": "document:2",
+                    "allowed": true
+                },
+                {
+                    "user": "user:1",
+                    "relation": "viewer",
+                    "object": "document:2",
+                    "allowed": false
+                }
+            ],
+            "user:2": [
+                {
+                    "user": "user:2",
+                    "relation": "owner",
+                    "object": "document:1",
+                    "allowed": false
+                },
+                {
+                    "user": "user:2",
+                    "relation": "editor",
+                    "object": "document:1",
+                    "allowed": false
+                },
+                {
+                    "user": "user:2",
+                    "relation": "viewer",
+                    "object": "document:1",
+                    "allowed": true
+                },
+                {
+                    "user": "user:2",
+                    "relation": "owner",
+                    "object": "document:2",
+                    "allowed": false
+                },
+                {
+                    "user": "user:2",
+                    "relation": "editor",
+                    "object": "document:2",
+                    "allowed": false
+                },
+                {
+                    "user": "user:2",
+                    "relation": "viewer",
+                    "object": "document:2",
+                    "allowed": true
+                }
+            ]
+        }
+    }
+}

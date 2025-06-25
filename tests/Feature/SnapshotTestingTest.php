@@ -4,15 +4,14 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Tests\Feature;
 
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use OpenFGA\Laravel\Testing\{FakesOpenFga, SnapshotsTesting};
-use OpenFGA\Laravel\Tests\TestCase;
+use OpenFGA\Laravel\Tests\FeatureTestCase;
 use PHPUnit\Framework\AssertionFailedError;
 
-final class SnapshotTestingTest extends TestCase
+final class SnapshotTestingTest extends FeatureTestCase
 {
     use FakesOpenFga;
-    use RefreshDatabase;
+
     use SnapshotsTesting;
 
     protected function setUp(): void

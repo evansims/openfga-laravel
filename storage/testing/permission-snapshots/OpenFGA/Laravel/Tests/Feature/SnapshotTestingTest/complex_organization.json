@@ -1,0 +1,113 @@
+{
+    "name": "complex_organization",
+    "timestamp": "2025-06-25T05:57:21+00:00",
+    "snapshot": {
+        "permission_matrix": {
+            "user:ceo:admin:organization:acme": true,
+            "user:ceo:manager:organization:acme": false,
+            "user:ceo:member:organization:acme": false,
+            "user:ceo:admin:department:engineering": false,
+            "user:ceo:manager:department:engineering": false,
+            "user:ceo:member:department:engineering": false,
+            "user:ceo:admin:department:marketing": false,
+            "user:ceo:manager:department:marketing": false,
+            "user:ceo:member:department:marketing": false,
+            "user:manager1:admin:organization:acme": false,
+            "user:manager1:manager:organization:acme": false,
+            "user:manager1:member:organization:acme": false,
+            "user:manager1:admin:department:engineering": false,
+            "user:manager1:manager:department:engineering": true,
+            "user:manager1:member:department:engineering": false,
+            "user:manager1:admin:department:marketing": false,
+            "user:manager1:manager:department:marketing": false,
+            "user:manager1:member:department:marketing": false,
+            "user:manager2:admin:organization:acme": false,
+            "user:manager2:manager:organization:acme": false,
+            "user:manager2:member:organization:acme": false,
+            "user:manager2:admin:department:engineering": false,
+            "user:manager2:manager:department:engineering": false,
+            "user:manager2:member:department:engineering": false,
+            "user:manager2:admin:department:marketing": false,
+            "user:manager2:manager:department:marketing": true,
+            "user:manager2:member:department:marketing": false
+        },
+        "user_permissions": {
+            "user:dev1": [
+                {
+                    "user": "user:dev1",
+                    "relation": "owner",
+                    "object": "document:api-spec",
+                    "allowed": false
+                },
+                {
+                    "user": "user:dev1",
+                    "relation": "editor",
+                    "object": "document:api-spec",
+                    "allowed": true
+                },
+                {
+                    "user": "user:dev1",
+                    "relation": "viewer",
+                    "object": "document:api-spec",
+                    "allowed": false
+                },
+                {
+                    "user": "user:dev1",
+                    "relation": "owner",
+                    "object": "document:roadmap",
+                    "allowed": false
+                },
+                {
+                    "user": "user:dev1",
+                    "relation": "editor",
+                    "object": "document:roadmap",
+                    "allowed": false
+                },
+                {
+                    "user": "user:dev1",
+                    "relation": "viewer",
+                    "object": "document:roadmap",
+                    "allowed": true
+                }
+            ],
+            "user:dev2": [
+                {
+                    "user": "user:dev2",
+                    "relation": "owner",
+                    "object": "document:api-spec",
+                    "allowed": false
+                },
+                {
+                    "user": "user:dev2",
+                    "relation": "editor",
+                    "object": "document:api-spec",
+                    "allowed": true
+                },
+                {
+                    "user": "user:dev2",
+                    "relation": "viewer",
+                    "object": "document:api-spec",
+                    "allowed": false
+                },
+                {
+                    "user": "user:dev2",
+                    "relation": "owner",
+                    "object": "document:roadmap",
+                    "allowed": false
+                },
+                {
+                    "user": "user:dev2",
+                    "relation": "editor",
+                    "object": "document:roadmap",
+                    "allowed": false
+                },
+                {
+                    "user": "user:dev2",
+                    "relation": "viewer",
+                    "object": "document:roadmap",
+                    "allowed": false
+                }
+            ]
+        }
+    }
+}

@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Tests\Feature\Commands;
 
-use OpenFGA\Laravel\Tests\TestCase;
+use OpenFGA\Laravel\Tests\FeatureTestCase;
 
-final class StoreAndAuditCommandsTest extends TestCase
+final class StoreAndAuditCommandsTest extends FeatureTestCase
 {
     public function test_analyze_permissions_command_all_options(): void
     {

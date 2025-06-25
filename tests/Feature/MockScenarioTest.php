@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Tests\Feature;
 
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use OpenFGA\Laravel\Testing\{FakesOpenFga, UsesMockScenarios};
-use OpenFGA\Laravel\Tests\TestCase;
+use OpenFGA\Laravel\Tests\FeatureTestCase;
 
-final class MockScenarioTest extends TestCase
+final class MockScenarioTest extends FeatureTestCase
 {
     use FakesOpenFga;
-    use RefreshDatabase;
+
     use UsesMockScenarios;
 
     protected function setUp(): void

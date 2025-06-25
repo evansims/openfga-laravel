@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel;
 
+use Exception;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Container\BindingResolutionException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
+use InvalidArgumentException;
 use OpenFGA\Exceptions\ClientThrowable;
 use OpenFGA\Laravel\Contracts\{
     AuthorizationObject,
@@ -31,7 +33,6 @@ if (! function_exists('openfga_can')) {
      * @param mixed       $object
      * @param string|null $connection
      *
-     * @throws Psr\SimpleCache\InvalidArgumentException
      * @throws BindingResolutionException
      * @throws ClientThrowable
      * @throws Exception
@@ -57,12 +58,12 @@ if (! function_exists('openfga_can')) {
         $objectId = openfga_resolve_object($object);
 
         return $manager->check(
-            $userId,
-            $relation,
-            $objectId,
-            [],
-            [],
-            $connection,
+            user: $userId,
+            relation: $relation,
+            object: $objectId,
+            contextualTuples: [],
+            context: [],
+            connection: $connection,
         );
     }
 }
@@ -75,7 +76,6 @@ if (! function_exists('openfga_cannot')) {
      * @param mixed       $object
      * @param string|null $connection
      *
-     * @throws Psr\SimpleCache\InvalidArgumentException
      * @throws BindingResolutionException
      * @throws ClientThrowable
      * @throws Exception

@@ -7,6 +7,8 @@ namespace OpenFGA\Laravel\Import;
 use Exception;
 use Illuminate\Support\Facades\{Log};
 use OpenFGA\Laravel\OpenFgaManager;
+use OpenFGA\Models\Collections\TupleKeys;
+use OpenFGA\Models\TupleKey;
 use RuntimeException;
 
 use function function_exists;
@@ -194,7 +196,7 @@ final class PermissionImporter
      */
     private function processBatch(array $batch): void
     {
-        $writes = [];
+        $tuples = [];
 
         foreach ($batch as $permission) {
             ++$this->stats['processed'];
@@ -207,12 +209,12 @@ final class PermissionImporter
                     continue;
                 }
 
-                // Build write operation
-                $writes[] = [
-                    'user' => $permission['user'],
-                    'relation' => $permission['relation'],
-                    'object' => $permission['object'],
-                ];
+                // Build TupleKey
+                $tuples[] = new TupleKey(
+                    user: $permission['user'],
+                    relation: $permission['relation'],
+                    object: $permission['object'],
+                );
 
                 ++$this->stats['imported'];
             } catch (Exception $e) {
@@ -230,7 +232,8 @@ final class PermissionImporter
         }
 
         // Execute writes if not dry run
-        if ([] !== $writes && ! $this->options['dry_run']) {
+        if ([] !== $tuples && ! $this->options['dry_run']) {
+            $writes = new TupleKeys($tuples);
             $this->manager->write($writes);
         }
     }

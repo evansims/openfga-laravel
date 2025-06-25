@@ -1,10 +1,5 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
 ## [Unreleased]
 
 ### Added
@@ -50,7 +45,7 @@ public function batchCheck(array $checks, ?string $connection = null): array
  * Check if a user has a specific permission.
  *
  * @param string $user
- * @param string $relation  
+ * @param string $relation
  * @param string $object
  * @param array<array{user: string, relation: string, object: string}|TupleKey> $contextualTuples
  * @param array<string, mixed> $context
@@ -58,7 +53,7 @@ public function batchCheck(array $checks, ?string $connection = null): array
  */
 public function check(
     string $user,
-    string $relation, 
+    string $relation,
     string $object,
     array $contextualTuples = [],
     array $context = [],
@@ -110,21 +105,21 @@ While no breaking changes are expected, developers can benefit from the enhanced
 1. **Enabling strict typing in your models**:
    ```php
    <?php
-   
+
    declare(strict_types=1);
-   
+
    namespace App\Models;
-   
+
    use OpenFGA\Laravel\Traits\HasAuthorization;
    ```
 
 2. **Using the new DTO pattern**:
    ```php
    use OpenFGA\Laravel\DTOs\PermissionCheckRequest;
-   
+
    $request = PermissionCheckRequest::fromUser(
        user: $user,
-       relation: 'editor', 
+       relation: 'editor',
        object: 'document:123'
    );
    ```
@@ -138,7 +133,7 @@ While no breaking changes are expected, developers can benefit from the enhanced
 ### Performance Improvements
 
 - **Reduced runtime type checking overhead** through compile-time guarantees
-- **Better opcode optimization** via strict type declarations  
+- **Better opcode optimization** via strict type declarations
 - **Enhanced caching efficiency** with type-safe cache keys
 
 ---

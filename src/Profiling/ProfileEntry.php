@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace OpenFga\Laravel\Profiling;
+namespace OpenFGA\Laravel\Profiling;
 
 use Carbon\Carbon;
 

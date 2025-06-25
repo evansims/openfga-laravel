@@ -122,11 +122,16 @@ final class WebhookCommand extends Command
         $rows = [];
 
         foreach ($webhooks as $name => $webhook) {
+            // Skip if webhook is not properly configured
+            if (! is_array($webhook)) {
+                continue;
+            }
+            
             $rows[] = [
                 $name,
-                $webhook['url'],
+                $webhook['url'] ?? '',
                 implode(', ', $webhook['events'] ?? ['*']),
-                $webhook['active'] ? 'Active' : 'Inactive',
+                ($webhook['active'] ?? true) ? 'Active' : 'Inactive',
             ];
         }
 

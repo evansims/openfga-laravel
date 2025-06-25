@@ -268,6 +268,32 @@ final class FakeOpenFga
     }
 
     /**
+     * Batch check multiple permissions.
+     *
+     * @param array $checks
+     * @return array
+     */
+    public function batchCheck(array $checks): array
+    {
+        $results = [];
+        
+        foreach ($checks as $check) {
+            $user = $check[0] ?? $check['user'] ?? '';
+            $relation = $check[1] ?? $check['relation'] ?? '';
+            $object = $check[2] ?? $check['object'] ?? '';
+            
+            $results[] = [
+                'allowed' => $this->check($user, $relation, $object),
+                'user' => $user,
+                'relation' => $relation,
+                'object' => $object,
+            ];
+        }
+        
+        return $results;
+    }
+
+    /**
      * Expand a relation to see all users who have it.
      *
      * @param string $object
@@ -425,7 +451,9 @@ final class FakeOpenFga
      */
     public function listUsers(string $object, string $relation): array
     {
-        $this->throwIfShouldFail();
+        if ($this->shouldFail) {
+            throw $this->failureException ?? new RuntimeException('Fake OpenFGA listUsers failed');
+        }
 
         $key = sprintf('%s:%s', $object, $relation);
 

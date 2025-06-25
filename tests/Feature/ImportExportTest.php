@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Tests\Feature;
 
+use Mockery;
 use OpenFGA\Laravel\Export\PermissionExporter;
 use OpenFGA\Laravel\Import\PermissionImporter;
 use OpenFGA\Laravel\OpenFgaManager;
-use OpenFGA\Laravel\Tests\TestCase;
+use OpenFGA\Laravel\Tests\FeatureTestCase;
 
-final class ImportExportTest extends TestCase
+final class ImportExportTest extends FeatureTestCase
 {
     protected string $tempDir;
 
@@ -35,7 +36,7 @@ final class ImportExportTest extends TestCase
             '--user' => 'user:123',
         ])
             ->expectsOutputToContain('Exporting permissions to:')
-            ->expectsOutputToContain('Successfully exported')
+            ->expectsOutputToContain('Successfully exported 3 permissions')
             ->assertSuccessful();
 
         $this->assertFileExists("{$this->tempDir}/cmd_export.json");
@@ -43,7 +44,7 @@ final class ImportExportTest extends TestCase
 
     public function test_export_to_csv(): void
     {
-        $manager = $this->mock(OpenFgaManager::class);
+        $manager = $this->app->make(OpenFgaManager::class);
         $exporter = new PermissionExporter($manager);
 
         $file = "{$this->tempDir}/export.csv";
@@ -58,7 +59,7 @@ final class ImportExportTest extends TestCase
 
     public function test_export_to_json(): void
     {
-        $manager = $this->mock(OpenFgaManager::class);
+        $manager = $this->app->make(OpenFgaManager::class);
         $exporter = new PermissionExporter($manager);
 
         $file = "{$this->tempDir}/export.json";
@@ -102,9 +103,7 @@ final class ImportExportTest extends TestCase
 
     public function test_import_dry_run(): void
     {
-        $manager = $this->mock(OpenFgaManager::class);
-        $manager->shouldNotReceive('write'); // Should not write in dry run
-
+        $manager = $this->app->make(OpenFgaManager::class);
         $importer = new PermissionImporter($manager);
 
         $data = [
@@ -120,13 +119,12 @@ final class ImportExportTest extends TestCase
 
         $this->assertEquals(1, $stats['processed']);
         $this->assertEquals(1, $stats['imported']);
+        $this->assertEquals(0, $stats['errors']);
     }
 
     public function test_import_from_csv(): void
     {
-        $manager = $this->mock(OpenFgaManager::class);
-        $manager->shouldReceive('write')->once();
-
+        $manager = $this->app->make(OpenFgaManager::class);
         $importer = new PermissionImporter($manager);
 
         $csv = "user,relation,object\n";
@@ -144,9 +142,7 @@ final class ImportExportTest extends TestCase
 
     public function test_import_from_json(): void
     {
-        $manager = $this->mock(OpenFgaManager::class);
-        $manager->shouldReceive('write')->once();
-
+        $manager = $this->app->make(OpenFgaManager::class);
         $importer = new PermissionImporter($manager);
 
         $data = [
@@ -168,7 +164,7 @@ final class ImportExportTest extends TestCase
 
     public function test_import_with_validation_errors(): void
     {
-        $manager = $this->mock(OpenFgaManager::class);
+        $manager = $this->app->make(OpenFgaManager::class);
         $importer = new PermissionImporter($manager);
 
         $data = [

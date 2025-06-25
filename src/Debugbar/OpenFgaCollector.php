@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace OpenFga\Laravel\Debugbar;
+namespace OpenFGA\Laravel\Debugbar;
 
 use DebugBar\DataCollector\{DataCollector, DataCollectorInterface, Renderable};
-use OpenFga\Laravel\Profiling\OpenFgaProfiler;
+use OpenFGA\Laravel\Profiling\OpenFgaProfiler;
 
 final class OpenFgaCollector extends DataCollector implements DataCollectorInterface, Renderable
 {

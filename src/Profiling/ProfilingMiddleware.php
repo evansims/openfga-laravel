@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace OpenFga\Laravel\Profiling;
+namespace OpenFGA\Laravel\Profiling;
 
 use Closure;
 use Illuminate\Http\Request;
@@ -47,7 +47,7 @@ final readonly class ProfilingMiddleware
 
     private function shouldInjectProfiler(Request $request, $response): bool
     {
-        return config('openfga.profiling.inject_web_middleware', false)
+        return true === config('openfga.profiling.inject_web_middleware', false)
             && $this->profiler->isEnabled()
             && $request->acceptsHtml()
             && 'text/html' === $response->headers->get('Content-Type', '')

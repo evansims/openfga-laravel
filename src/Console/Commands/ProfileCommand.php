@@ -2,11 +2,12 @@
 
 declare(strict_types=1);
 
-namespace OpenFga\Laravel\Console\Commands;
+namespace OpenFGA\Laravel\Console\Commands;
 
 use Illuminate\Console\Command;
-use OpenFga\Laravel\Profiling\OpenFgaProfiler;
+use OpenFGA\Laravel\Profiling\OpenFgaProfiler;
 
+use function count;
 use function sprintf;
 
 final class ProfileCommand extends Command
@@ -71,7 +72,7 @@ final class ProfileCommand extends Command
         $this->line(sprintf('Slow Queries: %d', $summary['slow_queries']));
         $this->line('');
 
-        if (empty($summary['operations'])) {
+        if (0 === count($summary['operations'])) {
             $this->warn('No operations recorded');
 
             return;

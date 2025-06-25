@@ -41,6 +41,7 @@
   "require-dev": {
     "ergebnis/composer-normalize": "^2",
     "friendsofphp/php-cs-fixer": "^3",
+    "orchestra/testbench": "^10.4.0",
     "pestphp/pest": "^3",
     "pestphp/pest-plugin-laravel": "^3",
     "phpstan/phpstan": "^2",

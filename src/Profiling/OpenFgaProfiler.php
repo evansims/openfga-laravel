@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace OpenFga\Laravel\Profiling;
+namespace OpenFGA\Laravel\Profiling;
 
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
@@ -74,7 +74,7 @@ final class OpenFgaProfiler
 
     public function logSlowQueries(): void
     {
-        if (! config('openfga.profiling.log_slow_queries', true)) {
+        if (true !== config('openfga.profiling.log_slow_queries', true)) {
             return;
         }
 

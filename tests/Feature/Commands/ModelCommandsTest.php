@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace OpenFGA\Laravel\Tests\Feature\Commands;
 
 use Illuminate\Support\Facades\File;
-use OpenFGA\Laravel\Tests\TestCase;
+use OpenFGA\Laravel\Tests\FeatureTestCase;
 
-final class ModelCommandsTest extends TestCase
+final class ModelCommandsTest extends FeatureTestCase
 {
     protected string $modelsPath;
 

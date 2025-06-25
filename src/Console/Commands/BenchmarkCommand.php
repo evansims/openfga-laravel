@@ -24,7 +24,8 @@ class BenchmarkCommand extends Command
 
     public function handle(): int
     {
-        $this->tester = new PerformanceTesting()->enableDetailed();
+        $this->tester = new PerformanceTesting();
+        $this->tester->enableDetailed();
         
         $suite = $this->option('suite');
         $iterations = (int) $this->option('iterations');
