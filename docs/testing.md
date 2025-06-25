@@ -1,6 +1,24 @@
-# Testing Guide
+# Testing with OpenFGA Laravel
 
-This guide covers how to test your application's authorization logic using the OpenFGA Laravel package's testing utilities.
+This comprehensive guide covers how to effectively test applications that use OpenFGA for authorization, including unit tests, integration tests, and end-to-end testing strategies.
+
+## Table of Contents
+
+- [Getting Started](#getting-started)
+- [Testing Utilities Overview](#testing-utilities-overview)
+- [Basic Testing](#basic-testing)
+- [Testing with Models](#testing-with-models)
+- [Advanced Testing Features](#advanced-testing-features)
+- [Testing Failures and Errors](#testing-failures-and-errors)
+- [Testing HTTP Requests](#testing-http-requests)
+- [Testing Events](#testing-events)
+- [Common Testing Scenarios](#common-testing-scenarios)
+- [Testing Utilities](#testing-utilities)
+- [Performance Testing](#performance-testing)
+- [Test Organization](#test-organization)
+- [Integration Testing](#integration-testing)
+- [Testing Best Practices](#testing-best-practices)
+- [Troubleshooting](#troubleshooting)
 
 ## Getting Started
 
@@ -30,6 +48,69 @@ class DocumentAuthorizationTest extends TestCase
         $this->fakeOpenFga();
     }
 }
+```
+
+## Testing Utilities Overview
+
+The package provides several testing utilities to make testing authorization logic straightforward and reliable:
+
+### 1. FakesOpenFga Trait
+
+Replaces the real OpenFGA service with a fake implementation for testing:
+
+```php
+use OpenFGA\Laravel\Testing\FakesOpenFga;
+
+class MyTest extends TestCase
+{
+    use FakesOpenFga;
+    
+    public function test_authorization()
+    {
+        $fake = $this->fakeOpenFga();
+        
+        // Your test code here
+    }
+}
+```
+
+### 2. CreatesPermissionData Trait
+
+Provides pre-built permission scenarios for common testing needs:
+
+```php
+use OpenFGA\Laravel\Testing\CreatesPermissionData;
+
+class MyTest extends TestCase
+{
+    use FakesOpenFga, CreatesPermissionData;
+    
+    public function test_blog_permissions()
+    {
+        $fake = $this->fakeOpenFga();
+        $data = $this->createBlogSystem($fake);
+        
+        // Test with pre-configured blog permission structure
+        $this->assertTrue($fake->check($data['users']['admin'], 'admin', $data['blog']));
+    }
+}
+```
+
+### 3. AssertionHelper Class
+
+Provides specialized assertions for permission testing:
+
+```php
+use OpenFGA\Laravel\Testing\AssertionHelper;
+
+// Assert user has specific permission
+AssertionHelper::assertUserHasPermission($fake, 'user:123', 'read', 'document:456');
+
+// Assert user has any of multiple permissions
+AssertionHelper::assertUserHasAnyPermission($fake, 'user:123', ['read', 'write'], 'document:456');
+
+// Assert user has all permissions
+AssertionHelper::assertUserHasAllPermissions($fake, 'user:123', ['read', 'write'], 'document:456');
 ```
 
 ## Basic Testing
@@ -402,6 +483,136 @@ public function test_events_are_dispatched()
 }
 ```
 
+## Common Testing Scenarios
+
+The `CreatesPermissionData` trait provides pre-built scenarios for common authorization patterns. Here are some examples:
+
+### Blog System Testing
+
+```php
+public function test_blog_author_permissions()
+{
+    $fake = $this->fakeOpenFga();
+    $data = $this->createBlogSystem($fake);
+    
+    // Author can edit their own posts
+    $this->assertTrue($fake->check($data['users']['author1'], 'author', $data['posts']['post1']));
+    
+    // Author cannot edit other's posts
+    $this->assertFalse($fake->check($data['users']['author1'], 'author', $data['posts']['post2']));
+    
+    // Editor can edit all posts
+    $this->assertTrue($fake->check($data['users']['editor'], 'editor', $data['blog']));
+    
+    // Subscribers can read posts
+    $this->assertTrue($fake->check($data['users']['subscriber'], 'reader', $data['posts']['post1']));
+}
+```
+
+### File System Testing
+
+```php
+public function test_file_system_permissions()
+{
+    $fake = $this->fakeOpenFga();
+    $data = $this->createFileSystem($fake);
+    
+    // Users can access their home directories
+    AssertionHelper::assertUserHasAllPermissions(
+        $fake, 
+        $data['users']['user1'], 
+        ['read', 'write', 'execute'], 
+        $data['folders']['user1_home']
+    );
+    
+    // Users cannot access other home directories
+    AssertionHelper::assertUserDoesNotHavePermission(
+        $fake, 
+        $data['users']['user1'], 
+        'read', 
+        $data['folders']['user2_home']
+    );
+    
+    // Shared files are accessible to all
+    AssertionHelper::assertUserHasAccessToObjects(
+        $fake,
+        $data['users']['guest'],
+        'read',
+        [$data['files']['shared_file']]
+    );
+}
+```
+
+### E-commerce Testing
+
+```php
+public function test_ecommerce_permissions()
+{
+    $fake = $this->fakeOpenFga();
+    $data = $this->createEcommerceSystem($fake);
+    
+    // Customers can view their own orders
+    $this->assertTrue($fake->check($data['users']['customer1'], 'view', $data['orders']['order1']));
+    
+    // Support can view all orders
+    AssertionHelper::assertUserHasAccessToObjects(
+        $fake,
+        $data['users']['support'],
+        'view',
+        array_values($data['orders'])
+    );
+    
+    // Vendors can manage their products
+    $this->assertTrue($fake->check($data['users']['vendor1'], 'manage', $data['products']['product1']));
+    $this->assertFalse($fake->check($data['users']['vendor1'], 'manage', $data['products']['product3']));
+}
+```
+
+### Organization Structure Testing
+
+```php
+public function test_organization_hierarchy()
+{
+    $fake = $this->fakeOpenFga();
+    $data = $this->createOrganizationStructure($fake);
+    
+    // CEO has admin access to organization
+    $this->assertTrue($fake->check($data['users']['ceo'], 'admin', $data['organization']));
+    
+    // Department managers can manage their departments
+    $this->assertTrue($fake->check($data['users']['hr_manager'], 'manager', $data['departments']['hr']));
+    $this->assertFalse($fake->check($data['users']['hr_manager'], 'manager', $data['departments']['it']));
+    
+    // Project contributors have appropriate access
+    $this->assertTrue($fake->check($data['users']['developer'], 'contributor', $data['projects']['project1']));
+}
+```
+
+### Complex Hierarchy Testing
+
+```php
+public function test_nested_hierarchy_permissions()
+{
+    $fake = $this->fakeOpenFga();
+    $data = $this->createNestedHierarchy($fake);
+    
+    // Super admin has top-level access
+    $this->assertTrue($fake->check($data['users']['super_admin'], 'super_admin', $data['hierarchy']['company']));
+    
+    // Managers have appropriate scope
+    $this->assertTrue($fake->check($data['users']['dept_manager'], 'manager', $data['hierarchy']['department']));
+    $this->assertTrue($fake->check($data['users']['team_lead'], 'lead', $data['hierarchy']['team']));
+    
+    // Contributors have project access
+    AssertionHelper::assertUserHasAllPermissions(
+        $fake,
+        $data['users']['employee'],
+        ['contributor'],
+        $data['hierarchy']['project']
+    );
+}
+```
+
 ## Testing Utilities
 
 ### Creating Test Factories
@@ -621,9 +832,244 @@ class RealOpenFgaTest extends TestCase
 }
 ```
 
+## Testing Best Practices
+
+### 1. Isolate Tests
+
+Always use the fake implementation for unit tests to ensure isolation:
+
+```php
+public function test_isolated_permission_check()
+{
+    $fake = $this->fakeOpenFga();
+    
+    // Each test starts with a clean slate
+    $this->assertNoPermissionChecks();
+}
+```
+
+### 2. Test Permission Boundaries
+
+Test both positive and negative cases:
+
+```php
+public function test_permission_boundaries()
+{
+    $fake = $this->fakeOpenFga();
+    
+    // Grant specific permission
+    $fake->grant('user:123', 'read', 'document:456');
+    
+    // Test granted permission
+    $this->assertTrue($fake->check('user:123', 'read', 'document:456'));
+    
+    // Test different user (should fail)
+    $this->assertFalse($fake->check('user:999', 'read', 'document:456'));
+    
+    // Test different permission (should fail)
+    $this->assertFalse($fake->check('user:123', 'write', 'document:456'));
+    
+    // Test different object (should fail)
+    $this->assertFalse($fake->check('user:123', 'read', 'document:999'));
+}
+```
+
+### 3. Test Complex Scenarios
+
+Use the permission data creators for complex scenarios:
+
+```php
+public function test_complex_organization_permissions()
+{
+    $fake = $this->fakeOpenFga();
+    $data = $this->createOrganizationStructure($fake);
+    
+    // Test CEO has admin access to organization
+    $this->assertTrue($fake->check($data['users']['ceo'], 'admin', $data['organization']));
+    
+    // Test department managers can manage their departments
+    $this->assertTrue($fake->check($data['users']['hr_manager'], 'manager', $data['departments']['hr']));
+    $this->assertFalse($fake->check($data['users']['hr_manager'], 'manager', $data['departments']['it']));
+}
+```
+
+### 4. Verify No Unexpected Checks
+
+Ensure your code doesn't make unnecessary permission checks:
+
+```php
+public function test_no_redundant_permission_checks()
+{
+    $fake = $this->fakeOpenFga();
+    
+    // Perform action that should only check once
+    $service = new DocumentService();
+    $service->getPublicDocuments();
+    
+    // Assert exactly the expected number of checks
+    $this->assertPermissionCheckCount(1);
+}
+```
+
+### 5. Test Cache Behavior
+
+Verify that caching works as expected:
+
+```php
+public function test_permission_checks_are_cached()
+{
+    $fake = $this->fakeOpenFga();
+    $user = User::factory()->create();
+    $document = Document::factory()->create();
+    
+    // Grant permission
+    $fake->grant("user:{$user->id}", 'viewer', "document:{$document->id}");
+    
+    // First check
+    $document->check($user, 'viewer');
+    
+    // Second check should hit cache (if implemented)
+    $document->check($user, 'viewer');
+    
+    // Verify only one actual check was made
+    $this->assertPermissionCheckCount(1);
+}
+```
+
+### 6. Use Descriptive Test Names
+
+Make test intentions clear:
+
+```php
+public function test_document_owner_can_grant_editor_permissions_to_other_users()
+{
+    // Test is self-documenting from the name
+}
+
+public function test_non_owner_cannot_grant_permissions_and_receives_403_error()
+{
+    // Clear what should happen
+}
+```
+
+### 7. Group Related Tests
+
+Organize tests logically:
+
+```php
+class DocumentPermissionTest extends TestCase
+{
+    // All document-related permission tests
+}
+
+class UserRoleTest extends TestCase
+{
+    // All user role tests
+}
+```
+
+## Troubleshooting
+
+### Common Issues
+
+#### 1. Fake Not Active
+
+```
+Error: OpenFGA fake is not active. Call fakeOpenFga() first.
+```
+
+**Solution**: Always call `$this->fakeOpenFga()` before making assertions:
+
+```php
+public function test_something()
+{
+    $fake = $this->fakeOpenFga(); // Must call this first
+    
+    // Now you can use assertions
+    $this->assertNoPermissionChecks();
+}
+```
+
+#### 2. Permission Not Found
+
+```
+Error: Failed asserting that permission was granted
+```
+
+**Solution**: Ensure you're using exact string matching for user, relation, and object:
+
+```php
+// Wrong - inconsistent formatting
+$fake->grant('user:123', 'read', 'document:456');
+$this->assertPermissionGranted('user:123', 'read', 'document:457'); // Different ID
+
+// Correct
+$fake->grant('user:123', 'read', 'document:456');
+$this->assertPermissionGranted('user:123', 'read', 'document:456');
+```
+
+#### 3. Unexpected Permission Checks
+
+Use the assertion helpers to debug what checks are being made:
+
+```php
+public function test_debug_checks()
+{
+    $fake = $this->fakeOpenFga();
+    
+    // Your code here
+    
+    // Debug what checks were made
+    $checks = $fake->getChecks();
+    dd($checks); // See all permission checks that occurred
+}
+```
+
+### Testing Environment Setup
+
+For consistent testing, configure your test environment:
+
+```php
+// tests/TestCase.php
+protected function setUp(): void
+{
+    parent::setUp();
+    
+    // Always use fake in tests by default
+    if (!app()->environment('production')) {
+        $this->fakeOpenFga();
+    }
+}
+```
+
+### Test Data Management
+
+Create reusable test data:
+
+```php
+// tests/Fixtures/PermissionFixtures.php
+class PermissionFixtures
+{
+    public static function grantBasicDocumentPermissions(FakeOpenFga $fake, User $user, Document $document): void
+    {
+        $fake->grant("user:{$user->id}", 'read', "document:{$document->id}");
+        $fake->grant("user:{$user->id}", 'write', "document:{$document->id}");
+    }
+}
+```
+
 ## Next Steps
 
 - Optimize with [Performance Guide](performance.md)
 - See [Troubleshooting Guide](troubleshooting.md)
 - Check the [API Reference](api-reference.md)
 - Review [Example Application](https://github.com/openfga/laravel-example)
+
+## Additional Resources
+
+- [OpenFGA Documentation](https://openfga.dev/docs)
+- [Laravel Testing Documentation](https://laravel.com/docs/testing)
+- [PHPUnit Documentation](https://phpunit.de/documentation.html)
+- [Pest PHP Testing Framework](https://pestphp.com/)
+
+For more advanced testing scenarios and examples, see the `tests/` directory in this package for comprehensive test suites covering all features.

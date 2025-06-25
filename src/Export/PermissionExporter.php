@@ -1,0 +1,231 @@
+<?php
+
+declare(strict_types=1);
+
+namespace OpenFGA\Laravel\Export;
+
+use Illuminate\Support\Collection;
+use OpenFGA\Laravel\OpenFgaManager;
+
+class PermissionExporter
+{
+    protected OpenFgaManager $manager;
+    protected array $options = [];
+
+    public function __construct(OpenFgaManager $manager)
+    {
+        $this->manager = $manager;
+    }
+
+    /**
+     * Export permissions to a file
+     */
+    public function exportToFile(string $filename, array $filters = [], array $options = []): int
+    {
+        $this->options = array_merge([
+            'format' => $this->detectFormat($filename),
+            'include_metadata' => true,
+            'pretty_print' => true,
+        ], $options);
+
+        $permissions = $this->collectPermissions($filters);
+        $count = count($permissions);
+
+        $content = match ($this->options['format']) {
+            'json' => $this->exportJson($permissions),
+            'csv' => $this->exportCsv($permissions),
+            'yaml' => $this->exportYaml($permissions),
+            default => throw new \RuntimeException("Unsupported format: {$this->options['format']}"),
+        };
+
+        file_put_contents($filename, $content);
+
+        return $count;
+    }
+
+    /**
+     * Export permissions to array
+     */
+    public function exportToArray(array $filters = []): array
+    {
+        $permissions = $this->collectPermissions($filters);
+
+        if ($this->options['include_metadata'] ?? true) {
+            return [
+                'metadata' => [
+                    'exported_at' => now()->toIso8601String(),
+                    'total' => count($permissions),
+                    'filters' => $filters,
+                    'application' => config('app.name'),
+                    'environment' => app()->environment(),
+                ],
+                'permissions' => $permissions,
+            ];
+        }
+
+        return $permissions;
+    }
+
+    /**
+     * Collect permissions based on filters
+     */
+    protected function collectPermissions(array $filters): array
+    {
+        // Note: In a real implementation, this would query OpenFGA
+        // For now, we'll simulate with example data
+
+        $permissions = [];
+
+        // Filter by user
+        if (isset($filters['user'])) {
+            // Would query: listObjects for specific user
+            $permissions = $this->getPermissionsForUser($filters['user']);
+        }
+        // Filter by object
+        elseif (isset($filters['object'])) {
+            // Would query: listUsers for specific object
+            $permissions = $this->getPermissionsForObject($filters['object']);
+        }
+        // Filter by object type
+        elseif (isset($filters['object_type'])) {
+            // Would query: all objects of type
+            $permissions = $this->getPermissionsForObjectType($filters['object_type']);
+        }
+        // Export all (use with caution)
+        else {
+            $permissions = $this->getAllPermissions();
+        }
+
+        // Apply additional filters
+        if (isset($filters['relation'])) {
+            $permissions = array_filter($permissions, fn($p) => $p['relation'] === $filters['relation']);
+        }
+
+        return array_values($permissions);
+    }
+
+    /**
+     * Export to JSON format
+     */
+    protected function exportJson(array $permissions): string
+    {
+        $data = $this->options['include_metadata'] 
+            ? $this->exportToArray([])
+            : $permissions;
+
+        $flags = $this->options['pretty_print'] 
+            ? JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES 
+            : 0;
+
+        return json_encode($data, $flags);
+    }
+
+    /**
+     * Export to CSV format
+     */
+    protected function exportCsv(array $permissions): string
+    {
+        $output = fopen('php://temp', 'r+');
+
+        // Write headers
+        fputcsv($output, ['user', 'relation', 'object']);
+
+        // Write data
+        foreach ($permissions as $permission) {
+            fputcsv($output, [
+                $permission['user'],
+                $permission['relation'],
+                $permission['object'],
+            ]);
+        }
+
+        rewind($output);
+        $content = stream_get_contents($output);
+        fclose($output);
+
+        return $content;
+    }
+
+    /**
+     * Export to YAML format
+     */
+    protected function exportYaml(array $permissions): string
+    {
+        if (! function_exists('yaml_emit')) {
+            throw new \RuntimeException('YAML extension not installed');
+        }
+
+        $data = $this->options['include_metadata']
+            ? $this->exportToArray([])
+            : ['permissions' => $permissions];
+
+        return yaml_emit($data);
+    }
+
+    /**
+     * Detect format from filename
+     */
+    protected function detectFormat(string $filename): string
+    {
+        $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+
+        return match ($extension) {
+            'json' => 'json',
+            'csv' => 'csv',
+            'yml', 'yaml' => 'yaml',
+            default => throw new \RuntimeException("Cannot detect format from extension: {$extension}"),
+        };
+    }
+
+    /**
+     * Simulate getting permissions for a user
+     */
+    protected function getPermissionsForUser(string $user): array
+    {
+        // In real implementation, would use listObjects
+        return [
+            ['user' => $user, 'relation' => 'owner', 'object' => 'document:1'],
+            ['user' => $user, 'relation' => 'editor', 'object' => 'document:2'],
+            ['user' => $user, 'relation' => 'viewer', 'object' => 'folder:shared'],
+        ];
+    }
+
+    /**
+     * Simulate getting permissions for an object
+     */
+    protected function getPermissionsForObject(string $object): array
+    {
+        // In real implementation, would use listUsers
+        return [
+            ['user' => 'user:1', 'relation' => 'owner', 'object' => $object],
+            ['user' => 'user:2', 'relation' => 'editor', 'object' => $object],
+            ['user' => 'user:3', 'relation' => 'viewer', 'object' => $object],
+        ];
+    }
+
+    /**
+     * Simulate getting permissions for an object type
+     */
+    protected function getPermissionsForObjectType(string $type): array
+    {
+        // In real implementation, would query all objects of type
+        return [
+            ['user' => 'user:1', 'relation' => 'owner', 'object' => "{$type}:1"],
+            ['user' => 'user:1', 'relation' => 'owner', 'object' => "{$type}:2"],
+            ['user' => 'user:2', 'relation' => 'editor', 'object' => "{$type}:1"],
+        ];
+    }
+
+    /**
+     * Simulate getting all permissions (dangerous in production)
+     */
+    protected function getAllPermissions(): array
+    {
+        // This would be very expensive in production
+        return [
+            ['user' => 'user:1', 'relation' => 'owner', 'object' => 'document:1'],
+            ['user' => 'user:2', 'relation' => 'editor', 'object' => 'document:1'],
+            ['user' => 'user:3', 'relation' => 'viewer', 'object' => 'document:1'],
+        ];
+    }
+}

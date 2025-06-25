@@ -1,0 +1,41 @@
+model
+  schema 1.1
+
+type user
+
+type organization
+  relations
+    define admin: [user]
+    define manager: [user] or admin
+    define member: [user] or manager
+
+type department
+  relations
+    define parent: [organization]
+    define admin: admin from parent
+    define manager: [user] or admin
+    define member: [user] or manager
+
+type team
+  relations
+    define parent: [department]
+    define admin: admin from parent
+    define manager: manager from parent
+    define lead: [user] or manager
+    define member: [user] or lead
+
+type folder
+  relations
+    define parent: [organization, department, team]
+    define admin: admin from parent
+    define manager: manager from parent
+    define editor: [user] or manager
+    define viewer: [user] or editor
+
+type document
+  relations
+    define parent: [folder, team, department, organization]
+    define admin: admin from parent
+    define owner: [user] or admin
+    define editor: [user] or owner or manager from parent
+    define viewer: [user] or editor

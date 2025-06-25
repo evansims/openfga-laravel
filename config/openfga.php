@@ -187,4 +187,32 @@ return [
     */
 
     'throw_exceptions' => env('OPENFGA_THROW_EXCEPTIONS', true),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Webhook Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Configure webhooks to receive notifications when permissions change.
+    | Each webhook can listen to specific events or all events.
+    |
+    */
+
+    'webhooks' => [
+        'enabled' => env('OPENFGA_WEBHOOKS_ENABLED', false),
+        'timeout' => env('OPENFGA_WEBHOOK_TIMEOUT', 5),
+        'retries' => env('OPENFGA_WEBHOOK_RETRIES', 3),
+        'send_check_events' => env('OPENFGA_WEBHOOK_SEND_CHECKS', false),
+        
+        'endpoints' => [
+            // 'primary' => [
+            //     'url' => env('OPENFGA_WEBHOOK_URL'),
+            //     'headers' => [
+            //         'Authorization' => 'Bearer ' . env('OPENFGA_WEBHOOK_TOKEN'),
+            //     ],
+            //     'events' => ['permission.granted', 'permission.revoked'],
+            //     'active' => true,
+            // ],
+        ],
+    ],
 ];

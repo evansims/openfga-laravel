@@ -50,6 +50,13 @@ final class FakeOpenFga
     private array $mockListObjects = [];
 
     /**
+     * Mock responses for list users operations.
+     *
+     * @var array<string, array<string>>
+     */
+    private array $mockListUsers = [];
+
+    /**
      * Mock responses for specific check operations.
      *
      * @var array<string, bool>
@@ -442,6 +449,50 @@ final class FakeOpenFga
     }
 
     /**
+     * Set a mocked response for list users operation.
+     *
+     * @param string        $object
+     * @param string        $relation
+     * @param array<string> $users
+     */
+    public function setListUsersResponse(string $object, string $relation, array $users): self
+    {
+        $key = "{$object}:{$relation}";
+        $this->mockListUsers[$key] = $users;
+
+        return $this;
+    }
+
+    /**
+     * Get users with a specific relation to an object.
+     *
+     * @param string $object
+     * @param string $relation
+     * @return array<string>
+     */
+    public function listUsers(string $object, string $relation): array
+    {
+        $this->throwIfShouldFail();
+
+        $key = "{$object}:{$relation}";
+        
+        // Return mocked response if available
+        if (isset($this->mockListUsers[$key])) {
+            return $this->mockListUsers[$key];
+        }
+
+        // Otherwise, calculate from tuples
+        $users = [];
+        foreach ($this->tuples as $tuple) {
+            if ($tuple['object'] === $object && $tuple['relation'] === $relation) {
+                $users[] = $tuple['user'];
+            }
+        }
+
+        return array_unique($users);
+    }
+
+    /**
      * Clear all recorded data.
      */
     public function reset(): self
@@ -453,9 +504,19 @@ final class FakeOpenFga
         $this->writes = [];
         $this->mockResponses = [];
         $this->mockListObjects = [];
+        $this->mockListUsers = [];
         $this->shouldFail = false;
         $this->failureException = null;
 
+        return $this;
+    }
+
+    /**
+     * Clear only the recorded checks.
+     */
+    public function resetChecks(): self
+    {
+        $this->checks = [];
         return $this;
     }
 

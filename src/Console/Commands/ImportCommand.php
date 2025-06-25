@@ -1,0 +1,111 @@
+<?php
+
+declare(strict_types=1);
+
+namespace OpenFGA\Laravel\Console\Commands;
+
+use Illuminate\Console\Command;
+use OpenFGA\Laravel\Import\PermissionImporter;
+
+class ImportCommand extends Command
+{
+    /**
+     * The name and signature of the console command.
+     *
+     * @var string
+     */
+    protected $signature = 'openfga:import
+                            {file : The file to import from}
+                            {--format= : File format (json, csv, yaml)}
+                            {--batch-size=100 : Number of permissions to import per batch}
+                            {--skip-errors : Continue importing even if errors occur}
+                            {--dry-run : Preview what would be imported without making changes}
+                            {--clear-existing : Clear all existing permissions before import}
+                            {--no-validate : Skip validation checks}
+                            {--connection= : The OpenFGA connection to use}';
+
+    /**
+     * The console command description.
+     *
+     * @var string
+     */
+    protected $description = 'Import permissions from a file';
+
+    /**
+     * Execute the console command.
+     */
+    public function handle(PermissionImporter $importer): int
+    {
+        $file = $this->argument('file');
+
+        if (! file_exists($file)) {
+            $this->error("File not found: {$file}");
+            return self::FAILURE;
+        }
+
+        $options = [
+            'format' => $this->option('format'),
+            'batch_size' => (int) $this->option('batch-size'),
+            'skip_errors' => $this->option('skip-errors'),
+            'dry_run' => $this->option('dry-run'),
+            'clear_existing' => $this->option('clear-existing'),
+            'validate' => ! $this->option('no-validate'),
+        ];
+
+        if ($this->option('dry-run')) {
+            $this->warn('Running in dry-run mode. No changes will be made.');
+        }
+
+        if ($this->option('clear-existing') && ! $this->option('dry-run')) {
+            if (! $this->confirm('This will delete ALL existing permissions. Are you sure?')) {
+                return self::FAILURE;
+            }
+            $this->warn('Clearing existing permissions is not yet implemented.');
+        }
+
+        $this->info("Importing permissions from: {$file}");
+
+        try {
+            $stats = $importer->importFromFile($file, $options);
+
+            $this->displayResults($stats);
+
+            return $stats['errors'] > 0 && ! $this->option('skip-errors') 
+                ? self::FAILURE 
+                : self::SUCCESS;
+        } catch (\Exception $e) {
+            $this->error("Import failed: {$e->getMessage()}");
+            return self::FAILURE;
+        }
+    }
+
+    /**
+     * Display import results
+     */
+    protected function displayResults(array $stats): void
+    {
+        $this->newLine();
+        $this->info('Import completed!');
+        
+        $this->table(
+            ['Metric', 'Count'],
+            [
+                ['Processed', $stats['processed']],
+                ['Imported', $stats['imported']],
+                ['Skipped', $stats['skipped']],
+                ['Errors', $stats['errors']],
+            ]
+        );
+
+        if ($stats['errors'] > 0) {
+            $this->warn("There were {$stats['errors']} errors during import.");
+            if (! $this->option('skip-errors')) {
+                $this->error('Import was halted due to errors.');
+            }
+        }
+
+        if ($this->option('dry-run')) {
+            $this->comment('This was a dry run. No permissions were actually imported.');
+        }
+    }
+}

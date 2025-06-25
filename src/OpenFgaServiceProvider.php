@@ -53,12 +53,27 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
                 Console\Commands\WarmCacheCommand::class,
                 Console\Commands\ClearCacheCommand::class,
                 Console\Commands\CacheStatsCommand::class,
+                Console\Commands\MigrateFromSpatieCommand::class,
+                Console\Commands\SnapshotCommand::class,
+                Console\Commands\BenchmarkCommand::class,
+                Console\Commands\SetupIntegrationTestsCommand::class,
+                Console\Commands\ModelCreateCommand::class,
+                Console\Commands\ModelValidateCommand::class,
+                Console\Commands\StoreCreateCommand::class,
+                Console\Commands\AuditPermissionsCommand::class,
+                Console\Commands\AnalyzePermissionsCommand::class,
+                Console\Commands\WebhookCommand::class,
+                Console\Commands\ImportCommand::class,
+                Console\Commands\ExportCommand::class,
             ]);
         }
 
         $this->registerMiddleware();
         $this->registerAuthorizationIntegration();
         $this->registerBladeIntegration();
+        $this->registerSpatieCompatibility();
+        $this->registerDebugbarIntegration();
+        $this->registerWebhooks();
         $this->loadHelpers();
         $this->validateConfiguration();
     }
@@ -93,6 +108,7 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
         $this->registerManager();
         $this->registerDefaultClient();
         $this->registerViewHelpers();
+        $this->registerImportExport();
     }
 
     /**
@@ -168,6 +184,34 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
 
         // Register view paths
         $this->loadViewsFrom(__DIR__ . '/../resources/views', 'openfga');
+    }
+
+    /**
+     * Register Spatie Laravel Permission compatibility layer if enabled.
+     */
+    private function registerSpatieCompatibility(): void
+    {
+        if (config('spatie-compatibility.enabled', false)) {
+            $this->app->register(Providers\SpatieCompatibilityServiceProvider::class);
+        }
+    }
+
+    /**
+     * Register Laravel Debugbar integration if available.
+     */
+    private function registerDebugbarIntegration(): void
+    {
+        if (class_exists(\Barryvdh\Debugbar\ServiceProvider::class)) {
+            $this->app->register(Debugbar\DebugbarServiceProvider::class);
+        }
+    }
+
+    /**
+     * Register webhook support.
+     */
+    private function registerWebhooks(): void
+    {
+        $this->app->register(Webhooks\WebhookServiceProvider::class);
     }
 
     /**
@@ -257,6 +301,15 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
 
             return new MenuBuilder($manager);
         });
+    }
+
+    /**
+     * Register import/export services.
+     */
+    private function registerImportExport(): void
+    {
+        $this->app->bind(Import\PermissionImporter::class);
+        $this->app->bind(Export\PermissionExporter::class);
     }
 
     /**
