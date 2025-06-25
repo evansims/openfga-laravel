@@ -131,6 +131,17 @@ return [
         'tags' => [
             'enabled' => env('OPENFGA_CACHE_TAGS_ENABLED', true),
         ],
+
+        // Write-behind cache for non-critical updates
+        'write_behind' => [
+            'enabled' => env('OPENFGA_WRITE_BEHIND_ENABLED', false),
+            'store' => env('OPENFGA_WRITE_BEHIND_STORE'), // null = use default cache store
+            'batch_size' => env('OPENFGA_WRITE_BEHIND_BATCH_SIZE', 100),
+            'flush_interval' => env('OPENFGA_WRITE_BEHIND_FLUSH_INTERVAL', 5), // seconds
+            'ttl' => env('OPENFGA_WRITE_BEHIND_TTL', 300), // 5 minutes
+            'periodic_flush' => env('OPENFGA_WRITE_BEHIND_PERIODIC_FLUSH', false),
+            'flush_on_shutdown' => env('OPENFGA_WRITE_BEHIND_FLUSH_ON_SHUTDOWN', true),
+        ],
     ],
 
     /*
@@ -187,6 +198,24 @@ return [
     */
 
     'throw_exceptions' => env('OPENFGA_THROW_EXCEPTIONS', true),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Connection Pool Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Configure connection pooling for better performance under high load.
+    | This maintains a pool of reusable connections to OpenFGA.
+    |
+    */
+
+    'pool' => [
+        'enabled' => env('OPENFGA_POOL_ENABLED', false),
+        'max_connections' => env('OPENFGA_POOL_MAX_CONNECTIONS', 10),
+        'min_connections' => env('OPENFGA_POOL_MIN_CONNECTIONS', 2),
+        'max_idle_time' => env('OPENFGA_POOL_MAX_IDLE_TIME', 300), // 5 minutes
+        'connection_timeout' => env('OPENFGA_POOL_CONNECTION_TIMEOUT', 5), // seconds
+    ],
 
     /*
     |--------------------------------------------------------------------------
