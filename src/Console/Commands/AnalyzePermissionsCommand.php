@@ -6,16 +6,31 @@ namespace OpenFGA\Laravel\Console\Commands;
 
 use Exception;
 use Illuminate\Console\Command;
+use InvalidArgumentException;
 use OpenFGA\Laravel\OpenFgaManager;
 
 use function is_array;
+use function is_object;
+use function is_scalar;
+use function is_string;
 
+/**
+ * Analyzes authorization structure for insights and optimization opportunities.
+ *
+ * This command provides deep analysis of your permission model, identifying
+ * patterns, conflicts, redundancies, and optimization opportunities. It helps
+ * you understand permission inheritance paths, detect conflicting rules,
+ * and discover ways to simplify your authorization model while maintaining
+ * security. Essential for auditing and optimizing complex permission systems.
+ *
+ * @api
+ */
 final class AnalyzePermissionsCommand extends Command
 {
     /**
      * The console command description.
      *
-     * @var string
+     * @var string|null
      */
     protected $description = 'Analyze permission structure for insights and optimization';
 
@@ -35,11 +50,16 @@ final class AnalyzePermissionsCommand extends Command
      * Execute the console command.
      *
      * @param OpenFgaManager $manager
+     *
+     * @throws InvalidArgumentException
      */
     public function handle(OpenFgaManager $manager): int
     {
         $connection = $this->option('connection');
-        $manager->connection($connection);
+
+        if (is_string($connection) || null === $connection) {
+            $manager->connection($connection);
+        }
 
         $this->info('Analyzing permission structure...');
 
@@ -47,17 +67,17 @@ final class AnalyzePermissionsCommand extends Command
             $analysis = [];
 
             // Show permission paths
-            if ($this->option('show-paths')) {
+            if (true === $this->option('show-paths')) {
                 $analysis['paths'] = $this->analyzePermissionPaths();
             }
 
             // Find conflicts
-            if ($this->option('find-conflicts')) {
+            if (true === $this->option('find-conflicts')) {
                 $analysis['conflicts'] = $this->findPermissionConflicts();
             }
 
             // Optimization suggestions
-            if ($this->option('optimize')) {
+            if (true === $this->option('optimize')) {
                 $analysis['optimizations'] = $this->suggestOptimizations();
             }
 
@@ -78,6 +98,8 @@ final class AnalyzePermissionsCommand extends Command
 
     /**
      * Analyze permission inheritance paths.
+     *
+     * @return array<string, mixed>
      */
     private function analyzePermissionPaths(): array
     {
@@ -105,10 +127,13 @@ final class AnalyzePermissionsCommand extends Command
     /**
      * Display analysis results.
      *
-     * @param array $analysis
+     * @param array<string, mixed> $analysis
      */
     private function displayAnalysis(array $analysis): void
     {
+        /**
+         * @var mixed $data
+         */
         foreach ($analysis as $section => $data) {
             $this->newLine();
             $this->info(ucwords(str_replace('_', ' ', $section)) . ':');
@@ -122,36 +147,58 @@ final class AnalyzePermissionsCommand extends Command
     /**
      * Display a section of analysis data.
      *
-     * @param mixed $data
-     * @param int   $indent
+     * @param array<string, mixed>|mixed $data
+     * @param int                        $indent
      */
     private function displaySection($data, int $indent = 0): void
     {
         $prefix = str_repeat('  ', $indent);
 
-        foreach ($data as $key => $value) {
-            if (is_array($value) && ! isset($value[0])) {
-                $this->comment($prefix . ucwords(str_replace('_', ' ', (string) $key)) . ':');
-                $this->displaySection($value, $indent + 1);
-            } elseif (is_array($value)) {
-                $this->comment($prefix . ucwords(str_replace('_', ' ', (string) $key)) . ':');
+        if (! is_array($data)) {
+            $stringValue = is_scalar($data) || (is_object($data) && method_exists($data, '__toString')) ? (string) $data : 'Object';
+            $this->line($prefix . $stringValue);
 
-                foreach ($value as $item) {
-                    if (is_array($item)) {
-                        $this->displaySection($item, $indent + 1);
-                        $this->line('');
-                    } else {
-                        $this->line($prefix . '  - ' . $item);
+            return;
+        }
+
+        /**
+         * @var int|string $key
+         * @var mixed      $value
+         */
+        foreach ($data as $key => $value) {
+            $keyStr = (string) $key;
+
+            if (is_array($value)) {
+                if (! isset($value[0])) {
+                    // Associative array
+                    $this->comment($prefix . ucwords(str_replace('_', ' ', $keyStr)) . ':');
+                    $this->displaySection($value, $indent + 1);
+                } else {
+                    // Indexed array
+                    $this->comment($prefix . ucwords(str_replace('_', ' ', $keyStr)) . ':');
+
+                    /** @var mixed $item */
+                    foreach ($value as $item) {
+                        if (is_array($item)) {
+                            $this->displaySection($item, $indent + 1);
+                            $this->line('');
+                        } else {
+                            $itemStr = is_scalar($item) || (is_object($item) && method_exists($item, '__toString')) ? (string) $item : 'Object';
+                            $this->line($prefix . '  - ' . $itemStr);
+                        }
                     }
                 }
             } else {
-                $this->line($prefix . ucwords(str_replace('_', ' ', (string) $key)) . ': ' . $value);
+                $valueStr = is_scalar($value) || (is_object($value) && method_exists($value, '__toString')) ? (string) $value : 'Object';
+                $this->line($prefix . ucwords(str_replace('_', ' ', $keyStr)) . ': ' . $valueStr);
             }
         }
     }
 
     /**
      * Find potential permission conflicts.
+     *
+     * @return array<string, mixed>
      */
     private function findPermissionConflicts(): array
     {
@@ -181,6 +228,8 @@ final class AnalyzePermissionsCommand extends Command
 
     /**
      * Perform default analysis.
+     *
+     * @return array<string, mixed>
      */
     private function performDefaultAnalysis(): array
     {
@@ -219,6 +268,8 @@ final class AnalyzePermissionsCommand extends Command
 
     /**
      * Suggest optimization opportunities.
+     *
+     * @return array<string, mixed>
      */
     private function suggestOptimizations(): array
     {

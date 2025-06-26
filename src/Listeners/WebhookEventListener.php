@@ -22,7 +22,7 @@ final readonly class WebhookEventListener
     public function handlePermissionChecked(PermissionChecked $event): void
     {
         // Only send webhooks for checked events if explicitly configured
-        if (! config('openfga.webhooks.send_check_events', false)) {
+        if (true !== config('openfga.webhooks.send_check_events', false)) {
             return;
         }
 
@@ -79,7 +79,8 @@ final readonly class WebhookEventListener
     /**
      * Register the listeners for the subscriber.
      *
-     * @param mixed $events
+     * @param  mixed                       $events
+     * @return array<class-string, string>
      */
     public function subscribe($events): array
     {

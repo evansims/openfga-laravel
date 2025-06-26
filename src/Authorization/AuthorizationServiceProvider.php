@@ -26,6 +26,8 @@ use function is_string;
 
 /**
  * Service provider for OpenFGA authorization integration.
+ *
+ * @internal
  */
 final class AuthorizationServiceProvider extends ServiceProvider
 {

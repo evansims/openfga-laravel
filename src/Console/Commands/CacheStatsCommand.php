@@ -34,6 +34,7 @@ final class CacheStatsCommand extends Command
      *
      * @param OpenFgaManager $manager
      *
+     * @throws \Psr\SimpleCache\InvalidArgumentException
      * @throws InvalidArgumentException
      * @throws RuntimeException
      */

@@ -13,6 +13,8 @@ use function sprintf;
  * Data Transfer Object for permission check requests.
  *
  * Replaces associative arrays to provide better type safety and structure.
+ *
+ * @internal
  */
 final readonly class PermissionCheckRequest
 {

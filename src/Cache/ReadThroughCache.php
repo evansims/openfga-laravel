@@ -20,8 +20,17 @@ use function is_string;
 use function sprintf;
 
 /**
- * Read-through cache implementation that automatically fetches
- * and caches permissions when they're not in cache.
+ * Transparent caching layer that fetches and caches permissions automatically.
+ *
+ * This read-through cache implementation sits between your application and OpenFGA,
+ * automatically caching permission checks to reduce latency and API calls. It handles
+ * cache invalidation, TTL management, negative result caching, and provides metrics
+ * for monitoring cache performance. The cache is transparent - your application code
+ * doesn't need to know about caching logic.
+ *
+ * @internal
+ *
+ * @phpstan-type CacheConfig array{enabled?: bool|mixed, store?: string|mixed|null, ttl?: int|mixed, prefix?: string|mixed, tags_enabled?: bool|mixed, negative_ttl?: int|mixed, error_ttl?: int|mixed, log_misses?: bool|mixed, metrics_enabled?: bool|mixed}
  */
 final class ReadThroughCache
 {
@@ -39,7 +48,7 @@ final class ReadThroughCache
      * Create a new read-through cache instance.
      *
      * @param ManagerInterface     $manager
-     * @param array<string, mixed> $config
+     * @param array<string, mixed> $config  Configuration array with keys: enabled, store, ttl, prefix, tags_enabled, negative_ttl, error_ttl, log_misses, metrics_enabled
      */
     public function __construct(
         private readonly ManagerInterface $manager,
@@ -142,6 +151,7 @@ final class ReadThroughCache
     /**
      * Get cache statistics.
      *
+     * @throws \Psr\SimpleCache\InvalidArgumentException
      * @throws InvalidArgumentException
      * @throws RuntimeException
      *
@@ -426,12 +436,11 @@ final class ReadThroughCache
      * @param string        $key
      * @param array<string> $tags
      *
+     * @throws \Psr\SimpleCache\InvalidArgumentException
      * @throws InvalidArgumentException
      * @throws RuntimeException
-     *
-     * @return mixed
      */
-    private function getFromCache(string $key, array $tags)
+    private function getFromCache(string $key, array $tags): mixed
     {
         $taggedCache = $this->getTaggedCache();
 
@@ -516,10 +525,10 @@ final class ReadThroughCache
     /**
      * Put a value in cache.
      *
-     * @param string               $key
-     * @param array<string>        $tags
-     * @param array<string, mixed> $value
-     * @param int                  $ttl
+     * @param string                                                          $key
+     * @param array<string>                                                   $tags
+     * @param array{value?: array<string>|bool, error?: bool, cached_at: int} $value
+     * @param int                                                             $ttl
      *
      * @throws RuntimeException
      */

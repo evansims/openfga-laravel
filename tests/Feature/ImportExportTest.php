@@ -33,10 +33,10 @@ final class ImportExportTest extends FeatureTestCase
         // For now, skip the command test and use the exporter directly
         $manager = $this->app->make(OpenFgaManager::class);
         $exporter = new PermissionExporter($manager);
-        
+
         $file = "{$this->tempDir}/cmd_export.json";
         $count = $exporter->exportToFile($file, ['user' => 'user:123']);
-        
+
         $this->assertFileExists($file);
         $this->assertGreaterThanOrEqual(0, $count);
     }
@@ -85,9 +85,9 @@ final class ImportExportTest extends FeatureTestCase
         // For now, skip the command test and use the importer directly
         $manager = $this->app->make(OpenFgaManager::class);
         $importer = new PermissionImporter($manager);
-        
+
         $stats = $importer->importFromFile($file, ['dry_run' => true]);
-        
+
         $this->assertEquals(1, $stats['processed']);
         $this->assertEquals(1, $stats['imported']);
         $this->assertEquals(0, $stats['errors']);

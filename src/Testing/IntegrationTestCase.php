@@ -7,23 +7,38 @@ namespace OpenFGA\Laravel\Testing;
 use Closure;
 use Exception;
 use Illuminate\Support\Facades\Config;
+use InvalidArgumentException;
 use OpenFGA\{Client, ClientInterface};
+use OpenFGA\Exceptions\{ClientException, ClientThrowable};
 use OpenFGA\Laravel\{OpenFgaManager, OpenFgaServiceProvider};
+use OpenFGA\Models\Collections\TupleKeys;
+use OpenFGA\Models\TupleKey;
+use OpenFGA\Results\SuccessInterface;
 use Orchestra\Testbench\TestCase as BaseTestCase;
+use Override;
+use PHPUnit\Framework\{ExpectationFailedException, SkippedWithMessageException};
+use ReflectionException;
 use RuntimeException;
 
+use function is_array;
+use function is_string;
 use function sprintf;
 
 /**
  * Base test case for OpenFGA integration tests.
  *
  * Provides helpers for testing against a real OpenFGA instance
+ *
+ * @api
  */
 abstract class IntegrationTestCase extends BaseTestCase
 {
+    /**
+     * @var array<int, string>
+     */
     protected array $createdStores = [];
 
-    protected ?ClientInterface $openFgaClient = null;
+    protected ClientInterface | null $openFgaClient = null;
 
     protected ?OpenFgaManager $openFgaManager = null;
 
@@ -38,22 +53,50 @@ abstract class IntegrationTestCase extends BaseTestCase
      * @param string $relation
      * @param string $object
      * @param int    $maxRetries
+     *
+     * @throws ExpectationFailedException
+     * @throws RuntimeException
      */
     protected function assertEventuallyAllowed(string $user, string $relation, string $object, int $maxRetries = 10): void
     {
+        if (! $this->openFgaClient instanceof ClientInterface) {
+            throw new RuntimeException('OpenFGA client is not initialized');
+        }
+
         $allowed = false;
         $attempts = 0;
+        $client = $this->openFgaClient;
 
-        while (! $allowed && $attempts < $maxRetries) {
-            $allowed = $this->openFgaClient->check($user, $relation, $object);
+        while (false === $allowed && $attempts < $maxRetries) {
+            $tupleKey = new TupleKey(
+                user: $user,
+                relation: $relation,
+                object: $object,
+            );
 
-            if (! $allowed) {
+            if (null === $this->testStoreId || null === $this->testModelId) {
+                throw new RuntimeException('Store ID or Model ID is not set');
+            }
+
+            $result = $client->check(
+                store: $this->testStoreId,
+                model: $this->testModelId,
+                tuple: $tupleKey,
+            );
+
+            if ($result instanceof SuccessInterface && method_exists($result, 'getAllowed')) {
+                /** @var bool $getAllowedResult */
+                $getAllowedResult = $result->getAllowed();
+                $allowed = $getAllowedResult;
+            }
+
+            if (false === $allowed) {
                 $this->waitForConsistency(100);
                 ++$attempts;
             }
         }
 
-        $this->assertTrue($allowed, sprintf('Permission check failed after %d attempts: %s %s %s', $attempts, $user, $relation, $object));
+        self::assertTrue($allowed, sprintf('Permission check failed after %d attempts: %s %s %s', $attempts, $user, $relation, $object));
     }
 
     /**
@@ -63,14 +106,44 @@ abstract class IntegrationTestCase extends BaseTestCase
      * @param string $relation
      * @param string $object
      * @param int    $maxRetries
+     *
+     * @throws ExpectationFailedException
+     * @throws RuntimeException
      */
     protected function assertEventuallyDenied(string $user, string $relation, string $object, int $maxRetries = 10): void
     {
+        if (! $this->openFgaClient instanceof ClientInterface) {
+            throw new RuntimeException('OpenFGA client is not initialized');
+        }
+
         $denied = false;
         $attempts = 0;
+        $client = $this->openFgaClient;
 
         while (! $denied && $attempts < $maxRetries) {
-            $allowed = $this->openFgaClient->check($user, $relation, $object);
+            $tupleKey = new TupleKey(
+                user: $user,
+                relation: $relation,
+                object: $object,
+            );
+
+            if (null === $this->testStoreId || null === $this->testModelId) {
+                throw new RuntimeException('Store ID or Model ID is not set');
+            }
+
+            $result = $client->check(
+                store: $this->testStoreId,
+                model: $this->testModelId,
+                tuple: $tupleKey,
+            );
+
+            $allowed = false;
+
+            if ($result instanceof SuccessInterface && method_exists($result, 'getAllowed')) {
+                /** @var bool $getAllowedResult */
+                $getAllowedResult = $result->getAllowed();
+                $allowed = $getAllowedResult;
+            }
             $denied = ! $allowed;
 
             if (! $denied) {
@@ -79,18 +152,46 @@ abstract class IntegrationTestCase extends BaseTestCase
             }
         }
 
-        $this->assertTrue($denied, sprintf('Permission check should have failed after %d attempts: %s %s %s', $attempts, $user, $relation, $object));
+        self::assertTrue($denied, sprintf('Permission check should have failed after %d attempts: %s %s %s', $attempts, $user, $relation, $object));
     }
 
     /**
      * Clear all tuples in the store.
+     *
+     * @throws ClientThrowable|InvalidArgumentException|ReflectionException|RuntimeException
      */
     protected function clearAllTuples(): void
     {
         $tuples = $this->listAllTuples();
 
         if ([] !== $tuples) {
-            $this->openFgaClient->write([], $tuples);
+            if (! $this->openFgaClient instanceof ClientInterface) {
+                throw new RuntimeException('OpenFGA client is not initialized');
+            }
+            $tuplesArray = [];
+
+            foreach ($tuples as $tuple) {
+                $tuplesArray[] = new TupleKey(
+                    user: $tuple['user'],
+                    relation: $tuple['relation'],
+                    object: $tuple['object'],
+                );
+            }
+            $tuplesCollection = new TupleKeys($tuplesArray);
+
+            if (null === $this->testStoreId || null === $this->testModelId) {
+                throw new RuntimeException('Store ID or Model ID is not set');
+            }
+
+            $client = $this->openFgaClient;
+
+            if ($client instanceof ClientInterface) {
+                $client->writeTuples(
+                    store: $this->testStoreId,
+                    model: $this->testModelId,
+                    deletes: $tuplesCollection,
+                );
+            }
         }
     }
 
@@ -120,10 +221,18 @@ abstract class IntegrationTestCase extends BaseTestCase
     /**
      * Create authorization model.
      *
-     * @param array $model
+     * @param array<string, mixed> $model
+     *
+     * @throws RuntimeException
+     *
+     * @return array<string, mixed>
      */
     protected function createAuthorizationModel(array $model): array
     {
+        if (null === $this->testStoreId) {
+            throw new RuntimeException('Test store ID is not set');
+        }
+
         return $this->makeApiRequest('POST', sprintf('/stores/%s/authorization-models', $this->testStoreId), $model);
     }
 
@@ -131,6 +240,10 @@ abstract class IntegrationTestCase extends BaseTestCase
      * Create a store.
      *
      * @param string $name
+     *
+     * @throws RuntimeException
+     *
+     * @return array<string, mixed>
      */
     protected function createStore(string $name): array
     {
@@ -163,6 +276,8 @@ abstract class IntegrationTestCase extends BaseTestCase
      * Delete a store.
      *
      * @param string $storeId
+     *
+     * @throws RuntimeException
      */
     protected function deleteStore(string $storeId): void
     {
@@ -171,35 +286,62 @@ abstract class IntegrationTestCase extends BaseTestCase
 
     /**
      * Get OpenFGA client instance.
+     *
+     * @throws RuntimeException
      */
     protected function getClient(): ClientInterface
     {
+        if (! $this->openFgaClient instanceof ClientInterface) {
+            throw new RuntimeException('OpenFGA client is not initialized');
+        }
+
         return $this->openFgaClient;
     }
 
     /**
      * Get current model.
+     *
+     * @throws RuntimeException
+     *
+     * @return array<string, mixed>
      */
     protected function getCurrentModel(): array
     {
+        if (null === $this->testStoreId || null === $this->testModelId) {
+            throw new RuntimeException('Test store ID or model ID is not set');
+        }
+
         $response = $this->makeApiRequest('GET', sprintf('/stores/%s/authorization-models/%s', $this->testStoreId, $this->testModelId));
 
-        return $response['authorization_model'] ?? [];
+        if (isset($response['authorization_model']) && is_array($response['authorization_model'])) {
+            /** @var array<string, mixed> */
+            return $response['authorization_model'];
+        }
+
+        return [];
     }
 
     /**
      * Get OpenFGA manager instance.
+     *
+     * @throws RuntimeException
      */
     protected function getManager(): OpenFgaManager
     {
+        if (! $this->openFgaManager instanceof OpenFgaManager) {
+            throw new RuntimeException('OpenFGA manager is not initialized');
+        }
+
         return $this->openFgaManager;
     }
 
     /**
      * Get package providers.
      *
-     * @param mixed $app
+     * @param  mixed                    $app
+     * @return array<int, class-string>
      */
+    #[Override]
     protected function getPackageProviders($app): array
     {
         return [
@@ -209,6 +351,8 @@ abstract class IntegrationTestCase extends BaseTestCase
 
     /**
      * Get test authorization model.
+     *
+     * @return array<string, mixed>
      */
     protected function getTestAuthorizationModel(): array
     {
@@ -289,44 +433,119 @@ abstract class IntegrationTestCase extends BaseTestCase
      * @param string $user
      * @param string $relation
      * @param string $object
+     *
+     * @throws ClientException|ClientThrowable|InvalidArgumentException|ReflectionException|RuntimeException
      */
     protected function grantPermission(string $user, string $relation, string $object): void
     {
-        $this->openFgaClient->write([
-            ['user' => $user, 'relation' => $relation, 'object' => $object],
-        ]);
+        if (! $this->openFgaClient instanceof ClientInterface) {
+            throw new RuntimeException('OpenFGA client is not initialized');
+        }
+        $tupleKey = new TupleKey(
+            user: $user,
+            relation: $relation,
+            object: $object,
+        );
+        $writes = new TupleKeys([$tupleKey]);
+
+        if (null === $this->testStoreId || null === $this->testModelId) {
+            throw new RuntimeException('Store ID or Model ID is not set');
+        }
+
+        $client = $this->openFgaClient;
+
+        if ($client instanceof ClientInterface) {
+            $client->writeTuples(
+                store: $this->testStoreId,
+                model: $this->testModelId,
+                writes: $writes,
+            );
+        }
     }
 
     /**
      * Batch grant permissions.
      *
-     * @param array $tuples
+     * @param array<int, array{user: string, relation: string, object: string}> $tuples
+     *
+     * @throws ClientThrowable|InvalidArgumentException|ReflectionException|RuntimeException
      */
     protected function grantPermissions(array $tuples): void
     {
-        $this->openFgaClient->write($tuples);
+        if (! $this->openFgaClient instanceof ClientInterface) {
+            throw new RuntimeException('OpenFGA client is not initialized');
+        }
+        $tuplesCollection = [];
+
+        foreach ($tuples as $tuple) {
+            $tuplesCollection[] = new TupleKey(
+                user: $tuple['user'],
+                relation: $tuple['relation'],
+                object: $tuple['object'],
+            );
+        }
+        $writes = new TupleKeys($tuplesCollection);
+
+        if (null === $this->testStoreId || null === $this->testModelId) {
+            throw new RuntimeException('Store ID or Model ID is not set');
+        }
+
+        $client = $this->openFgaClient;
+
+        if ($client instanceof ClientInterface) {
+            $client->writeTuples(
+                store: $this->testStoreId,
+                model: $this->testModelId,
+                writes: $writes,
+            );
+        }
     }
 
     /**
      * List all tuples in the store.
+     *
+     * @throws InvalidArgumentException|RuntimeException
+     *
+     * @return array<int, array{user: string, relation: string, object: string}>
      */
     protected function listAllTuples(): array
     {
-        $response = $this->openFgaClient->read();
+        if (! $this->openFgaClient instanceof ClientInterface) {
+            throw new RuntimeException('OpenFGA client is not initialized');
+        }
 
-        return $response['tuples'] ?? [];
+        if (null === $this->testStoreId) {
+            throw new RuntimeException('Store ID is not set');
+        }
+
+        $result = $this->openFgaClient->readTuples(
+            store: $this->testStoreId,
+        );
+
+        if ($result instanceof SuccessInterface && method_exists($result, 'getTuples')) {
+            /** @var array<int, array{user: string, relation: string, object: string}> */
+            return $result->getTuples();
+        }
+
+        return [];
     }
 
     /**
      * Make direct API request.
      *
-     * @param string $method
-     * @param string $path
-     * @param array  $data
+     * @param string               $method
+     * @param string               $path
+     * @param array<string, mixed> $data
+     *
+     * @throws RuntimeException
+     *
+     * @return array<string, mixed>
      */
     protected function makeApiRequest(string $method, string $path, array $data = []): array
     {
-        $url = rtrim((string) Config::get('openfga.connections.integration_test.url'), '/') . $path;
+        /** @var mixed $configUrl */
+        $configUrl = Config::get('openfga.connections.integration_test.url');
+        $url = (is_string($configUrl) ? rtrim($configUrl, '/') : '') . $path;
 
         $options = [
             'http' => [
@@ -347,19 +566,29 @@ abstract class IntegrationTestCase extends BaseTestCase
             throw new RuntimeException('Failed to make API request to ' . $url);
         }
 
-        return json_decode($response, true) ?: [];
+        $decoded = json_decode($response, true);
+
+        if (! is_array($decoded)) {
+            return [];
+        }
+
+        /** @var array<string, mixed> $decoded */
+        return $decoded;
     }
 
     /**
      * Measure operation time.
      *
-     * @param Closure $operation
+     * @param  Closure(): mixed                         $operation
+     * @return array{result: mixed, duration_ms: float}
      */
     protected function measureTime(Closure $operation): array
     {
         $start = microtime(true);
+
+        /** @var mixed $result */
         $result = $operation();
-        $duration = (microtime(true) - $start) * 1000;
+        $duration = (microtime(true) - $start) * 1000.0;
 
         return [
             'result' => $result,
@@ -373,18 +602,42 @@ abstract class IntegrationTestCase extends BaseTestCase
      * @param string $user
      * @param string $relation
      * @param string $object
+     *
+     * @throws ClientException|ClientThrowable|InvalidArgumentException|ReflectionException|RuntimeException
      */
     protected function revokePermission(string $user, string $relation, string $object): void
     {
-        $this->openFgaClient->write([], [
-            ['user' => $user, 'relation' => $relation, 'object' => $object],
-        ]);
+        if (! $this->openFgaClient instanceof ClientInterface) {
+            throw new RuntimeException('OpenFGA client is not initialized');
+        }
+        $tupleKey = new TupleKey(
+            user: $user,
+            relation: $relation,
+            object: $object,
+        );
+        $deletes = new TupleKeys([$tupleKey]);
+
+        if (null === $this->testStoreId || null === $this->testModelId) {
+            throw new RuntimeException('Store ID or Model ID is not set');
+        }
+
+        $client = $this->openFgaClient;
+
+        if ($client instanceof ClientInterface) {
+            $client->writeTuples(
+                store: $this->testStoreId,
+                model: $this->testModelId,
+                deletes: $deletes,
+            );
+        }
     }
 
     /**
      * Run a test with a clean store.
      *
-     * @param Closure $test
+     * @param Closure(): void $test
+     *
+     * @throws ClientThrowable|InvalidArgumentException|ReflectionException|RuntimeException
      */
     protected function runWithCleanStore(Closure $test): void
     {
@@ -395,12 +648,14 @@ abstract class IntegrationTestCase extends BaseTestCase
 
     /**
      * Set up integration test environment.
+     *
+     * @throws InvalidArgumentException|RuntimeException|SkippedWithMessageException
      */
     protected function setUpIntegrationTest(): void
     {
         // Skip if not in integration test mode
         if (! $this->shouldRunIntegrationTests()) {
-            $this->markTestSkipped('Integration tests are not enabled. Set OPENFGA_RUN_INTEGRATION_TESTS=true to run.');
+            self::markTestSkipped('Integration tests are not enabled. Set OPENFGA_RUN_INTEGRATION_TESTS=true to run.');
         }
 
         // Configure test connection
@@ -416,6 +671,9 @@ abstract class IntegrationTestCase extends BaseTestCase
 
     /**
      * Set up test store and model.
+     *
+     * @throws InvalidArgumentException
+     * @throws RuntimeException
      */
     protected function setUpTestStore(): void
     {
@@ -423,22 +681,33 @@ abstract class IntegrationTestCase extends BaseTestCase
         $storeName = 'test_' . uniqid();
         $store = $this->createStore($storeName);
 
-        $this->testStoreId = $store['id'];
-        $this->createdStores[] = $this->testStoreId;
+        if (isset($store['id']) && is_string($store['id'])) {
+            $this->testStoreId = $store['id'];
+            $this->createdStores[] = $this->testStoreId;
+        }
 
         // Update connection with store ID
         Config::set('openfga.connections.integration_test.store_id', $this->testStoreId);
 
         // Create authorization model
         $model = $this->createAuthorizationModel($this->getTestAuthorizationModel());
-        $this->testModelId = $model['id'];
+
+        if (isset($model['id']) && is_string($model['id'])) {
+            $this->testModelId = $model['id'];
+        }
 
         // Update connection with model ID
         Config::set('openfga.connections.integration_test.model_id', $this->testModelId);
 
         // Reinitialize client with updated config
-        $this->openFgaManager->purge('integration_test');
-        $this->openFgaClient = $this->openFgaManager->connection('integration_test');
+        if (! $this->openFgaManager instanceof OpenFgaManager) {
+            throw new RuntimeException('OpenFGA manager is not initialized');
+        }
+
+        $manager = $this->openFgaManager;
+        $manager->disconnect('integration_test');
+
+        $this->openFgaClient = $manager->connection('integration_test');
     }
 
     /**

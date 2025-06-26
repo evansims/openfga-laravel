@@ -138,7 +138,7 @@ final class WebhookTest extends FeatureTestCase
             ->andReturn(false);
 
         $webhookManager->notifyPermissionChange($event2);
-        
+
         // Verify expectations were met
         $this->assertTrue(true);
     }
@@ -237,7 +237,7 @@ final class WebhookTest extends FeatureTestCase
             ->andReturn(false);
 
         $webhookManager->notifyPermissionChange($event);
-        
+
         // Add assertion to verify mock expectations were met
         $this->addToAssertionCount(1);
     }

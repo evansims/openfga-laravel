@@ -20,7 +20,13 @@ use function count;
 use function sprintf;
 
 /**
- * Base migration class for handling OpenFGA permissions.
+ * Base class for migrations that manage OpenFGA authorization tuples.
+ *
+ * This abstract class extends Laravel's Migration to handle permission grants
+ * and revocations as part of your database migrations. It provides a structured
+ * way to version control your authorization model changes alongside schema changes,
+ * ensuring permissions stay in sync with your application's evolution. Includes
+ * automatic rollback support to maintain consistency.
  */
 abstract class PermissionMigration extends Migration
 {

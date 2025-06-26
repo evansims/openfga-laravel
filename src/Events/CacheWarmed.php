@@ -7,7 +7,13 @@ namespace OpenFGA\Laravel\Events;
 use function sprintf;
 
 /**
- * Event fired when cache has been warmed.
+ * Event dispatched after permission cache warming operations complete.
+ *
+ * This event signals successful pre-loading of frequently accessed permissions
+ * into cache storage, improving response times for authorization checks.
+ * Monitor this event to track cache warming effectiveness, schedule periodic
+ * refreshes, and ensure critical permissions remain cached during peak loads
+ * for optimal application performance.
  */
 final class CacheWarmed
 {

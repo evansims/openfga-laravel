@@ -226,7 +226,6 @@ return (new PhpCsFixer\Config())
         // Language constructs
         'declare_equal_normalize' => ['space' => 'none'],
         'declare_parentheses' => true,
-        'declare_strict_types' => true,
         'echo_tag_syntax' => ['format' => 'long'],
         'include' => true,
         'is_null' => true,

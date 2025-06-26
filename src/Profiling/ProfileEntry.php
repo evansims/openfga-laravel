@@ -6,9 +6,20 @@ namespace OpenFGA\Laravel\Profiling;
 
 use Carbon\Carbon;
 
+/**
+ * Individual profiling entry for tracking OpenFGA operation performance.
+ *
+ * This class represents a single profiled operation, capturing detailed timing
+ * information, parameters, cache status, and metadata. Each entry tracks the
+ * complete lifecycle of an authorization operation from start to finish,
+ * including success/failure status and any errors. Use these entries to
+ * analyze specific operations and identify performance optimization opportunities.
+ *
+ * @internal
+ */
 final class ProfileEntry
 {
-    private readonly ?float $startTime;
+    private readonly float $startTime;
 
     private ?string $cacheStatus = null;
 
@@ -16,16 +27,23 @@ final class ProfileEntry
 
     private ?string $error = null;
 
+    /**
+     * @var array<string, mixed>
+     */
     private array $metadata = [];
 
     private ?bool $success = null;
 
+    /**
+     * @param array<string, mixed> $parameters
+     * @param string               $operation
+     */
     public function __construct(private readonly string $operation, private readonly array $parameters = [])
     {
         $this->startTime = microtime(true);
     }
 
-    public function addMetadata(string $key, mixed $value): self
+    public function addMetadata(string $key, float | int $value): self
     {
         $this->metadata[$key] = $value;
 
@@ -52,7 +70,7 @@ final class ProfileEntry
             return microtime(true) - $this->startTime;
         }
 
-        return ($this->endTime - $this->startTime) * 1000; // Convert to milliseconds
+        return ($this->endTime - $this->startTime) * 1000.0; // Convert to milliseconds
     }
 
     public function getError(): ?string
@@ -60,6 +78,9 @@ final class ProfileEntry
         return $this->error;
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function getMetadata(): array
     {
         return $this->metadata;
@@ -70,6 +91,9 @@ final class ProfileEntry
         return $this->operation;
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function getParameters(): array
     {
         return $this->parameters;
@@ -87,6 +111,9 @@ final class ProfileEntry
         return $this;
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function toArray(): array
     {
         return [

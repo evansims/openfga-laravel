@@ -6,6 +6,8 @@ namespace OpenFGA\Laravel\Contracts;
 
 /**
  * Interface for user models that can provide a custom authorization user identifier.
+ *
+ * @api
  */
 interface AuthorizationUser
 {

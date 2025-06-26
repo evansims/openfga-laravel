@@ -12,7 +12,15 @@ use function count;
 use function sprintf;
 
 /**
- * Fake implementation of OpenFGA for testing purposes.
+ * Test double for OpenFGA operations in unit and feature tests.
+ *
+ * This fake implementation allows you to test authorization logic without
+ * hitting a real OpenFGA server. It provides assertion methods to verify
+ * permission checks, mock specific responses, simulate failures, and track
+ * all OpenFGA operations. Perfect for test-driven development and ensuring
+ * your authorization logic works correctly in isolation.
+ *
+ * @api
  */
 final class FakeOpenFga
 {
@@ -236,16 +244,17 @@ final class FakeOpenFga
     /**
      * Batch check multiple permissions.
      *
-     * @param array $checks
+     * @param  array<int, array{0: string, 1: string, 2: string}|array{user: string, relation: string, object: string}> $checks
+     * @return array<int, array{allowed: bool, user: string, relation: string, object: string}>
      */
     public function batchCheck(array $checks): array
     {
         $results = [];
 
         foreach ($checks as $check) {
-            $user = $check[0] ?? $check['user'] ?? '';
-            $relation = $check[1] ?? $check['relation'] ?? '';
-            $object = $check[2] ?? $check['object'] ?? '';
+            $user = $check['user'] ?? $check[0] ?? '';
+            $relation = $check['relation'] ?? $check[1] ?? '';
+            $object = $check['object'] ?? $check[2] ?? '';
 
             $results[] = [
                 'allowed' => $this->check($user, $relation, $object),
@@ -444,8 +453,11 @@ final class FakeOpenFga
     /**
      * Get users with a specific relation to an object.
      *
-     * @param  string        $object
-     * @param  string        $relation
+     * @param string $object
+     * @param string $relation
+     *
+     * @throws RuntimeException|Throwable
+     *
      * @return array<string>
      */
     public function listUsers(string $object, string $relation): array

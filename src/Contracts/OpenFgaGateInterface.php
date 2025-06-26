@@ -11,6 +11,8 @@ use UnitEnum;
 
 /**
  * OpenFGA Gate interface that extends Laravel's Gate contract.
+ *
+ * @api
  */
 interface OpenFgaGateInterface extends LaravelGateContract
 {

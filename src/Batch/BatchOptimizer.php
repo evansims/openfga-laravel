@@ -7,8 +7,20 @@ namespace OpenFGA\Laravel\Batch;
 use Illuminate\Support\Collection;
 
 use function count;
+use function is_string;
 use function sprintf;
 
+/**
+ * Optimizes batch authorization operations for improved performance.
+ *
+ * This optimizer intelligently processes large sets of permission operations
+ * by removing duplicates, resolving conflicts, merging related operations,
+ * and organizing them for optimal execution. It significantly reduces the
+ * number of API calls and improves batch processing efficiency, especially
+ * when dealing with bulk permission updates or large-scale access control changes.
+ *
+ * @internal
+ */
 final class BatchOptimizer
 {
     /**
@@ -49,20 +61,23 @@ final class BatchOptimizer
      */
     public function chunkOperations(array $operations): array
     {
-        return array_chunk($operations, $this->config['chunk_size']);
+        $chunkSize = $this->config['chunk_size'];
+
+        return 0 < $chunkSize ? array_chunk($operations, $chunkSize) : [$operations];
     }
 
     /**
      * Get optimization statistics.
      *
-     * @return array{original_operations: int, optimized_operations: int, duplicates_removed: int, conflicts_resolved: int, operations_merged: int, optimization_ratio: float}
+     * @return array{original_operations: int, optimized_operations: int, duplicates_removed: int, conflicts_resolved: int, operations_merged: int, reduction_percentage: float}
      */
     public function getStats(): array
     {
         $reduction = 0 < $this->stats['original_operations']
-            ? round((1 - ($this->stats['optimized_operations'] / $this->stats['original_operations'])) * 100, 2)
-            : 0;
+            ? round((1.0 - ((float) $this->stats['optimized_operations'] / (float) $this->stats['original_operations'])) * 100.0, 2)
+            : 0.0;
 
+        /** @var array{original_operations: int, optimized_operations: int, duplicates_removed: int, conflicts_resolved: int, operations_merged: int, reduction_percentage: float} */
         return array_merge($this->stats, [
             'reduction_percentage' => $reduction,
         ]);
@@ -71,8 +86,9 @@ final class BatchOptimizer
     /**
      * Optimize mixed writes and deletes.
      *
-     * @param array $writes
-     * @param array $deletes
+     * @param  array<int, array{user: string, relation: string, object: string}>                                                                                            $writes
+     * @param  array<int, array{user: string, relation: string, object: string}>                                                                                            $deletes
+     * @return array{writes: array<int, array{user: string, relation: string, object: string}>, deletes: array<int, array{user: string, relation: string, object: string}>}
      */
     public function optimizeMixed(array $writes, array $deletes): array
     {
@@ -80,29 +96,48 @@ final class BatchOptimizer
         $operations = [];
 
         foreach ($writes as $write) {
-            $operations[] = array_merge($write, ['operation' => 'write']);
+            /** @var array{user: string, relation: string, object: string, operation: string} */
+            $operation = array_merge($write, ['operation' => 'write']);
+            $operations[] = $operation;
         }
 
         foreach ($deletes as $delete) {
-            $operations[] = array_merge($delete, ['operation' => 'delete']);
+            /** @var array{user: string, relation: string, object: string, operation: string} */
+            $operation = array_merge($delete, ['operation' => 'delete']);
+            $operations[] = $operation;
         }
 
         // Optimize
+        /** @var Collection<int, array{user: string, relation: string, object: string, operation: string}> */
         $collection = collect($operations);
 
         // Remove operations that cancel each other out
         $collection = $this->removeCancelingOperations($collection);
 
         // Separate back into writes and deletes
+        /** @var array<int, array{user: string, relation: string, object: string}> */
         $optimizedWrites = $collection
             ->where('operation', 'write')
-            ->map(static fn ($op): array => array_diff_key($op, ['operation' => '']))
+            ->map(static fn (array $op): array =>
+                /** @var array{user: string, relation: string, object: string} */
+                [
+                    'user' => $op['user'],
+                    'relation' => $op['relation'],
+                    'object' => $op['object'],
+                ])
             ->values()
             ->toArray();
 
+        /** @var array<int, array{user: string, relation: string, object: string}> */
         $optimizedDeletes = $collection
             ->where('operation', 'delete')
-            ->map(static fn ($op): array => array_diff_key($op, ['operation' => '']))
+            ->map(static fn (array $op): array =>
+                /** @var array{user: string, relation: string, object: string} */
+                [
+                    'user' => $op['user'],
+                    'relation' => $op['relation'],
+                    'object' => $op['object'],
+                ])
             ->values()
             ->toArray();
 
@@ -115,7 +150,8 @@ final class BatchOptimizer
     /**
      * Optimize a batch of write operations.
      *
-     * @param array $writes
+     * @param  array<int, array{user: string, relation: string, object: string}> $writes
+     * @return array<int, array{user: string, relation: string, object: string}>
      */
     public function optimizeWrites(array $writes): array
     {
@@ -143,7 +179,14 @@ final class BatchOptimizer
             $collection = $this->sortOperations($collection);
         }
 
-        $optimized = $collection->values()->toArray();
+        /** @var array<int, array{user: string, relation: string, object: string}> */
+        $optimized = $collection->map(static fn (array $op): array =>
+            /** @var array{user: string, relation: string, object: string} */
+            [
+                'user' => $op['user'] ?? '',
+                'relation' => $op['relation'] ?? '',
+                'object' => $op['object'] ?? '',
+            ])->values()->toArray();
         $this->stats['optimized_operations'] = count($optimized);
 
         return $optimized;
@@ -166,7 +209,7 @@ final class BatchOptimizer
     /**
      * Get a unique key for an operation.
      *
-     * @param array $operation
+     * @param array{user?: string, relation?: string, object?: string, operation?: string} $operation
      */
     private function getOperationKey(array $operation): string
     {
@@ -180,18 +223,21 @@ final class BatchOptimizer
     /**
      * Merge related operations.
      *
-     * @param Collection $operations
+     * @param  Collection<int, array{user?: string, relation?: string, object?: string, operation?: string}> $operations
+     * @return Collection<int, array{user?: string, relation?: string, object?: string, operation?: string}>
      */
     private function mergeRelated(Collection $operations): Collection
     {
         // Group by object to find related operations
-        $grouped = $operations->groupBy(static fn ($op): mixed => $op['object'] ?? '');
+        /** @var Collection<string, Collection<int, array{user?: string, relation?: string, object?: string, operation?: string}>> */
+        $grouped = $operations->groupBy(static fn (array $op): string => $op['object'] ?? '');
 
         $merged = collect();
 
         foreach ($grouped as $group) {
             // Check if we can merge operations on the same object
-            $relations = $group->groupBy(static fn ($op): mixed => $op['user'] ?? '');
+            /** @var Collection<string, Collection<int, array{user?: string, relation?: string, object?: string, operation?: string}>> */
+            $relations = $group->groupBy(static fn (array $op): string => $op['user'] ?? '');
 
             foreach ($relations as $relation) {
                 if (1 < $relation->count()) {
@@ -210,13 +256,15 @@ final class BatchOptimizer
     /**
      * Remove operations that cancel each other out.
      *
-     * @param Collection $operations
+     * @param  Collection<int, array{user: string, relation: string, object: string, operation: string}> $operations
+     * @return Collection<int, array{user: string, relation: string, object: string, operation: string}>
      */
     private function removeCancelingOperations(Collection $operations): Collection
     {
-        $grouped = $operations->groupBy(fn ($op): string => $this->getOperationKey($op));
+        $grouped = $operations->groupBy(fn (array $op): string => $this->getOperationKey($op));
 
-        return $grouped->map(static function ($group) {
+        /** @var Collection<int, array{user: string, relation: string, object: string, operation: string}> */
+        $filtered = $grouped->map(static function ($group) {
             $writes = $group->where('operation', 'write');
             $deletes = $group->where('operation', 'delete');
 
@@ -227,17 +275,20 @@ final class BatchOptimizer
             }
 
             return $group->last();
-        })->values();
+        })->filter()->values();
+
+        return $filtered;
     }
 
     /**
      * Remove duplicate operations.
      *
-     * @param Collection $operations
+     * @param  Collection<int, array{user?: string, relation?: string, object?: string, operation?: string}> $operations
+     * @return Collection<int, array{user?: string, relation?: string, object?: string, operation?: string}>
      */
     private function removeDuplicates(Collection $operations): Collection
     {
-        $unique = $operations->unique(fn ($op): string => $this->getOperationKey($op));
+        $unique = $operations->unique(fn (array $op): string => $this->getOperationKey($op));
 
         $this->stats['duplicates_removed'] = $operations->count() - $unique->count();
 
@@ -247,11 +298,12 @@ final class BatchOptimizer
     /**
      * Resolve conflicting operations.
      *
-     * @param Collection $operations
+     * @param  Collection<int, array{user?: string, relation?: string, object?: string, operation?: string}> $operations
+     * @return Collection<int, array{user?: string, relation?: string, object?: string, operation?: string}>
      */
     private function resolveConflicts(Collection $operations): Collection
     {
-        $grouped = $operations->groupBy(fn ($op): string => $this->getOperationKey($op));
+        $grouped = $operations->groupBy(fn (array $op): string => $this->getOperationKey($op));
 
         $resolved = $grouped->map(function ($group) {
             if (1 === $group->count()) {
@@ -264,25 +316,27 @@ final class BatchOptimizer
             return $group->last();
         });
 
-        return $resolved->values();
+        /** @var Collection<int, array{user?: string, relation?: string, object?: string, operation?: string}> */
+        return $resolved->filter()->values();
     }
 
     /**
      * Sort operations for optimal processing.
      *
-     * @param Collection $operations
+     * @param  Collection<int, array{user?: string, relation?: string, object?: string, operation?: string}> $operations
+     * @return Collection<int, array{user?: string, relation?: string, object?: string, operation?: string}>
      */
     private function sortOperations(Collection $operations): Collection
     {
         return $operations->sortBy([
             // Sort by object type first (for better cache locality)
-            static fn ($op): string => explode(':', $op['object'] ?? '')[0],
+            static fn (array $op): string => explode(':', isset($op['object']) && is_string($op['object']) ? $op['object'] : '')[0],
             // Then by object ID
-            static fn ($op) => $op['object'] ?? '',
+            static fn (array $op): string => isset($op['object']) && is_string($op['object']) ? $op['object'] : '',
             // Then by user
-            static fn ($op) => $op['user'] ?? '',
+            static fn (array $op): string => isset($op['user']) && is_string($op['user']) ? $op['user'] : '',
             // Finally by relation
-            static fn ($op) => $op['relation'] ?? '',
+            static fn (array $op): string => isset($op['relation']) && is_string($op['relation']) ? $op['relation'] : '',
         ]);
     }
 }

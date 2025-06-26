@@ -10,6 +10,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\{InteractsWithQueue, SerializesModels};
 use Illuminate\Support\Facades\Log;
+use OpenFGA\Exceptions\ClientThrowable;
 use OpenFGA\Laravel\Cache\WriteBehindCache;
 use Throwable;
 
@@ -39,6 +40,8 @@ final class FlushWriteBehindCacheJob implements ShouldQueue
 
     /**
      * Calculate the number of seconds to wait before retrying the job.
+     *
+     * @return array<int, int>
      */
     public function backoff(): array
     {
@@ -67,6 +70,8 @@ final class FlushWriteBehindCacheJob implements ShouldQueue
      * Execute the job.
      *
      * @param WriteBehindCache $cache
+     *
+     * @throws ClientThrowable|Exception
      */
     public function handle(WriteBehindCache $cache): void
     {
@@ -81,7 +86,7 @@ final class FlushWriteBehindCacheJob implements ShouldQueue
                 Log::info('Write-behind cache flushed', [
                     'writes' => $stats['writes'],
                     'deletes' => $stats['deletes'],
-                    'duration_ms' => round($duration * 1000, 2),
+                    'duration_ms' => round($duration * 1000.0, 2),
                 ]);
             }
         } catch (Exception $exception) {

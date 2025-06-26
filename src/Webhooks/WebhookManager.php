@@ -5,20 +5,38 @@ declare(strict_types=1);
 namespace OpenFGA\Laravel\Webhooks;
 
 use Exception;
-use Illuminate\Http\Client\Factory as Http;
+use Illuminate\Http\Client\{Factory as Http, PendingRequest};
 use Illuminate\Support\Facades\Log;
 use OpenFGA\Laravel\Events\PermissionChanged;
 
+use function count;
 use function in_array;
 use function is_array;
+use function is_string;
 
 final class WebhookManager
 {
+    /**
+     * @var array<string, array{url: string, events: array<int, string>, headers: array<string, string>, active: bool}>
+     */
     private array $webhooks = [];
 
     public function __construct(private readonly Http $http)
     {
-        $this->webhooks = config('openfga.webhooks', []);
+        /** @var mixed $webhooks */
+        $webhooks = config('openfga.webhooks', []);
+
+        if (is_array($webhooks)) {
+            // Filter out any non-array values that might be in the config
+            /** @var mixed $webhook */
+            foreach ($webhooks as $name => $webhook) {
+                if (is_string($name) && is_array($webhook) && isset($webhook['url']) && is_string($webhook['url'])) {
+                    /** @var array{url: string, events: array<int, string>, headers: array<string, string>, active: bool} $validWebhook */
+                    $validWebhook = $webhook;
+                    $this->webhooks[$name] = $validWebhook;
+                }
+            }
+        }
     }
 
     /**
@@ -47,6 +65,8 @@ final class WebhookManager
 
     /**
      * Get registered webhooks.
+     *
+     * @return array<string, array{url: string, events: array<int, string>, headers: array<string, string>, active: bool}>
      */
     public function getWebhooks(): array
     {
@@ -63,11 +83,6 @@ final class WebhookManager
         $payload = $this->buildPayload($event);
 
         foreach ($this->webhooks as $name => $webhook) {
-            // Skip if webhook is not properly configured
-            if (! is_array($webhook)) {
-                continue;
-            }
-
             if (! $this->shouldSendWebhook($webhook, $event)) {
                 continue;
             }
@@ -79,10 +94,10 @@ final class WebhookManager
     /**
      * Register a webhook endpoint.
      *
-     * @param string $name
-     * @param string $url
-     * @param array  $events
-     * @param array  $headers
+     * @param string                $name
+     * @param string                $url
+     * @param array<int, string>    $events
+     * @param array<string, string> $headers
      */
     public function register(string $name, string $url, array $events = [], array $headers = []): void
     {
@@ -107,7 +122,8 @@ final class WebhookManager
     /**
      * Build webhook payload.
      *
-     * @param PermissionChanged $event
+     * @param  PermissionChanged    $event
+     * @return array<string, mixed>
      */
     private function buildPayload(PermissionChanged $event): array
     {
@@ -129,17 +145,25 @@ final class WebhookManager
     /**
      * Send webhook request.
      *
-     * @param string $name
-     * @param array  $webhook
-     * @param array  $payload
+     * @param string                                                                                       $name
+     * @param array{url: string, events: array<int, string>, headers: array<string, string>, active: bool} $webhook
+     * @param array<string, mixed>                                                                         $payload
      */
     private function sendWebhook(string $name, array $webhook, array $payload): void
     {
         try {
-            $response = $this->http
-                ->withHeaders($webhook['headers'] ?? [])
-                ->timeout(config('openfga.webhooks.timeout', 5))
-                ->retry(config('openfga.webhooks.retries', 3), 100)
+            /** @var mixed $timeout */
+            $timeout = config('openfga.webhooks.timeout', 5);
+
+            /** @var mixed $retries */
+            $retries = config('openfga.webhooks.retries', 3);
+
+            /** @var PendingRequest $client */
+            $client = $this->http->withHeaders($webhook['headers']);
+
+            $response = $client
+                ->timeout(is_numeric($timeout) ? (int) $timeout : 5)
+                ->retry(is_numeric($retries) ? (int) $retries : 3, 100)
                 ->post($webhook['url'], $payload);
 
             if ($response->failed()) {
@@ -160,8 +184,8 @@ final class WebhookManager
     /**
      * Check if webhook should be sent for this event.
      *
-     * @param array             $webhook
-     * @param PermissionChanged $event
+     * @param array{url: string, events: array<int, string>, headers: array<string, string>, active: bool} $webhook
+     * @param PermissionChanged                                                                            $event
      */
     private function shouldSendWebhook(array $webhook, PermissionChanged $event): bool
     {
@@ -173,7 +197,7 @@ final class WebhookManager
         // Check if webhook listens to all events or this specific event
         $events = $webhook['events'] ?? [];
 
-        if (empty($events) || in_array('*', $events, true)) {
+        if (0 === count($events) || in_array('*', $events, true)) {
             return true;
         }
 

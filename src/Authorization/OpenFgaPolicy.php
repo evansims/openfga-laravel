@@ -42,6 +42,7 @@ abstract class OpenFgaPolicy
      * @param mixed           $resource
      * @param string|null     $connection
      *
+     * @throws \Psr\SimpleCache\InvalidArgumentException
      * @throws BindingResolutionException
      * @throws ClientThrowable
      * @throws Exception
@@ -63,6 +64,10 @@ abstract class OpenFgaPolicy
      * @param mixed           $resource
      * @param string|null     $connection
      *
+     * @throws \Psr\SimpleCache\InvalidArgumentException
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
      * @throws InvalidArgumentException
      */
     protected function canAll(Authenticatable $user, array $relations, $resource, ?string $connection = null): bool
@@ -87,6 +92,10 @@ abstract class OpenFgaPolicy
      * @param mixed           $resource
      * @param string|null     $connection
      *
+     * @throws \Psr\SimpleCache\InvalidArgumentException
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
      * @throws InvalidArgumentException
      */
     protected function canAny(Authenticatable $user, array $relations, $resource, ?string $connection = null): bool

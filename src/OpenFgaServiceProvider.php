@@ -9,6 +9,7 @@ use Illuminate\Contracts\Config\Repository;
 use Illuminate\Contracts\Container\BindingResolutionException;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Contracts\Support\DeferrableProvider;
+use Illuminate\Events\Dispatcher;
 use Illuminate\Support\ServiceProvider;
 use InvalidArgumentException;
 use LogicException;
@@ -26,6 +27,17 @@ use function is_object;
 use function is_string;
 use function sprintf;
 
+/**
+ * Service provider for integrating OpenFGA with Laravel.
+ *
+ * This provider registers the OpenFGA client, configuration, middleware, and all
+ * related services into the Laravel container. It handles authentication setup,
+ * cache configuration, Blade integration, and command registration. The provider
+ * is deferred for optimal performance, only loading when OpenFGA services are
+ * actually requested.
+ *
+ * @api
+ */
 final class OpenFgaServiceProvider extends ServiceProvider implements DeferrableProvider
 {
     /**
@@ -273,18 +285,29 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
 
     /**
      * Register profiling services.
+     *
+     * @throws BindingResolutionException
      */
     private function registerProfiling(): void
     {
         $this->app->singleton(OpenFgaProfiler::class);
 
-        if (config('openfga.profiling.enabled', false)) {
+        /** @var bool $profilingEnabled */
+        $profilingEnabled = config('openfga.profiling.enabled', false);
+
+        if ($profilingEnabled) {
             // Register profiling event listener
-            $this->app['events']->subscribe(Listeners\ProfileOpenFgaOperations::class);
+            /** @var Dispatcher $events */
+            $events = $this->app->make('events');
+            $events->subscribe(Listeners\ProfileOpenFgaOperations::class);
 
             // Register profiling middleware if web injection is enabled
-            if (config('openfga.profiling.inject_web_middleware', false) && $this->app->bound('router')) {
+            /** @var bool $injectMiddleware */
+            $injectMiddleware = config('openfga.profiling.inject_web_middleware', false);
+
+            if ($injectMiddleware && $this->app->bound('router')) {
                 try {
+                    /** @var mixed $router */
                     $router = $this->app->make('router');
 
                     if (is_object($router) && method_exists($router, 'pushMiddlewareToGroup')) {
@@ -296,12 +319,21 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
             }
 
             // Register Laravel Debugbar collector if enabled
-            if (config('openfga.profiling.debugbar.enabled', true) && class_exists(\Barryvdh\Debugbar\ServiceProvider::class) && $this->app->bound('debugbar')) {
+            /** @var bool $debugbarEnabled */
+            $debugbarEnabled = config('openfga.profiling.debugbar.enabled', true);
+
+            if ($debugbarEnabled && class_exists(\Barryvdh\Debugbar\ServiceProvider::class) && $this->app->bound('debugbar')) {
                 try {
+                    /** @var mixed $debugbar */
                     $debugbar = $this->app->make('debugbar');
 
                     if (is_object($debugbar) && method_exists($debugbar, 'addCollector')) {
-                        $debugbar->addCollector($this->app->make(config('openfga.profiling.debugbar.collector')));
+                        /** @var mixed $collectorClass */
+                        $collectorClass = config('openfga.profiling.debugbar.collector');
+
+                        if (is_string($collectorClass)) {
+                            $debugbar->addCollector($this->app->make($collectorClass));
+                        }
                     }
                 } catch (BindingResolutionException) {
                     // Debugbar not available, skip
@@ -315,7 +347,10 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
      */
     private function registerSpatieCompatibility(): void
     {
-        if (config('spatie-compatibility.enabled', false)) {
+        /** @var mixed $enabled */
+        $enabled = config('spatie-compatibility.enabled', false);
+
+        if (true === $enabled) {
             $this->app->register(Providers\SpatieCompatibilityServiceProvider::class);
         }
     }

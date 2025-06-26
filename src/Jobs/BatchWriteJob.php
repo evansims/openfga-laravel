@@ -23,7 +23,13 @@ use function count;
 use function is_string;
 
 /**
- * Queueable job for batch write operations.
+ * Background job for processing OpenFGA batch write operations asynchronously.
+ *
+ * This job handles bulk permission grants and revocations in the background,
+ * improving application responsiveness for large-scale authorization changes.
+ * It includes retry logic, failure handling, and event dispatching for monitoring.
+ * Use this when you need to update many permissions at once without blocking
+ * the main request cycle.
  */
 final class BatchWriteJob implements ShouldQueue
 {

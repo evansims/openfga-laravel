@@ -1,0 +1,31 @@
+<?php
+
+namespace DebugBar\DataCollector;
+
+interface DataCollectorInterface
+{
+    /**
+     * @return array<string, mixed>
+     */
+    public function collect();
+
+    public function getName();
+}
+
+interface Renderable
+{
+    /**
+     * @return array<string, array<string, mixed>|string>
+     */
+    public function getWidgets();
+}
+
+abstract class DataCollector implements DataCollectorInterface
+{
+    /**
+     * @return array<string, mixed>
+     */
+    abstract public function collect();
+
+    abstract public function getName();
+}

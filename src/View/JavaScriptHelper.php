@@ -11,7 +11,13 @@ use OpenFGA\Laravel\OpenFgaManager;
 use OpenFGA\Laravel\Traits\ResolvesAuthorizationUser;
 
 /**
- * Helper class for generating JavaScript variables and functions for OpenFGA.
+ * Generates client-side JavaScript for OpenFGA permission checking.
+ *
+ * This helper bridges server-side authorization with client-side UI logic by
+ * generating JavaScript code that enables permission checking in the browser.
+ * It pre-loads permissions for specified objects and provides utility functions
+ * for conditional UI rendering, element visibility toggling, and permission-based
+ * form control. Essential for building responsive, permission-aware user interfaces.
  */
 final readonly class JavaScriptHelper
 {

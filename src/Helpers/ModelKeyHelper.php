@@ -13,6 +13,8 @@ use function is_string;
 
 /**
  * Helper utility for handling Eloquent model keys with strict type checking.
+ *
+ * @internal
  */
 final class ModelKeyHelper
 {

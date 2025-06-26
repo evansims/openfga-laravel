@@ -4,8 +4,28 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Batch;
 
+/**
+ * Comprehensive results from batch authorization operations.
+ *
+ * This immutable result object provides detailed metrics about batch processing
+ * outcomes, including success rates, performance statistics, optimization savings,
+ * and error information. Use these results to monitor batch operations, track
+ * performance improvements, handle partial failures, and generate detailed
+ * reports about bulk permission changes in your application.
+ *
+ * @internal
+ */
 final readonly class BatchResult
 {
+    /**
+     * @param array<string, mixed> $optimizationStats
+     * @param array<int, string>   $errors
+     * @param bool                 $success
+     * @param int                  $totalOperations
+     * @param int                  $processedOperations
+     * @param int                  $failedOperations
+     * @param float                $duration
+     */
     public function __construct(
         public bool $success,
         public int $totalOperations,
@@ -26,7 +46,7 @@ final readonly class BatchResult
             return 0;
         }
 
-        return round($this->processedOperations / $this->duration, 2);
+        return round((float) $this->processedOperations / $this->duration, 2);
     }
 
     /**
@@ -34,7 +54,10 @@ final readonly class BatchResult
      */
     public function getOptimizationReduction(): float
     {
-        return $this->optimizationStats['reduction_percentage'] ?? 0;
+        /** @var mixed $reduction */
+        $reduction = $this->optimizationStats['reduction_percentage'] ?? 0;
+
+        return is_numeric($reduction) ? (float) $reduction : 0.0;
     }
 
     /**
@@ -46,7 +69,7 @@ final readonly class BatchResult
             return 0;
         }
 
-        return round(($this->processedOperations / $this->totalOperations) * 100, 2);
+        return round(((float) $this->processedOperations / (float) $this->totalOperations) * 100.0, 2);
     }
 
     /**
@@ -59,6 +82,11 @@ final readonly class BatchResult
 
     /**
      * Convert to array.
+     */
+    /**
+     * Convert to array.
+     *
+     * @return array{success: bool, total_operations: int, processed_operations: int, failed_operations: int, duration: float, operations_per_second: float, success_rate: float, optimization_stats: array<string, mixed>, errors: array<int, string>}
      */
     public function toArray(): array
     {

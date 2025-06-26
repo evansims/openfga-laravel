@@ -5,17 +5,21 @@ declare(strict_types=1);
 namespace OpenFGA\Laravel\Http\Middleware;
 
 use Closure;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\{Request, Response};
+use LogicException;
 use OpenFGA\Laravel\Compatibility\SpatieCompatibility;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
-
-use function is_object;
+use Symfony\Component\HttpKernel\Exception\{HttpException, NotFoundHttpException};
 
 /**
  * Spatie-compatible permission middleware.
  *
  * This middleware provides the same interface as Spatie's PermissionMiddleware
  * but uses OpenFGA for authorization checks.
+ *
+ * @api
  */
 final readonly class SpatiePermissionMiddleware
 {
@@ -26,21 +30,28 @@ final readonly class SpatiePermissionMiddleware
     /**
      * Handle an incoming request.
      *
-     * @param Request $request
-     * @param Closure $next
-     * @param string  $permission
-     * @param ?string $guard
+     * @param Request                           $request
+     * @param Closure(Request): SymfonyResponse $next
+     * @param string                            $permission
+     * @param ?string                           $guard
+     *
+     * @throws HttpException|HttpResponseException|NotFoundHttpException
+     * @throws LogicException
      */
     public function handle(Request $request, Closure $next, string $permission, ?string $guard = null): SymfonyResponse
     {
-        $user = auth($guard)->user();
+        $user = auth()->guard($guard)->user();
 
-        if (! $user) {
+        if (null === $user) {
             return $this->unauthorized($request);
         }
 
         $permissions = explode('|', $permission);
         $model = $this->resolveModelFromRoute($request);
+
+        if (! $user instanceof Model) {
+            return $this->unauthorized($request);
+        }
 
         if (! $this->compatibility->hasAnyPermission($user, $permissions, $model)) {
             return $this->unauthorized($request);
@@ -53,17 +64,20 @@ final readonly class SpatiePermissionMiddleware
      * Resolve model from route parameters for contextual permissions.
      *
      * @param Request $request
+     *
+     * @throws LogicException
      */
-    private function resolveModelFromRoute(Request $request): ?object
+    private function resolveModelFromRoute(Request $request): ?Model
     {
         $route = $request->route();
 
-        if (! $route) {
+        if (null === $route) {
             return null;
         }
 
+        /** @var mixed $parameter */
         foreach ($route->parameters() as $parameter) {
-            if (is_object($parameter) && method_exists($parameter, 'authorizationObject')) {
+            if ($parameter instanceof Model && method_exists($parameter, 'authorizationObject')) {
                 return $parameter;
             }
         }
@@ -75,6 +89,8 @@ final readonly class SpatiePermissionMiddleware
      * Handle unauthorized access.
      *
      * @param Request $request
+     *
+     * @throws HttpException|HttpResponseException|NotFoundHttpException
      */
     private function unauthorized(Request $request): SymfonyResponse
     {

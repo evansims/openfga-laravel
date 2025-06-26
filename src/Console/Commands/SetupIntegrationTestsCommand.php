@@ -36,7 +36,7 @@ final class SetupIntegrationTestsCommand extends Command
         }
 
         // Process options
-        if ($this->option('all')) {
+        if ((bool) $this->option('all')) {
             $this->setupEverything($setup);
         } else {
             $this->setupSelectedOptions($setup);
@@ -49,19 +49,19 @@ final class SetupIntegrationTestsCommand extends Command
 
     private function hasAnyOption(): bool
     {
-        if ($this->option('docker')) {
+        if ((bool) $this->option('docker')) {
             return true;
         }
 
-        if ($this->option('env')) {
+        if ((bool) $this->option('env')) {
             return true;
         }
 
-        if ($this->option('phpunit')) {
+        if ((bool) $this->option('phpunit')) {
             return true;
         }
 
-        if ($this->option('github')) {
+        if ((bool) $this->option('github')) {
             return true;
         }
 
@@ -76,7 +76,9 @@ final class SetupIntegrationTestsCommand extends Command
             if ($setup->checkOpenFgaConnection()) {
                 $this->info('✅ OpenFGA is running and accessible');
             } else {
-                $this->warn('⚠️  OpenFGA is not accessible at ' . env('OPENFGA_TEST_URL', 'http://localhost:8080'));
+                /** @var string $testUrl */
+                $testUrl = env('OPENFGA_TEST_URL', 'http://localhost:8080');
+                $this->warn('⚠️  OpenFGA is not accessible at ' . $testUrl);
 
                 if ($this->confirm('Would you like to start OpenFGA with Docker?')) {
                     $setup->startOpenFgaDocker();
@@ -117,7 +119,7 @@ final class SetupIntegrationTestsCommand extends Command
 
     private function setupSelectedOptions(IntegrationTestSetup $setup): void
     {
-        if ($this->option('docker')) {
+        if ((bool) $this->option('docker')) {
             if (! $setup->checkOpenFgaConnection()) {
                 $setup->startOpenFgaDocker();
             } else {
@@ -125,15 +127,15 @@ final class SetupIntegrationTestsCommand extends Command
             }
         }
 
-        if ($this->option('env')) {
+        if ((bool) $this->option('env')) {
             $setup->createTestEnvFile();
         }
 
-        if ($this->option('phpunit')) {
+        if ((bool) $this->option('phpunit')) {
             $setup->createPhpUnitConfig();
         }
 
-        if ($this->option('github')) {
+        if ((bool) $this->option('github')) {
             $setup->createGitHubActionsWorkflow();
         }
     }

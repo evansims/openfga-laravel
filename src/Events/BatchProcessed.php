@@ -9,6 +9,14 @@ use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 use OpenFGA\Laravel\Batch\BatchResult;
 
+/**
+ * Event dispatched after successful batch authorization processing.
+ *
+ * This event provides comprehensive results from batch permission operations,
+ * including success rates, performance metrics, and individual operation outcomes.
+ * Use this to track authorization patterns, measure batch efficiency, generate
+ * audit logs, or trigger dependent workflows based on batch completion.
+ */
 final class BatchProcessed
 {
     use Dispatchable;

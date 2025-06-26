@@ -8,6 +8,7 @@ use Exception;
 use Illuminate\Console\Command;
 use OpenFGA\Laravel\Import\PermissionImporter;
 
+use function is_string;
 use function sprintf;
 
 final class ImportCommand extends Command
@@ -15,7 +16,7 @@ final class ImportCommand extends Command
     /**
      * The console command description.
      *
-     * @var string
+     * @var string|null
      */
     protected $description = 'Import permissions from a file';
 
@@ -41,42 +42,50 @@ final class ImportCommand extends Command
      */
     public function handle(PermissionImporter $importer): int
     {
+        /** @var string $file */
         $file = $this->argument('file');
 
         if (! file_exists($file)) {
-            $this->error('File not found: ' . $file);
+            $this->error(sprintf('File not found: %s', $file));
 
             return self::FAILURE;
         }
 
-        $options = [
-            'format' => $this->option('format'),
-            'batch_size' => (int) $this->option('batch-size'),
-            'skip_errors' => $this->option('skip-errors'),
-            'dry_run' => $this->option('dry-run'),
-            'clear_existing' => $this->option('clear-existing'),
-            'validate' => ! $this->option('no-validate'),
-        ];
+        /** @var array{format?: string, batch_size: int, skip_errors: bool, dry_run: bool, clear_existing: bool, validate: bool} */
+        $options = [];
 
-        if ($this->option('dry-run')) {
+        $format = $this->option('format');
+
+        if (is_string($format)) {
+            $options['format'] = $format;
+        }
+
+        $batchSize = $this->option('batch-size');
+        $options['batch_size'] = is_numeric($batchSize) ? (int) $batchSize : 100;
+        $options['skip_errors'] = (bool) $this->option('skip-errors');
+        $options['dry_run'] = (bool) $this->option('dry-run');
+        $options['clear_existing'] = (bool) $this->option('clear-existing');
+        $options['validate'] = ! (bool) $this->option('no-validate');
+
+        if ($options['dry_run']) {
             $this->warn('Running in dry-run mode. No changes will be made.');
         }
 
-        if ($this->option('clear-existing') && ! $this->option('dry-run')) {
+        if ($options['clear_existing'] && ! $options['dry_run']) {
             if (! $this->confirm('This will delete ALL existing permissions. Are you sure?')) {
                 return self::FAILURE;
             }
             $this->warn('Clearing existing permissions is not yet implemented.');
         }
 
-        $this->info('Importing permissions from: ' . $file);
+        $this->info(sprintf('Importing permissions from: %s', $file));
 
         try {
             $stats = $importer->importFromFile($file, $options);
 
             $this->displayResults($stats);
 
-            return 0 < $stats['errors'] && ! $this->option('skip-errors')
+            return 0 < $stats['errors'] && ! $options['skip_errors']
                 ? self::FAILURE
                 : self::SUCCESS;
         } catch (Exception $exception) {
@@ -89,7 +98,7 @@ final class ImportCommand extends Command
     /**
      * Display import results.
      *
-     * @param array $stats
+     * @param array<string, mixed> $stats
      */
     private function displayResults(array $stats): void
     {
@@ -99,22 +108,24 @@ final class ImportCommand extends Command
         $this->table(
             ['Metric', 'Count'],
             [
-                ['Processed', $stats['processed']],
-                ['Imported', $stats['imported']],
-                ['Skipped', $stats['skipped']],
-                ['Errors', $stats['errors']],
+                ['Processed', $stats['processed'] ?? 0],
+                ['Imported', $stats['imported'] ?? 0],
+                ['Skipped', $stats['skipped'] ?? 0],
+                ['Errors', $stats['errors'] ?? 0],
             ],
         );
 
-        if (0 < $stats['errors']) {
-            $this->warn(sprintf('There were %s errors during import.', $stats['errors']));
+        $errors = isset($stats['errors']) && is_numeric($stats['errors']) ? (int) $stats['errors'] : 0;
 
-            if (! $this->option('skip-errors')) {
+        if (0 < $errors) {
+            $this->warn(sprintf('There were %d errors during import.', $errors));
+
+            if (true !== $this->option('skip-errors')) {
                 $this->error('Import was halted due to errors.');
             }
         }
 
-        if ($this->option('dry-run')) {
+        if (true === $this->option('dry-run')) {
             $this->comment('This was a dry run. No permissions were actually imported.');
         }
     }

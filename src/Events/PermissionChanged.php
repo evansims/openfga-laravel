@@ -19,11 +19,11 @@ final class PermissionChanged
     /**
      * Create a new event instance.
      *
-     * @param string $user
-     * @param string $relation
-     * @param string $object
-     * @param string $action
-     * @param array  $metadata
+     * @param string               $user
+     * @param string               $relation
+     * @param string               $object
+     * @param string               $action
+     * @param array<string, mixed> $metadata
      */
     public function __construct(
         public string $user,

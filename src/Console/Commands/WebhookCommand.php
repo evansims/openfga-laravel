@@ -9,7 +9,7 @@ use Illuminate\Console\Command;
 use OpenFGA\Laravel\Events\PermissionChanged;
 use OpenFGA\Laravel\Webhooks\WebhookManager;
 
-use function is_array;
+use function is_string;
 use function sprintf;
 
 final class WebhookCommand extends Command
@@ -17,7 +17,7 @@ final class WebhookCommand extends Command
     /**
      * The console command description.
      *
-     * @var string
+     * @var string|null
      */
     protected $description = 'Manage OpenFGA webhooks';
 
@@ -46,7 +46,7 @@ final class WebhookCommand extends Command
             'test' => $this->testWebhook($webhookManager),
             'enable' => $this->enableWebhook($webhookManager),
             'disable' => $this->disableWebhook($webhookManager),
-            default => $this->invalidAction($action),
+            default => $this->invalidAction(is_string($action) ? $action : ''),
         };
     }
 
@@ -59,7 +59,7 @@ final class WebhookCommand extends Command
     {
         $name = $this->argument('name');
 
-        if (! $name) {
+        if (! is_string($name)) {
             $this->error('Please provide a webhook name');
 
             return self::FAILURE;
@@ -80,7 +80,7 @@ final class WebhookCommand extends Command
     {
         $name = $this->argument('name');
 
-        if (! $name) {
+        if (! is_string($name)) {
             $this->error('Please provide a webhook name');
 
             return self::FAILURE;
@@ -123,24 +123,15 @@ final class WebhookCommand extends Command
         $rows = [];
 
         foreach ($webhooks as $name => $webhook) {
-            // Skip if webhook is not properly configured
-            if (! is_array($webhook)) {
-                continue;
-            }
-
             $rows[] = [
                 $name,
-                $webhook['url'] ?? '',
+                $webhook['url'],
                 implode(', ', $webhook['events'] ?? ['*']),
                 ($webhook['active'] ?? true) ? 'Active' : 'Inactive',
             ];
         }
 
-        if ([] === $rows) {
-            $this->info('No webhooks to display.');
-        } else {
-            $this->table(['Name', 'URL', 'Events', 'Status'], $rows);
-        }
+        $this->table(['Name', 'URL', 'Events', 'Status'], $rows);
 
         return self::SUCCESS;
     }
@@ -155,14 +146,15 @@ final class WebhookCommand extends Command
         $url = $this->option('url');
         $event = $this->option('event');
 
-        if (! $url) {
+        if (! is_string($url) || '' === $url) {
             $this->error('Please provide a webhook URL using --url option');
 
             return self::FAILURE;
         }
 
         $this->info('Testing webhook: ' . $url);
-        $this->comment('Sending test event: ' . $event);
+        $eventString = is_string($event) ? $event : 'permission.granted';
+        $this->comment('Sending test event: ' . $eventString);
 
         // Create a test event
         $testEvent = new PermissionChanged(
@@ -174,7 +166,7 @@ final class WebhookCommand extends Command
         );
 
         // Register temporary webhook
-        $webhookManager->register('test', $url, [$event]);
+        $webhookManager->register('test', $url, [$eventString]);
 
         try {
             // Send the webhook

@@ -44,6 +44,7 @@ final class DebugCommand extends Command
      *
      * @param OpenFgaManager $manager
      *
+     * @throws \Psr\SimpleCache\InvalidArgumentException
      * @throws BindingResolutionException
      * @throws ClientThrowable
      * @throws Exception
@@ -348,6 +349,7 @@ final class DebugCommand extends Command
      * @param OpenFgaManager $manager
      * @param ?string        $connection
      *
+     * @throws \Psr\SimpleCache\InvalidArgumentException
      * @throws BindingResolutionException
      * @throws ClientThrowable
      * @throws Exception

@@ -7,10 +7,15 @@ namespace OpenFGA\Laravel\Console\Commands;
 use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use OpenFGA\Laravel\Compatibility\SpatieCompatibility;
 use OpenFGA\Laravel\Facades\OpenFga;
+use stdClass;
 
+use function count;
+use function is_array;
+use function is_scalar;
+use function is_string;
 use function sprintf;
 
 /**
@@ -18,6 +23,9 @@ use function sprintf;
  */
 final class MigrateFromSpatieCommand extends Command
 {
+    /**
+     * @var string|null
+     */
     protected $description = 'Migrate from Spatie Laravel Permission to OpenFGA';
 
     protected $signature = 'openfga:migrate:spatie
@@ -30,15 +38,16 @@ final class MigrateFromSpatieCommand extends Command
 
     private bool $dryRun = false;
 
-    public function __construct(private readonly SpatieCompatibility $compatibility)
+    public function __construct()
     {
         parent::__construct();
     }
 
     public function handle(): int
     {
-        $this->dryRun = $this->option('dry-run');
-        $this->batchSize = (int) $this->option('batch-size');
+        $this->dryRun = (bool) $this->option('dry-run');
+        $batchSize = $this->option('batch-size');
+        $this->batchSize = is_numeric($batchSize) ? (int) $batchSize : 100;
 
         $this->info('🚀 Starting migration from Spatie Laravel Permission to OpenFGA');
 
@@ -61,7 +70,7 @@ final class MigrateFromSpatieCommand extends Command
             $this->migrateUserPermissions();
             $this->migrateRolePermissions();
 
-            if ($this->option('verify')) {
+            if (true === $this->option('verify')) {
                 $this->verifyMigration();
             }
 
@@ -80,6 +89,7 @@ final class MigrateFromSpatieCommand extends Command
 
     private function checkSpatieTablesExist(): bool
     {
+        /** @var mixed $tables */
         $tables = config('spatie-compatibility.migration.tables', [
             'roles' => 'roles',
             'permissions' => 'permissions',
@@ -88,9 +98,16 @@ final class MigrateFromSpatieCommand extends Command
             'role_has_permissions' => 'role_has_permissions',
         ]);
 
+        if (! is_array($tables)) {
+            return false;
+        }
+
+        /** @var mixed $table */
         foreach ($tables as $table) {
             try {
-                DB::table($table)->limit(1)->get();
+                if (is_string($table)) {
+                    DB::table($table)->limit(1)->get();
+                }
             } catch (QueryException) {
                 return false;
             }
@@ -122,43 +139,75 @@ final class MigrateFromSpatieCommand extends Command
 
     private function mapPermissionToObject(string $permission): string
     {
+        /** @var mixed $resourceMappings */
         $resourceMappings = config('spatie-compatibility.resource_mappings', []);
 
-        foreach ($resourceMappings as $resource => $objectType) {
-            if (str_contains($permission, (string) $resource)) {
-                return $objectType . ':*';
+        if (is_array($resourceMappings)) {
+            /**
+             * @var int|string $resource
+             * @var mixed      $objectType
+             */
+            foreach ($resourceMappings as $resource => $objectType) {
+                if (is_string($resource) && is_string($objectType) && str_contains($permission, $resource)) {
+                    return $objectType . ':*';
+                }
             }
         }
 
-        return config('spatie-compatibility.default_context', 'organization:main');
+        /** @var mixed $defaultContext */
+        $defaultContext = config('spatie-compatibility.default_context', 'organization:main');
+
+        return is_string($defaultContext) ? $defaultContext : 'organization:main';
     }
 
     private function mapPermissionToRelation(string $permission): string
     {
+        /** @var mixed $mappings */
         $mappings = config('spatie-compatibility.permission_mappings', []);
 
-        if (isset($mappings[$permission])) {
+        if (is_array($mappings) && isset($mappings[$permission]) && is_string($mappings[$permission])) {
             return $mappings[$permission];
         }
 
         // Try to infer from permission name
+        /** @var mixed $rules */
         $rules = config('spatie-compatibility.inference_rules', []);
 
-        foreach ($rules['owner_actions'] ?? [] as $action) {
-            if (str_contains($permission, (string) $action)) {
-                return 'owner';
-            }
-        }
+        if (is_array($rules)) {
+            /** @var mixed $ownerActions */
+            $ownerActions = $rules['owner_actions'] ?? [];
 
-        foreach ($rules['editor_actions'] ?? [] as $action) {
-            if (str_contains($permission, (string) $action)) {
-                return 'editor';
+            if (is_array($ownerActions)) {
+                /** @var mixed $ownerAction */
+                foreach ($ownerActions as $ownerAction) {
+                    if (is_string($ownerAction) && str_contains($permission, $ownerAction)) {
+                        return 'owner';
+                    }
+                }
             }
-        }
 
-        foreach ($rules['admin_actions'] ?? [] as $action) {
-            if (str_contains($permission, (string) $action)) {
-                return 'admin';
+            /** @var mixed $editorActions */
+            $editorActions = $rules['editor_actions'] ?? [];
+
+            if (is_array($editorActions)) {
+                /** @var mixed $editorAction */
+                foreach ($editorActions as $editorAction) {
+                    if (is_string($editorAction) && str_contains($permission, $editorAction)) {
+                        return 'editor';
+                    }
+                }
+            }
+
+            /** @var mixed $adminActions */
+            $adminActions = $rules['admin_actions'] ?? [];
+
+            if (is_array($adminActions)) {
+                /** @var mixed $adminAction */
+                foreach ($adminActions as $adminAction) {
+                    if (is_string($adminAction) && str_contains($permission, $adminAction)) {
+                        return 'admin';
+                    }
+                }
             }
         }
 
@@ -167,9 +216,14 @@ final class MigrateFromSpatieCommand extends Command
 
     private function mapRoleToRelation(string $role): string
     {
+        /** @var mixed $mappings */
         $mappings = config('spatie-compatibility.role_mappings', []);
 
-        return $mappings[$role] ?? $role;
+        if (is_array($mappings) && isset($mappings[$role]) && is_string($mappings[$role])) {
+            return $mappings[$role];
+        }
+
+        return $role;
     }
 
     private function migratePermissions(): void
@@ -180,7 +234,8 @@ final class MigrateFromSpatieCommand extends Command
         $migrated = 0;
 
         foreach ($permissions as $permission) {
-            $this->line('  - Permission: ' . $permission->name);
+            $permissionName = isset($permission->name) && is_string($permission->name) ? $permission->name : '';
+            $this->line('  - Permission: ' . $permissionName);
 
             if (! $this->dryRun) {
                 // Permissions in OpenFGA are relationships, not separate entities
@@ -201,13 +256,15 @@ final class MigrateFromSpatieCommand extends Command
         $rolePermissions = DB::table('role_has_permissions')
             ->join('roles', 'role_has_permissions.role_id', '=', 'roles.id')
             ->join('permissions', 'role_has_permissions.permission_id', '=', 'permissions.id')
-            ->select('roles.name as role_name', 'permissions.name as permission_name')
+            ->select(['roles.name as role_name', 'permissions.name as permission_name'])
             ->get();
 
         $migrated = 0;
 
         foreach ($rolePermissions as $rolePermission) {
-            $this->line(sprintf("  - Role '%s' has permission '%s'", $rolePermission->role_name, $rolePermission->permission_name));
+            $roleName = isset($rolePermission->role_name) && is_scalar($rolePermission->role_name) ? (string) $rolePermission->role_name : '';
+            $permissionName = isset($rolePermission->permission_name) && is_scalar($rolePermission->permission_name) ? (string) $rolePermission->permission_name : '';
+            $this->line(sprintf("  - Role '%s' has permission '%s'", $roleName, $permissionName));
 
             if (! $this->dryRun) {
                 // In OpenFGA, this would be handled by the authorization model
@@ -229,7 +286,8 @@ final class MigrateFromSpatieCommand extends Command
         $migrated = 0;
 
         foreach ($roles as $role) {
-            $this->line('  - Role: ' . $role->name);
+            $roleName = isset($role->name) && is_scalar($role->name) ? (string) $role->name : '';
+            $this->line('  - Role: ' . $roleName);
 
             if (! $this->dryRun) {
                 // Roles in OpenFGA are typically organization-level relationships
@@ -247,29 +305,32 @@ final class MigrateFromSpatieCommand extends Command
     {
         $this->info('🔑 Migrating user permissions...');
 
+        /** @var mixed $userModel */
         $userModel = config('auth.providers.users.model');
         $userPermissions = DB::table('model_has_permissions')
             ->where('model_type', $userModel)
             ->join('permissions', 'model_has_permissions.permission_id', '=', 'permissions.id')
-            ->select('model_has_permissions.model_id as user_id', 'permissions.name as permission_name')
+            ->select(['model_has_permissions.model_id as user_id', 'permissions.name as permission_name'])
             ->get();
 
         $migrated = 0;
-        $batch = collect();
+
+        /** @var array<int, stdClass> $batch */
+        $batch = [];
 
         foreach ($userPermissions as $userPermission) {
-            $batch->push($userPermission);
+            $batch[] = $userPermission;
 
-            if ($batch->count() >= $this->batchSize) {
-                $this->processBatchUserPermissions($batch);
-                $migrated += $batch->count();
-                $batch = collect();
+            if (count($batch) >= $this->batchSize) {
+                $this->processBatchUserPermissions(collect($batch));
+                $migrated += count($batch);
+                $batch = [];
             }
         }
 
-        if ($batch->isNotEmpty()) {
-            $this->processBatchUserPermissions($batch);
-            $migrated += $batch->count();
+        if ([] !== $batch) {
+            $this->processBatchUserPermissions(collect($batch));
+            $migrated += count($batch);
         }
 
         $this->info(sprintf('  ✅ Migrated %d user permission assignments', $migrated));
@@ -279,39 +340,54 @@ final class MigrateFromSpatieCommand extends Command
     {
         $this->info('👥 Migrating user roles...');
 
+        /** @var mixed $userModel */
         $userModel = config('auth.providers.users.model');
         $userRoles = DB::table('model_has_roles')
             ->where('model_type', $userModel)
             ->join('roles', 'model_has_roles.role_id', '=', 'roles.id')
-            ->select('model_has_roles.model_id as user_id', 'roles.name as role_name')
+            ->select(['model_has_roles.model_id as user_id', 'roles.name as role_name'])
             ->get();
 
         $migrated = 0;
-        $batch = collect();
+
+        /** @var array<int, stdClass> $batch */
+        $batch = [];
 
         foreach ($userRoles as $userRole) {
-            $batch->push($userRole);
+            $batch[] = $userRole;
 
-            if ($batch->count() >= $this->batchSize) {
-                $this->processBatchUserRoles($batch);
-                $migrated += $batch->count();
-                $batch = collect();
+            if (count($batch) >= $this->batchSize) {
+                $this->processBatchUserRoles(collect($batch));
+                $migrated += count($batch);
+                $batch = [];
             }
         }
 
-        if ($batch->isNotEmpty()) {
-            $this->processBatchUserRoles($batch);
-            $migrated += $batch->count();
+        if ([] !== $batch) {
+            $this->processBatchUserRoles(collect($batch));
+            $migrated += count($batch);
         }
 
         $this->info(sprintf('  ✅ Migrated %d user role assignments', $migrated));
     }
 
-    private function processBatchUserPermissions($batch): void
+    /**
+     * @param Collection<int, stdClass> $batch
+     */
+    /**
+     * @param Collection<int, stdClass> $batch
+     */
+    private function processBatchUserPermissions(Collection $batch): void
     {
         if ($this->dryRun) {
             foreach ($batch as $userPermission) {
-                $this->line(sprintf("  - Would assign permission '%s' to user %s", $userPermission->permission_name, $userPermission->user_id));
+                /** @var string $permissionName */
+                $permissionName = $userPermission->permission_name;
+
+                /** @var int|string $userIdValue */
+                $userIdValue = $userPermission->user_id;
+                $userId = (string) $userIdValue;
+                $this->line(sprintf("  - Would assign permission '%s' to user %s", $permissionName, $userId));
             }
 
             return;
@@ -320,11 +396,17 @@ final class MigrateFromSpatieCommand extends Command
         $tuples = [];
 
         foreach ($batch as $userPermission) {
-            $relation = $this->mapPermissionToRelation($userPermission->permission_name);
-            $object = $this->mapPermissionToObject($userPermission->permission_name);
+            /** @var string $permissionName */
+            $permissionName = $userPermission->permission_name;
+
+            /** @var int|string $userId */
+            $userId = $userPermission->user_id;
+
+            $relation = $this->mapPermissionToRelation($permissionName);
+            $object = $this->mapPermissionToObject($permissionName);
 
             $tuples[] = [
-                'user' => 'user:' . $userPermission->user_id,
+                'user' => 'user:' . $userId,
                 'relation' => $relation,
                 'object' => $object,
             ];
@@ -337,11 +419,23 @@ final class MigrateFromSpatieCommand extends Command
         }
     }
 
-    private function processBatchUserRoles($batch): void
+    /**
+     * @param Collection<int, stdClass> $batch
+     */
+    /**
+     * @param Collection<int, stdClass> $batch
+     */
+    private function processBatchUserRoles(Collection $batch): void
     {
         if ($this->dryRun) {
             foreach ($batch as $userRole) {
-                $this->line(sprintf("  - Would assign role '%s' to user %s", $userRole->role_name, $userRole->user_id));
+                /** @var string $roleName */
+                $roleName = $userRole->role_name;
+
+                /** @var int|string $userIdValue */
+                $userIdValue = $userRole->user_id;
+                $userId = (string) $userIdValue;
+                $this->line(sprintf("  - Would assign role '%s' to user %s", $roleName, $userId));
             }
 
             return;
@@ -350,11 +444,20 @@ final class MigrateFromSpatieCommand extends Command
         $tuples = [];
 
         foreach ($batch as $userRole) {
-            $relation = $this->mapRoleToRelation($userRole->role_name);
+            /** @var string $roleName */
+            $roleName = $userRole->role_name;
+
+            /** @var int|string $userId */
+            $userId = $userRole->user_id;
+
+            $relation = $this->mapRoleToRelation($roleName);
+
+            /** @var mixed $context */
+            $context = config('spatie-compatibility.default_context', 'organization:main');
             $tuples[] = [
-                'user' => 'user:' . $userRole->user_id,
+                'user' => 'user:' . $userId,
                 'relation' => $relation,
-                'object' => config('spatie-compatibility.default_context', 'organization:main'),
+                'object' => is_string($context) ? $context : 'organization:main',
             ];
         }
 
@@ -375,7 +478,7 @@ final class MigrateFromSpatieCommand extends Command
         $this->line('4. Consider updating your authorization model for better performance');
         $this->line('5. Remove Spatie Laravel Permission package when ready');
 
-        if (! $this->option('preserve-tables')) {
+        if (true !== $this->option('preserve-tables')) {
             $this->newLine();
             $this->warn('⚠️  Consider backing up your Spatie tables before removing them');
         }
@@ -383,17 +486,18 @@ final class MigrateFromSpatieCommand extends Command
 
     private function storePermissionMapping(): void
     {
-        // Store permission mapping for reference
+        // Store permission mapping for future reference
     }
 
     private function storeRoleMapping(): void
     {
-        // Store role mapping for reference
+        // Store role mapping for future reference
         // This could be in cache, database, or config
     }
 
     private function storeRolePermissionMapping(): void
     {
+        // Store role permission mapping for future reference
         // Store role-permission relationship for building authorization model
     }
 
@@ -413,7 +517,8 @@ final class MigrateFromSpatieCommand extends Command
                 $this->verifyUserMigration($sampleUser);
                 ++$verified;
             } catch (Exception $e) {
-                $this->warn(sprintf('  ⚠️  Verification failed for user %s: %s', $sampleUser->id, $e->getMessage()));
+                $userId = isset($sampleUser->id) && is_scalar($sampleUser->id) ? (string) $sampleUser->id : '';
+                $this->warn(sprintf('  ⚠️  Verification failed for user %s: %s', $userId, $e->getMessage()));
                 ++$errors;
             }
         }
@@ -425,24 +530,36 @@ final class MigrateFromSpatieCommand extends Command
         }
     }
 
-    private function verifyUserMigration($user): void
+    /**
+     * @param stdClass $user
+     */
+    private function verifyUserMigration(stdClass $user): void
     {
         // Get a sample of Spatie permissions for this user
         $spatieRoles = DB::table('model_has_roles')
             ->where('model_type', config('auth.providers.users.model'))
-            ->where('model_id', $user->id)
+            ->where('model_id', isset($user->id) && is_scalar($user->id) ? (string) $user->id : '')
             ->join('roles', 'model_has_roles.role_id', '=', 'roles.id')
             ->pluck('roles.name');
 
         // Check if OpenFGA has equivalent permissions
         foreach ($spatieRoles as $spatieRole) {
+            if (! is_string($spatieRole)) {
+                continue;
+            }
             $relation = $this->mapRoleToRelation($spatieRole);
-            $object = config('spatie-compatibility.default_context', 'organization:main');
 
-            $hasPermission = OpenFga::check('user:' . $user->id, $relation, $object);
+            /** @var mixed $defaultContext */
+            $defaultContext = config('spatie-compatibility.default_context', 'organization:main');
+            $object = is_string($defaultContext) ? $defaultContext : 'organization:main';
 
-            if (! $hasPermission && ! $this->dryRun) {
-                throw new Exception(sprintf('User %s missing role %s (relation: %s)', $user->id, $spatieRole, $relation));
+            $userId = isset($user->id) && is_scalar($user->id) ? (string) $user->id : '';
+            $hasPermission = OpenFga::check('user:' . $userId, $relation, $object);
+
+            if ($hasPermission->failed() && ! $this->dryRun) {
+                $userId = isset($user->id) && is_scalar($user->id) ? (string) $user->id : '';
+
+                throw new Exception(sprintf('User %s missing role %s (relation: %s)', $userId, $spatieRole, $relation));
             }
         }
     }

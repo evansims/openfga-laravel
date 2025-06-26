@@ -14,7 +14,13 @@ use function is_string;
 use function sprintf;
 
 /**
- * Command to warm OpenFGA permission cache.
+ * Pre-loads frequently accessed permissions into cache for optimal performance.
+ *
+ * This command warms the OpenFGA cache by pre-fetching permissions based on
+ * specified criteria or recent activity patterns. It supports bulk warming
+ * for specific users, relations, and objects, or intelligent warming based
+ * on historical access patterns. Use this to ensure critical permissions are
+ * cached before peak usage periods or after cache clearing operations.
  */
 final class WarmCacheCommand extends Command
 {

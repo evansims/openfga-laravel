@@ -12,7 +12,13 @@ use function count;
 use function is_array;
 
 /**
- * Performance monitoring for OpenFGA operations.
+ * Tracks and analyzes OpenFGA operation performance metrics.
+ *
+ * This monitor collects real-time performance data for all OpenFGA operations,
+ * including permission checks, batch writes, cache performance, and API response
+ * times. It provides statistical analysis, histograms, and time-series data
+ * useful for optimization, capacity planning, and troubleshooting performance
+ * issues in your authorization layer.
  */
 final class PerformanceMonitor
 {

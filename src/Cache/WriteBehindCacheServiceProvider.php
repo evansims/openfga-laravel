@@ -6,11 +6,16 @@ namespace OpenFGA\Laravel\Cache;
 
 use Exception;
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Contracts\Cache\Factory;
+use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\ServiceProvider;
-use Log;
 use OpenFGA\Laravel\OpenFgaManager;
 use Override;
 
+/**
+ * @internal
+ */
 final class WriteBehindCacheServiceProvider extends ServiceProvider
 {
     /**
@@ -19,12 +24,18 @@ final class WriteBehindCacheServiceProvider extends ServiceProvider
     public function boot(): void
     {
         // Register periodic flush if configured
-        if (config('openfga.cache.write_behind_periodic_flush', false)) {
+        /** @var bool $periodicFlush */
+        $periodicFlush = config('openfga.cache.write_behind_periodic_flush', false);
+
+        if ($periodicFlush) {
             $this->registerPeriodicFlush();
         }
 
         // Register shutdown flush
-        if (config('openfga.cache.write_behind_flush_on_shutdown', true)) {
+        /** @var bool $flushOnShutdown */
+        $flushOnShutdown = config('openfga.cache.write_behind_flush_on_shutdown', true);
+
+        if ($flushOnShutdown) {
             $this->registerShutdownFlush();
         }
     }
@@ -35,13 +46,28 @@ final class WriteBehindCacheServiceProvider extends ServiceProvider
     #[Override]
     public function register(): void
     {
-        $this->app->singleton(WriteBehindCache::class, static fn ($app): WriteBehindCache => new WriteBehindCache(
-            $app->make('cache')->store(config('openfga.cache.write_behind_store')),
-            $app->make('queue'),
-            $app->make(OpenFgaManager::class),
-            config('openfga.cache.write_behind_batch_size', 100),
-            config('openfga.cache.write_behind_flush_interval', 5),
-        ));
+        $this->app->singleton(WriteBehindCache::class, static function (Application $app): WriteBehindCache {
+            /** @var Factory $cacheFactory */
+            $cacheFactory = $app->make('cache');
+
+            /** @var string|null $store */
+            $store = config('openfga.cache.write_behind_store');
+
+            $manager = $app->make(OpenFgaManager::class);
+
+            /** @var int $batchSize */
+            $batchSize = config('openfga.cache.write_behind_batch_size', 100);
+
+            /** @var int $flushInterval */
+            $flushInterval = config('openfga.cache.write_behind_flush_interval', 5);
+
+            return new WriteBehindCache(
+                $cacheFactory->store($store),
+                $manager,
+                $batchSize,
+                $flushInterval,
+            );
+        });
     }
 
     /**

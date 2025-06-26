@@ -20,6 +20,8 @@ use Symfony\Component\HttpKernel\Exception\{HttpException, NotFoundHttpException
 /**
  * Middleware that requires a specific permission.
  * This is an alias for OpenFgaMiddleware for better naming consistency.
+ *
+ * @api
  */
 final readonly class RequiresPermission
 {
@@ -37,6 +39,7 @@ final readonly class RequiresPermission
      * @param string|null                  $object     The object to check permissions against (optional)
      * @param string|null                  $connection The OpenFGA connection to use (optional)
      *
+     * @throws \Psr\SimpleCache\InvalidArgumentException
      * @throws AuthenticationException
      * @throws AuthorizationException
      * @throws BindingResolutionException

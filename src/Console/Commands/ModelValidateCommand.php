@@ -9,6 +9,7 @@ use Illuminate\Console\Command;
 use OpenFGA\Laravel\OpenFgaManager;
 
 use function in_array;
+use function is_string;
 use function sprintf;
 
 final class ModelValidateCommand extends Command
@@ -23,7 +24,7 @@ final class ModelValidateCommand extends Command
     /**
      * The console command description.
      *
-     * @var string
+     * @var string|null
      */
     protected $description = 'Validate an OpenFGA model DSL file';
 
@@ -48,7 +49,7 @@ final class ModelValidateCommand extends Command
         $filePath = $this->option('file');
         $this->option('connection');
 
-        if (! $filePath) {
+        if (! is_string($filePath) || '' === $filePath) {
             $this->error('Please specify a file to validate using --file option');
 
             return self::FAILURE;
@@ -61,9 +62,16 @@ final class ModelValidateCommand extends Command
         }
 
         $dsl = file_get_contents($filePath);
+
+        if (false === $dsl) {
+            $this->error('Failed to read file: ' . $filePath);
+
+            return self::FAILURE;
+        }
+
         $errors = $this->validateDsl($dsl);
 
-        if ($this->option('json')) {
+        if ((bool) $this->option('json')) {
             $this->outputJson($errors);
         } else {
             $this->outputTable($errors, $filePath);
@@ -73,12 +81,12 @@ final class ModelValidateCommand extends Command
             return self::FAILURE;
         }
 
-        if (!$this->option('json')) {
+        if (! (bool) $this->option('json')) {
             $this->info('✅ Model validation passed!');
         }
 
         // Create model if requested
-        if ($this->option('create')) {
+        if ((bool) $this->option('create')) {
             return $this->createModel();
         }
 
@@ -110,30 +118,42 @@ final class ModelValidateCommand extends Command
     /**
      * Extract referenced types from a relation definition.
      *
-     * @param string $definition
-     * @param array  $referencedTypes
+     * @param string             $definition
+     * @param array<int, string> $referencedTypes
      */
     private function extractReferencedTypes(string $definition, array &$referencedTypes): void
     {
         // Match type references like [user], [group#member], etc.
-        preg_match_all('/\[([a-z][a-z0-9_]*)(?:#[a-z][a-z0-9_]*)?\]/', $definition, $matches);
+        $matches = [];
 
-        foreach ($matches[1] as $type) {
-            $referencedTypes[] = $type;
+        // When not using PREG_SET_ORDER, capture groups are in $matches[1]
+        if (0 < preg_match_all('/\[([a-z][a-z0-9_]*)(?:#[a-z][a-z0-9_]*)?\]/', $definition, $matches) && isset($matches[1])) {
+            /** @var array<int, string> $types */
+            $types = $matches[1];
+
+            foreach ($types as $type) {
+                $referencedTypes[] = $type;
+            }
         }
 
         // Match references in "from" clauses
-        preg_match_all('/from\s+([a-z][a-z0-9_]*)/', $definition, $matches);
+        $matches = [];
 
-        foreach ($matches[1] as $type) {
-            $referencedTypes[] = $type;
+        // When not using PREG_SET_ORDER, capture groups are in $matches[1]
+        if (0 < preg_match_all('/from\s+([a-z][a-z0-9_]*)/', $definition, $matches) && isset($matches[1])) {
+            /** @var array<int, string> $types */
+            $types = $matches[1];
+
+            foreach ($types as $type) {
+                $referencedTypes[] = $type;
+            }
         }
     }
 
     /**
      * Output validation results as JSON.
      *
-     * @param array $errors
+     * @param array<int, array{line: int|null, type: string, message: string}> $errors
      */
     private function outputJson(array $errors): void
     {
@@ -142,14 +162,18 @@ final class ModelValidateCommand extends Command
             'errors' => $errors,
         ];
 
-        $this->line(json_encode($output, JSON_PRETTY_PRINT));
+        $encoded = json_encode($output, JSON_PRETTY_PRINT);
+
+        if (false !== $encoded) {
+            $this->line($encoded);
+        }
     }
 
     /**
      * Output validation results as table.
      *
-     * @param array  $errors
-     * @param string $filePath
+     * @param array<int, array{line: int|null, type: string, message: string}> $errors
+     * @param string                                                           $filePath
      */
     private function outputTable(array $errors, string $filePath): void
     {
@@ -161,8 +185,8 @@ final class ModelValidateCommand extends Command
         $this->newLine();
 
         $headers = ['Line', 'Type', 'Error'];
-        $rows = array_map(static fn ($error): array => [
-            $error['line'] ?: 'N/A',
+        $rows = array_map(static fn (array $error): array => [
+            null !== $error['line'] ? (string) $error['line'] : 'N/A',
             $error['type'],
             $error['message'],
         ], $errors);
@@ -173,20 +197,25 @@ final class ModelValidateCommand extends Command
     /**
      * Validate DSL content.
      *
-     * @param string $dsl
+     * @param  string                                                           $dsl
+     * @return array<int, array{line: int|null, type: string, message: string}>
      */
     private function validateDsl(string $dsl): array
     {
+        /** @var array<int, array{line: int|null, type: string, message: string}> $errors */
         $errors = [];
         $lines = explode("\n", $dsl);
         $currentType = null;
         $inRelationsBlock = false;
+
+        /** @var array<int, string> $definedTypes */
         $definedTypes = [];
+
+        /** @var array<int, string> $referencedTypes */
         $referencedTypes = [];
-        $lineNumber = 0;
 
         // Check for model declaration
-        if (! preg_match('/^model\s*$/', trim($lines[0] ?? ''))) {
+        if (1 !== preg_match('/^model\s*$/', trim($lines[0] ?? ''))) {
             $errors[] = [
                 'line' => 1,
                 'type' => 'syntax',
@@ -195,7 +224,7 @@ final class ModelValidateCommand extends Command
         }
 
         // Check for schema version
-        if (! preg_match('/^\s*schema\s+(' . implode('|', self::VALID_SCHEMA_VERSIONS) . ')\s*$/', $lines[1] ?? '')) {
+        if (1 !== preg_match('/^\s*schema\s+(' . implode('|', self::VALID_SCHEMA_VERSIONS) . ')\s*$/', $lines[1] ?? '')) {
             $errors[] = [
                 'line' => 2,
                 'type' => 'schema',
@@ -204,11 +233,11 @@ final class ModelValidateCommand extends Command
         }
 
         // Parse types and relations
-        foreach ($lines as $lineNumber => $line) {
-            ++$lineNumber; // 1-indexed
+        foreach ($lines as $lineIdx => $line) {
+            $lineNumber = $lineIdx + 1; // 1-indexed
             $trimmedLine = trim($line);
 
-            if (empty($trimmedLine)) {
+            if ('' === $trimmedLine) {
                 continue;
             }
 
@@ -221,7 +250,9 @@ final class ModelValidateCommand extends Command
             }
 
             // Type declaration
-            if (preg_match('/^type\s+([a-z][a-z0-9_]*)\s*$/', $trimmedLine, $matches)) {
+            $matches = [];
+
+            if (1 === preg_match('/^type\s+([a-z][a-z0-9_]*)\s*$/', $trimmedLine, $matches) && isset($matches[1])) {
                 $currentType = $matches[1];
                 $definedTypes[] = $currentType;
                 $inRelationsBlock = false;
@@ -230,14 +261,16 @@ final class ModelValidateCommand extends Command
             }
 
             // Relations block
-            if ('relations' === $trimmedLine && $currentType) {
+            if ('relations' === $trimmedLine && null !== $currentType) {
                 $inRelationsBlock = true;
 
                 continue;
             }
 
             // Relation definition
-            if ($inRelationsBlock && preg_match('/^define\s+([a-z][a-z0-9_]*)\s*:\s*(.+)$/', $trimmedLine, $matches)) {
+            $matches = [];
+
+            if ($inRelationsBlock && 1 === preg_match('/^define\s+([a-z][a-z0-9_]*)\s*:\s*(.+)$/', $trimmedLine, $matches) && isset($matches[1], $matches[2])) {
                 $relationName = $matches[1];
                 $definition = $matches[2];
 
@@ -264,7 +297,7 @@ final class ModelValidateCommand extends Command
 
         foreach ($undefinedTypes as $undefinedType) {
             $errors[] = [
-                'line' => 0,
+                'line' => null,
                 'type' => 'reference',
                 'message' => sprintf("Referenced type '%s' is not defined", $undefinedType),
             ];
@@ -276,8 +309,9 @@ final class ModelValidateCommand extends Command
     /**
      * Validate relation definition syntax.
      *
-     * @param string $definition
-     * @param int    $lineNumber
+     * @param  string                                                           $definition
+     * @param  int                                                              $lineNumber
+     * @return array<int, array{line: int|null, type: string, message: string}>
      */
     private function validateRelationDefinition(string $definition, int $lineNumber): array
     {
@@ -296,7 +330,7 @@ final class ModelValidateCommand extends Command
         }
 
         // Basic syntax validation
-        if (! preg_match('/^\[.+\]/', $definition) && ! str_contains($definition, ' or ') && ! str_contains($definition, ' and ')) {
+        if (0 === preg_match('/^\[.+\]/', $definition) && ! str_contains($definition, ' or ') && ! str_contains($definition, ' and ')) {
             $errors[] = [
                 'line' => $lineNumber,
                 'type' => 'syntax',

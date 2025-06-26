@@ -9,9 +9,11 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\File;
 use InvalidArgumentException;
 use OpenFGA\Laravel\Facades\OpenFga;
-use PHPUnit\Framework\AssertionFailedError;
 use RuntimeException;
 
+use function is_array;
+use function is_object;
+use function is_string;
 use function sprintf;
 
 /**
@@ -24,6 +26,15 @@ final class PermissionSnapshot
 {
     private readonly string $snapshotPath;
 
+    /**
+     * @var array{
+     *   inheritance_trees?: array<string, array<string, mixed>>,
+     *   permission_matrix?: array<string, \OpenFGA\Results\Success|\OpenFGA\Results\Failure>,
+     *   object_relationships?: array<string, array<string, mixed>>,
+     *   user_accessible_objects?: array<string, array<string, array<string, mixed>>>,
+     *   user_permissions?: array<string, array<int, array{user: string, relation: string, object: string, allowed: \OpenFGA\Results\Success|\OpenFGA\Results\Failure}>>
+     * }
+     */
     private array $currentSnapshot = [];
 
     private bool $updateSnapshots = false;
@@ -31,7 +42,7 @@ final class PermissionSnapshot
     public function __construct(?string $snapshotPath = null)
     {
         $this->snapshotPath = $snapshotPath ?? storage_path('testing/permission-snapshots');
-        $this->updateSnapshots = env('UPDATE_PERMISSION_SNAPSHOTS', false);
+        $this->updateSnapshots = (bool) env('UPDATE_PERMISSION_SNAPSHOTS', false);
 
         $this->ensureSnapshotDirectoryExists();
     }
@@ -40,6 +51,8 @@ final class PermissionSnapshot
      * Assert that current permissions match the saved snapshot.
      *
      * @param string $name
+     *
+     * @throws RuntimeException
      */
     public function assertMatchesSnapshot(string $name): void
     {
@@ -56,6 +69,12 @@ final class PermissionSnapshot
         }
 
         $savedSnapshot = json_decode(File::get($snapshotFile), true);
+
+        if (! is_array($savedSnapshot)) {
+            throw new RuntimeException('Invalid snapshot format: ' . $name);
+        }
+
+        /** @var array<string, mixed> $savedSnapshot */
         $differences = $this->compareSnapshots($savedSnapshot, $this->currentSnapshot);
 
         if ([] !== $differences) {
@@ -63,7 +82,7 @@ final class PermissionSnapshot
             $message .= $this->formatDifferences($differences);
             $message .= "\n\nTo update snapshots, run tests with UPDATE_PERMISSION_SNAPSHOTS=true";
 
-            throw new AssertionFailedError($message);
+            throw new RuntimeException($message);
         }
     }
 
@@ -76,9 +95,26 @@ final class PermissionSnapshot
     public function captureInheritanceTree(string $user, string $object): self
     {
         try {
-            $tree = OpenFga::expand($object);
+            $tree = OpenFga::expand($object, '');
+
+            if (! isset($this->currentSnapshot['inheritance_trees'])) {
+                $this->currentSnapshot['inheritance_trees'] = [];
+            }
+
+            if (! isset($this->currentSnapshot['inheritance_trees'][$user])) {
+                $this->currentSnapshot['inheritance_trees'][$user] = [];
+            }
+
             $this->currentSnapshot['inheritance_trees'][$user][$object] = $this->serializeTree($tree);
         } catch (Exception) {
+            if (! isset($this->currentSnapshot['inheritance_trees'])) {
+                $this->currentSnapshot['inheritance_trees'] = [];
+            }
+
+            if (! isset($this->currentSnapshot['inheritance_trees'][$user])) {
+                $this->currentSnapshot['inheritance_trees'][$user] = [];
+            }
+
             $this->currentSnapshot['inheritance_trees'][$user][$object] = null;
         }
 
@@ -88,9 +124,9 @@ final class PermissionSnapshot
     /**
      * Capture all permissions for a set of users and objects.
      *
-     * @param array $users
-     * @param array $objects
-     * @param array $relations
+     * @param array<int|string, string> $users
+     * @param array<int|string, string> $objects
+     * @param array<int|string, string> $relations
      */
     public function captureMatrix(array $users, array $objects, array $relations): self
     {
@@ -113,8 +149,8 @@ final class PermissionSnapshot
     /**
      * Capture object relationships (who has access to what).
      *
-     * @param string $object
-     * @param array  $relations
+     * @param string                    $object
+     * @param array<int|string, string> $relations
      */
     public function captureObjectRelationships(string $object, array $relations): self
     {
@@ -128,6 +164,10 @@ final class PermissionSnapshot
                 // If listing users is not supported, skip
                 $relationships[$relation] = null;
             }
+        }
+
+        if (! isset($this->currentSnapshot['object_relationships'])) {
+            $this->currentSnapshot['object_relationships'] = [];
         }
 
         $this->currentSnapshot['object_relationships'][$object] = $relationships;
@@ -146,9 +186,34 @@ final class PermissionSnapshot
     {
         try {
             $objects = OpenFga::listObjects($userId, $relation, $objectType);
+
+            if (! isset($this->currentSnapshot['user_accessible_objects'])) {
+                $this->currentSnapshot['user_accessible_objects'] = [];
+            }
+
+            if (! isset($this->currentSnapshot['user_accessible_objects'][$userId])) {
+                $this->currentSnapshot['user_accessible_objects'][$userId] = [];
+            }
+
+            if (! isset($this->currentSnapshot['user_accessible_objects'][$userId][$relation])) {
+                $this->currentSnapshot['user_accessible_objects'][$userId][$relation] = [];
+            }
+
             $this->currentSnapshot['user_accessible_objects'][$userId][$relation][$objectType] = $objects;
         } catch (Exception) {
             // If listing objects is not supported, skip
+            if (! isset($this->currentSnapshot['user_accessible_objects'])) {
+                $this->currentSnapshot['user_accessible_objects'] = [];
+            }
+
+            if (! isset($this->currentSnapshot['user_accessible_objects'][$userId])) {
+                $this->currentSnapshot['user_accessible_objects'][$userId] = [];
+            }
+
+            if (! isset($this->currentSnapshot['user_accessible_objects'][$userId][$relation])) {
+                $this->currentSnapshot['user_accessible_objects'][$userId][$relation] = [];
+            }
+
             $this->currentSnapshot['user_accessible_objects'][$userId][$relation][$objectType] = null;
         }
 
@@ -158,9 +223,9 @@ final class PermissionSnapshot
     /**
      * Capture permissions for a specific user.
      *
-     * @param string $userId
-     * @param array  $objects
-     * @param array  $relations
+     * @param string                    $userId
+     * @param array<int|string, string> $objects
+     * @param array<int|string, string> $relations
      */
     public function captureUserPermissions(string $userId, array $objects, array $relations): self
     {
@@ -176,6 +241,10 @@ final class PermissionSnapshot
                     'allowed' => $allowed,
                 ];
             }
+        }
+
+        if (! isset($this->currentSnapshot['user_permissions'])) {
+            $this->currentSnapshot['user_permissions'] = [];
         }
 
         $this->currentSnapshot['user_permissions'][$userId] = $permissions;
@@ -196,17 +265,23 @@ final class PermissionSnapshot
     /**
      * Compare two snapshots and return differences.
      *
-     * @param array $saved
-     * @param array $current
+     * @param  array<string, mixed> $saved
+     * @param  array<string, mixed> $current
+     * @return array<string, mixed>
      */
     public function compareSnapshots(array $saved, array $current): array
     {
         $differences = [];
 
         // Compare user permissions
-        if (isset($saved['snapshot']['user_permissions']) || isset($current['user_permissions'])) {
-            $savedPerms = $saved['snapshot']['user_permissions'] ?? [];
-            $currentPerms = $current['user_permissions'] ?? [];
+        $savedSnapshot = isset($saved['snapshot']) && is_array($saved['snapshot']) ? $saved['snapshot'] : [];
+
+        if (isset($savedSnapshot['user_permissions']) || isset($current['user_permissions'])) {
+            /** @var array<string, mixed> $savedPerms */
+            $savedPerms = isset($savedSnapshot['user_permissions']) && is_array($savedSnapshot['user_permissions']) ? $savedSnapshot['user_permissions'] : [];
+
+            /** @var array<string, mixed> $currentPerms */
+            $currentPerms = (isset($current['user_permissions']) && is_array($current['user_permissions'])) ? $current['user_permissions'] : [];
 
             $diff = $this->compareUserPermissions($savedPerms, $currentPerms);
 
@@ -216,9 +291,12 @@ final class PermissionSnapshot
         }
 
         // Compare permission matrix
-        if (isset($saved['snapshot']['permission_matrix']) || isset($current['permission_matrix'])) {
-            $savedMatrix = $saved['snapshot']['permission_matrix'] ?? [];
-            $currentMatrix = $current['permission_matrix'] ?? [];
+        if (isset($savedSnapshot['permission_matrix']) || isset($current['permission_matrix'])) {
+            /** @var array<string, mixed> $savedMatrix */
+            $savedMatrix = isset($savedSnapshot['permission_matrix']) && is_array($savedSnapshot['permission_matrix']) ? $savedSnapshot['permission_matrix'] : [];
+
+            /** @var array<string, mixed> $currentMatrix */
+            $currentMatrix = (isset($current['permission_matrix']) && is_array($current['permission_matrix'])) ? $current['permission_matrix'] : [];
 
             $diff = $this->compareMatrix($savedMatrix, $currentMatrix);
 
@@ -228,9 +306,12 @@ final class PermissionSnapshot
         }
 
         // Compare object relationships
-        if (isset($saved['snapshot']['object_relationships']) || isset($current['object_relationships'])) {
-            $savedRels = $saved['snapshot']['object_relationships'] ?? [];
-            $currentRels = $current['object_relationships'] ?? [];
+        if (isset($savedSnapshot['object_relationships']) || isset($current['object_relationships'])) {
+            /** @var array<string, mixed> $savedRels */
+            $savedRels = isset($savedSnapshot['object_relationships']) && is_array($savedSnapshot['object_relationships']) ? $savedSnapshot['object_relationships'] : [];
+
+            /** @var array<string, mixed> $currentRels */
+            $currentRels = (isset($current['object_relationships']) && is_array($current['object_relationships'])) ? $current['object_relationships'] : [];
 
             $diff = $this->compareObjectRelationships($savedRels, $currentRels);
 
@@ -263,6 +344,8 @@ final class PermissionSnapshot
      *
      * @param string $snapshot1
      * @param string $snapshot2
+     *
+     * @throws InvalidArgumentException|RuntimeException
      */
     public function generateDiffReport(string $snapshot1, string $snapshot2): string
     {
@@ -282,6 +365,8 @@ final class PermissionSnapshot
 
     /**
      * Get all available snapshots.
+     *
+     * @return Collection<int, array{name: string, path: string, size: int, modified: int}>
      */
     public function listSnapshots(): Collection
     {
@@ -290,16 +375,21 @@ final class PermissionSnapshot
             ->map(static fn ($file): array => [
                 'name' => $file->getFilenameWithoutExtension(),
                 'path' => $file->getPathname(),
-                'size' => $file->getSize(),
-                'modified' => $file->getMTime(),
+                'size' => (int) $file->getSize(),
+                'modified' => (int) $file->getMTime(),
             ])
-            ->sortByDesc('modified');
+            ->sortByDesc('modified')
+            ->values();
     }
 
     /**
      * Load a saved snapshot.
      *
      * @param string $name
+     *
+     * @throws InvalidArgumentException|RuntimeException
+     *
+     * @return array<string, mixed>
      */
     public function loadSnapshot(string $name): array
     {
@@ -309,13 +399,22 @@ final class PermissionSnapshot
             throw new InvalidArgumentException('Snapshot not found: ' . $name);
         }
 
-        return json_decode(File::get($snapshotFile), true);
+        $data = json_decode(File::get($snapshotFile), true);
+
+        if (! is_array($data)) {
+            throw new RuntimeException('Invalid snapshot data format');
+        }
+
+        /** @var array<string, mixed> $data */
+        return $data;
     }
 
     /**
      * Save the current snapshot.
      *
      * @param string $name
+     *
+     * @throws RuntimeException
      */
     public function saveSnapshot(string $name): void
     {
@@ -327,7 +426,12 @@ final class PermissionSnapshot
             'snapshot' => $this->currentSnapshot,
         ];
 
-        File::put($snapshotFile, json_encode($data, JSON_PRETTY_PRINT));
+        $encoded = json_encode($data, JSON_PRETTY_PRINT);
+
+        if (false === $encoded) {
+            throw new RuntimeException('Failed to encode snapshot data');
+        }
+        File::put($snapshotFile, $encoded);
     }
 
     /**
@@ -342,28 +446,77 @@ final class PermissionSnapshot
         return $this;
     }
 
+    /**
+     * @param  array<string, mixed>                                                                                                        $saved
+     * @param  array<string, mixed>                                                                                                        $current
+     * @return array{added?: array<string, mixed>, removed?: array<string, mixed>, changed?: array<string, array{from: mixed, to: mixed}>}
+     */
     private function compareMatrix(array $saved, array $current): array
     {
-        $differences = [];
+        /** @var array<string, mixed> $added */
+        $added = [];
 
+        /** @var array<string, mixed> $removed */
+        $removed = [];
+
+        /** @var array<string, array{from: mixed, to: mixed}> $changed */
+        $changed = [];
+
+        /** @var array<string> $allKeys */
         $allKeys = array_unique(array_merge(array_keys($saved), array_keys($current)));
 
         foreach ($allKeys as $allKey) {
             if (! isset($saved[$allKey]) && isset($current[$allKey])) {
-                $differences['added'][$allKey] = $current[$allKey];
+                /** @var mixed $currentValue */
+                $currentValue = $current[$allKey];
+
+                /** @var array<string, mixed> $newAdded */
+                $newAdded = array_merge($added, [$allKey => $currentValue]);
+                $added = $newAdded;
             } elseif (isset($saved[$allKey]) && ! isset($current[$allKey])) {
-                $differences['removed'][$allKey] = $saved[$allKey];
+                /** @var mixed $savedValue */
+                $savedValue = $saved[$allKey];
+
+                /** @var array<string, mixed> $newRemoved */
+                $newRemoved = array_merge($removed, [$allKey => $savedValue]);
+                $removed = $newRemoved;
             } elseif (isset($saved[$allKey], $current[$allKey]) && $saved[$allKey] !== $current[$allKey]) {
-                $differences['changed'][$allKey] = [
-                    'from' => $saved[$allKey],
-                    'to' => $current[$allKey],
+                /** @var mixed $savedValue */
+                $savedValue = $saved[$allKey];
+
+                /** @var mixed $currentValue */
+                $currentValue = $current[$allKey];
+
+                $changed[$allKey] = [
+                    'from' => $savedValue,
+                    'to' => $currentValue,
                 ];
             }
+        }
+
+        /** @var array{added?: array<string, mixed>, removed?: array<string, mixed>, changed?: array<string, array{from: mixed, to: mixed}>} $differences */
+        $differences = [];
+
+        if ([] !== $added) {
+            $differences['added'] = $added;
+        }
+
+        if ([] !== $removed) {
+            $differences['removed'] = $removed;
+        }
+
+        if ([] !== $changed) {
+            $differences['changed'] = $changed;
         }
 
         return $differences;
     }
 
+    /**
+     * @param  array<string, mixed> $saved
+     * @param  array<string, mixed> $current
+     * @return array<string, mixed>
+     */
     private function compareObjectRelationships(array $saved, array $current): array
     {
         $differences = [];
@@ -377,23 +530,30 @@ final class PermissionSnapshot
                 $differences['removed_objects'][] = $allObject;
             } else {
                 // Compare relationships for this object
+                /** @var mixed $savedRels */
                 $savedRels = $saved[$allObject];
+
+                /** @var mixed $currentRels */
                 $currentRels = $current[$allObject];
 
-                foreach ($savedRels as $relation => $users) {
-                    if (! isset($currentRels[$relation])) {
-                        $differences['objects'][$allObject]['removed_relations'][] = $relation;
-                    } elseif ($users !== $currentRels[$relation]) {
-                        $differences['objects'][$allObject]['changed_relations'][$relation] = [
-                            'from' => $users,
-                            'to' => $currentRels[$relation],
-                        ];
+                if (is_array($savedRels) && is_array($currentRels)) {
+                    /** @var array<string, mixed> $savedRels */
+                    /** @var mixed $users */
+                    foreach ($savedRels as $relation => $users) {
+                        if (! isset($currentRels[$relation])) {
+                            $differences['objects'][$allObject]['removed_relations'][] = $relation;
+                        } elseif ($users !== $currentRels[$relation]) {
+                            $differences['objects'][$allObject]['changed_relations'][$relation] = [
+                                'from' => $users,
+                                'to' => $currentRels[$relation],
+                            ];
+                        }
                     }
-                }
 
-                foreach ($currentRels as $relation => $users) {
-                    if (! isset($savedRels[$relation])) {
-                        $differences['objects'][$allObject]['new_relations'][] = $relation;
+                    foreach (array_keys($currentRels) as $relation) {
+                        if (! isset($savedRels[$relation])) {
+                            $differences['objects'][$allObject]['new_relations'][] = $relation;
+                        }
                     }
                 }
             }
@@ -402,6 +562,11 @@ final class PermissionSnapshot
         return $differences;
     }
 
+    /**
+     * @param  array<string, mixed> $saved
+     * @param  array<string, mixed> $current
+     * @return array<string, mixed>
+     */
     private function compareUserPermissions(array $saved, array $current): array
     {
         $differences = [];
@@ -423,9 +588,13 @@ final class PermissionSnapshot
 
         // Compare permissions for common users
         foreach (array_intersect($savedUsers, $currentUsers) as $user) {
-            $savedPerms = collect($saved[$user])->keyBy(static fn ($perm): string => sprintf('%s:%s', $perm['relation'], $perm['object']));
+            /** @var array<array{user: string, relation: string, object: string, allowed: bool}> $userSavedPerms */
+            $userSavedPerms = is_array($saved[$user]) ? $saved[$user] : [];
+            $savedPerms = collect($userSavedPerms)->keyBy(static fn (array $perm): string => sprintf('%s:%s', $perm['relation'], $perm['object']));
 
-            $currentPerms = collect($current[$user])->keyBy(static fn ($perm): string => sprintf('%s:%s', $perm['relation'], $perm['object']));
+            /** @var array<array{user: string, relation: string, object: string, allowed: bool}> $userCurrentPerms */
+            $userCurrentPerms = is_array($current[$user]) ? $current[$user] : [];
+            $currentPerms = collect($userCurrentPerms)->keyBy(static fn (array $perm): string => sprintf('%s:%s', $perm['relation'], $perm['object']));
 
             $changed = [];
 
@@ -435,7 +604,7 @@ final class PermissionSnapshot
                         'type' => 'removed',
                         'permission' => $savedPerm,
                     ];
-                } elseif ($savedPerm['allowed'] !== $currentPerms[$key]['allowed']) {
+                } elseif (isset($currentPerms[$key]) && is_array($currentPerms[$key]) && isset($savedPerm['allowed'], $currentPerms[$key]['allowed']) && $savedPerm['allowed'] !== $currentPerms[$key]['allowed']) {
                     $changed[] = [
                         'type' => 'changed',
                         'from' => $savedPerm,
@@ -468,6 +637,10 @@ final class PermissionSnapshot
         }
     }
 
+    /**
+     * @param string               $category
+     * @param array<string, mixed> $diffs
+     */
     private function formatCategoryDifferences(string $category, array $diffs): string
     {
         $lines = [];
@@ -475,20 +648,34 @@ final class PermissionSnapshot
         switch ($category) {
             case 'user_permissions':
                 if (isset($diffs['missing_users'])) {
-                    $lines[] = 'Missing users: ' . implode(', ', $diffs['missing_users']);
+                    $lines[] = 'Missing users: ' . implode(', ', is_array($diffs['missing_users']) ? $diffs['missing_users'] : []);
                 }
 
                 if (isset($diffs['new_users'])) {
-                    $lines[] = 'New users: ' . implode(', ', $diffs['new_users']);
+                    $lines[] = 'New users: ' . implode(', ', is_array($diffs['new_users']) ? $diffs['new_users'] : []);
                 }
 
-                if (isset($diffs['users'])) {
-                    foreach ($diffs['users'] as $user => $changes) {
+                if (isset($diffs['users']) && is_array($diffs['users'])) {
+                    /** @var array<string, mixed> $users */
+                    $users = $diffs['users'];
+
+                    /** @var mixed $changes */
+                    foreach ($users as $user => $changes) {
                         $lines[] = '
 User: ' . $user;
 
-                        foreach ($changes as $change) {
-                            $lines[] = $this->formatPermissionChange($change);
+                        if (is_array($changes)) {
+                            /** @var array<int, mixed> $changesArray */
+                            $changesArray = $changes;
+
+                            /** @var mixed $changeArray */
+                            foreach ($changesArray as $changeArray) {
+                                if (is_array($changeArray)) {
+                                    /** @var array<string, mixed> $changeArrayTyped */
+                                    $changeArrayTyped = $changeArray;
+                                    $lines[] = $this->formatPermissionChange($changeArrayTyped);
+                                }
+                            }
                         }
                     }
                 }
@@ -497,14 +684,18 @@ User: ' . $user;
 
             case 'permission_matrix':
                 foreach (['added', 'removed', 'changed'] as $type) {
-                    if (isset($diffs[$type])) {
+                    if (isset($diffs[$type]) && is_array($diffs[$type])) {
                         $lines[] = "\n" . ucfirst($type) . ':';
 
-                        foreach ($diffs[$type] as $key => $value) {
-                            if ('changed' === $type) {
-                                $lines[] = sprintf('  %s: %s → %s', $key, $value['from'], $value['to']);
+                        /** @var array<string, mixed> $typeData */
+                        $typeData = $diffs[$type];
+
+                        /** @var mixed $value */
+                        foreach ($typeData as $key => $value) {
+                            if ('changed' === $type && is_array($value) && isset($value['from'], $value['to'])) {
+                                $lines[] = sprintf('  %s: %s → %s', $key, (bool) $value['from'] ? 'allowed' : 'denied', (bool) $value['to'] ? 'allowed' : 'denied');
                             } else {
-                                $lines[] = sprintf('  %s: ', $key) . ($value ? 'allowed' : 'denied');
+                                $lines[] = sprintf('  %s: ', $key) . ((bool) $value ? 'allowed' : 'denied');
                             }
                         }
                     }
@@ -513,48 +704,117 @@ User: ' . $user;
                 break;
 
             default:
-                $lines[] = json_encode($diffs, JSON_PRETTY_PRINT);
+                $encoded = json_encode($diffs, JSON_PRETTY_PRINT);
+
+                if (false !== $encoded) {
+                    $lines[] = $encoded;
+                }
         }
 
         return implode("\n", $lines);
     }
 
+    /**
+     * @param array<string, mixed> $differences
+     */
     private function formatDifferences(array $differences): string
     {
         $output = [];
 
+        /** @var mixed $diffs */
         foreach ($differences as $category => $diffs) {
             $output[] = strtoupper(str_replace('_', ' ', $category)) . ':';
             $output[] = str_repeat('-', 50);
-            $output[] = $this->formatCategoryDifferences($category, $diffs);
+
+            /** @var array<string, mixed> $diffsArray */
+            $diffsArray = is_array($diffs) ? $diffs : [];
+            $output[] = $this->formatCategoryDifferences($category, $diffsArray);
             $output[] = '';
         }
 
         return implode("\n", $output);
     }
 
+    /**
+     * @param array<string, mixed> $change
+     */
     private function formatPermissionChange(array $change): string
     {
-        switch ($change['type']) {
-            case 'added':
-                $perm = $change['permission'];
+        $type = isset($change['type']) && is_string($change['type']) ? $change['type'] : 'unknown';
 
-                return sprintf('  + %s on %s: ', $perm['relation'], $perm['object']) .
-                       ($perm['allowed'] ? 'allowed' : 'denied');
+        switch ($type) {
+            case 'added':
+                $perm = isset($change['permission']) && is_array($change['permission']) ? $change['permission'] : [];
+
+                $relation = '';
+                $object = '';
+                $allowed = false;
+
+                if (isset($perm['relation']) && (is_string($perm['relation']) || is_numeric($perm['relation']))) {
+                    $relation = (string) $perm['relation'];
+                }
+
+                if (isset($perm['object']) && (is_string($perm['object']) || is_numeric($perm['object']))) {
+                    $object = (string) $perm['object'];
+                }
+
+                if (isset($perm['allowed'])) {
+                    $allowed = (bool) $perm['allowed'];
+                }
+
+                return sprintf('  + %s on %s: ', $relation, $object) . ($allowed ? 'allowed' : 'denied');
 
             case 'removed':
-                $perm = $change['permission'];
+                $perm = isset($change['permission']) && is_array($change['permission']) ? $change['permission'] : [];
 
-                return sprintf('  - %s on %s: ', $perm['relation'], $perm['object']) .
-                       ($perm['allowed'] ? 'allowed' : 'denied');
+                $relation = '';
+                $object = '';
+                $allowed = false;
+
+                if (isset($perm['relation']) && (is_string($perm['relation']) || is_numeric($perm['relation']))) {
+                    $relation = (string) $perm['relation'];
+                }
+
+                if (isset($perm['object']) && (is_string($perm['object']) || is_numeric($perm['object']))) {
+                    $object = (string) $perm['object'];
+                }
+
+                if (isset($perm['allowed'])) {
+                    $allowed = (bool) $perm['allowed'];
+                }
+
+                return sprintf('  - %s on %s: ', $relation, $object) . ($allowed ? 'allowed' : 'denied');
 
             case 'changed':
-                return sprintf('  ~ %s on %s: ', $change['from']['relation'], $change['from']['object']) .
-                       ($change['from']['allowed'] ? 'allowed' : 'denied') . ' → ' .
-                       ($change['to']['allowed'] ? 'allowed' : 'denied');
+                $fromRelation = '';
+                $fromObject = '';
+                $fromAllowed = false;
+                $toAllowed = false;
+
+                if (isset($change['from']) && is_array($change['from'])) {
+                    if (isset($change['from']['relation']) && (is_string($change['from']['relation']) || is_numeric($change['from']['relation']))) {
+                        $fromRelation = (string) $change['from']['relation'];
+                    }
+
+                    if (isset($change['from']['object']) && (is_string($change['from']['object']) || is_numeric($change['from']['object']))) {
+                        $fromObject = (string) $change['from']['object'];
+                    }
+
+                    if (isset($change['from']['allowed'])) {
+                        $fromAllowed = (bool) $change['from']['allowed'];
+                    }
+                }
+
+                if (isset($change['to']) && is_array($change['to']) && isset($change['to']['allowed'])) {
+                    $toAllowed = (bool) $change['to']['allowed'];
+                }
+
+                return sprintf('  ~ %s on %s: ', $fromRelation, $fromObject) .
+                       ($fromAllowed ? 'allowed' : 'denied') . ' → ' .
+                       ($toAllowed ? 'allowed' : 'denied');
 
             default:
-                return '  ? Unknown change type: ' . $change['type'];
+                return '  ? Unknown change type: ' . $type;
         }
     }
 
@@ -562,13 +822,31 @@ User: ' . $user;
     {
         $sanitized = preg_replace('/[^a-zA-Z0-9_-]/', '_', $name);
 
+        if (null === $sanitized) {
+            $sanitized = 'snapshot_' . time();
+        }
+
         return $this->snapshotPath . '/' . $sanitized . '.json';
     }
 
+    /**
+     * @param  mixed                $tree
+     * @return array<string, mixed>
+     */
     private function serializeTree($tree): array
     {
         // Serialize the expansion tree to a format that can be compared
         // This is a simplified version - implement based on actual tree structure
-        return (array) $tree;
+        if (is_array($tree)) {
+            /** @var array<string, mixed> $tree */
+            return $tree;
+        }
+
+        if (is_object($tree)) {
+            /** @var array<string, mixed> */
+            return (array) $tree;
+        }
+
+        return [];
     }
 }

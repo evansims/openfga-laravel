@@ -5,8 +5,12 @@ declare(strict_types=1);
 namespace OpenFGA\Laravel\Debugbar;
 
 use Exception;
+use Illuminate\Contracts\Container\BindingResolutionException;
+use InvalidArgumentException;
 use OpenFGA\ClientInterface;
+use OpenFGA\Exceptions\ClientThrowable;
 use OpenFGA\Laravel\OpenFgaManager;
+use OpenFGA\Laravel\Profiling\OpenFgaProfiler;
 
 use function count;
 use function is_array;
@@ -23,14 +27,19 @@ final readonly class DebugbarOpenFgaManager
     /**
      * Forward calls to the wrapped manager while collecting metrics.
      *
-     * @param string $method
-     * @param array  $arguments
+     * @param string            $method
+     * @param array<int, mixed> $arguments
+     *
+     * @throws Exception
+     *
+     * @return mixed
      */
     public function __call(string $method, array $arguments)
     {
         $start = microtime(true);
 
         try {
+            /** @var mixed $result */
             $result = $this->manager->{$method}(...$arguments);
             $duration = microtime(true) - $start;
 
@@ -49,7 +58,8 @@ final readonly class DebugbarOpenFgaManager
     /**
      * Handle property access.
      *
-     * @param string $name
+     * @param  string $name
+     * @return mixed
      */
     public function __get(string $name)
     {
@@ -59,7 +69,11 @@ final readonly class DebugbarOpenFgaManager
     /**
      * Batch check authorization.
      *
-     * @param array $checks
+     * @param array<int, array{user: string, relation: string, object: string}> $checks
+     *
+     * @throws BindingResolutionException|ClientThrowable|Exception|InvalidArgumentException
+     *
+     * @return array<string, bool>
      */
     public function batchCheck(array $checks): array
     {
@@ -67,7 +81,10 @@ final readonly class DebugbarOpenFgaManager
         $results = $this->manager->batchCheck($checks);
         $duration = microtime(true) - $start;
 
-        $this->collector->addBatchCheck($checks, $results, $duration);
+        // Add to profiler instead of collector
+        $profiler = app(OpenFgaProfiler::class);
+        $profile = $profiler->startProfile('batchCheck', ['checks' => $checks]);
+        $profile->end(true)->addMetadata('duration', $duration);
 
         return $results;
     }
@@ -78,6 +95,8 @@ final readonly class DebugbarOpenFgaManager
      * @param string $user
      * @param string $relation
      * @param string $object
+     *
+     * @throws BindingResolutionException|ClientThrowable|Exception|InvalidArgumentException|\Psr\SimpleCache\InvalidArgumentException
      */
     public function check(string $user, string $relation, string $object): bool
     {
@@ -85,7 +104,10 @@ final readonly class DebugbarOpenFgaManager
         $result = $this->manager->check($user, $relation, $object);
         $duration = microtime(true) - $start;
 
-        $this->collector->addCheck($user, $relation, $object, $result, $duration);
+        // Add to profiler instead of collector
+        $profiler = app(OpenFgaProfiler::class);
+        $profile = $profiler->startProfile('check', ['user' => $user, 'relation' => $relation, 'object' => $object]);
+        $profile->end(true)->addMetadata('duration', $duration);
 
         return $result;
     }
@@ -94,6 +116,8 @@ final readonly class DebugbarOpenFgaManager
      * Get a connection.
      *
      * @param ?string $name
+     *
+     * @throws InvalidArgumentException
      */
     public function connection(?string $name = null): ClientInterface
     {
@@ -108,6 +132,10 @@ final readonly class DebugbarOpenFgaManager
      *
      * @param string $relation
      * @param string $object
+     *
+     * @throws BindingResolutionException|ClientThrowable|Exception|InvalidArgumentException
+     *
+     * @return array<string, mixed>
      */
     public function expand(string $relation, string $object): array
     {
@@ -115,7 +143,10 @@ final readonly class DebugbarOpenFgaManager
         $result = $this->manager->expand($relation, $object);
         $duration = microtime(true) - $start;
 
-        $this->collector->addExpand($relation, $object, $result, $duration);
+        // Add to profiler instead of collector
+        $profiler = app(OpenFgaProfiler::class);
+        $profile = $profiler->startProfile('expand', ['relation' => $relation, 'object' => $object]);
+        $profile->end(true)->addMetadata('duration', $duration);
 
         return $result;
     }
@@ -123,25 +154,31 @@ final readonly class DebugbarOpenFgaManager
     /**
      * Write authorization data.
      *
-     * @param array $writes
-     * @param array $deletes
+     * @param array<int, array{user: string, relation: string, object: string}> $writes
+     * @param array<int, array{user: string, relation: string, object: string}> $deletes
+     *
+     * @throws BindingResolutionException|ClientThrowable|Exception|InvalidArgumentException
      */
     public function write(array $writes = [], array $deletes = []): void
     {
         $start = microtime(true);
-        $this->manager->write($writes, $deletes);
+        // The manager's write method expects TupleKeysInterface, so we need to use writeBatch instead
+        $this->manager->writeBatch($writes, $deletes);
         $duration = microtime(true) - $start;
 
-        $this->collector->addWrite($writes, $deletes, $duration);
+        // Add to profiler instead of collector
+        $profiler = app(OpenFgaProfiler::class);
+        $profile = $profiler->startProfile('write', ['writes' => count($writes), 'deletes' => count($deletes)]);
+        $profile->end(true)->addMetadata('duration', $duration);
     }
 
     /**
      * Collect metrics for generic method calls.
      *
-     * @param string     $method
-     * @param array      $arguments
-     * @param float      $duration
-     * @param ?Exception $exception
+     * @param string            $method
+     * @param array<int, mixed> $arguments
+     * @param float             $duration
+     * @param ?Exception        $exception
      */
     private function collectMetrics(
         string $method,
@@ -159,13 +196,17 @@ final readonly class DebugbarOpenFgaManager
             $params['error'] = $exception->getMessage();
         }
 
-        $this->collector->addQuery($method, $params, $duration);
+        // Add to profiler instead of collector
+        $profiler = app(OpenFgaProfiler::class);
+        $profile = $profiler->startProfile($method, $params);
+        $profile->end(true)->addMetadata('duration', $duration);
     }
 
     /**
      * Sanitize arguments for display.
      *
-     * @param array $arguments
+     * @param  array<int, mixed> $arguments
+     * @return array<int, mixed>
      */
     private function sanitizeArguments(array $arguments): array
     {

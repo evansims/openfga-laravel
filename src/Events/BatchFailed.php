@@ -10,6 +10,15 @@ use Illuminate\Queue\SerializesModels;
 use OpenFGA\Laravel\Batch\BatchResult;
 use Throwable;
 
+/**
+ * Event dispatched when a batch authorization operation fails.
+ *
+ * This event captures critical failure information when batch permission
+ * operations encounter errors, enabling error tracking, alerting, and
+ * recovery strategies. Monitor this event to identify systemic issues,
+ * implement retry logic, or trigger fallback authorization mechanisms
+ * for improved resilience in distributed systems.
+ */
 final class BatchFailed
 {
     use Dispatchable;

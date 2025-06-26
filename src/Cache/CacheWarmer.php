@@ -16,6 +16,8 @@ use function sprintf;
 
 /**
  * Intelligent cache warming for OpenFGA permissions.
+ *
+ * @internal
  */
 final class CacheWarmer
 {

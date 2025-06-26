@@ -13,6 +13,7 @@ use RuntimeException;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
+use function is_string;
 use function sprintf;
 
 final class ModelCreateCommand extends Command
@@ -109,7 +110,7 @@ final class ModelCreateCommand extends Command
     /**
      * The console command description.
      *
-     * @var string
+     * @var string|null
      */
     protected $description = 'Create a new OpenFGA authorization model from DSL';
 
@@ -137,11 +138,17 @@ final class ModelCreateCommand extends Command
         $filePath = $this->option('file');
         $template = $this->option('template');
 
+        if (! is_string($name)) {
+            $this->error('Invalid name provided.');
+
+            return self::FAILURE;
+        }
+
         // Generate filename for the model
         $filename = $this->generateFilename($name);
 
         // Check if file already exists
-        if (! $this->option('force') && file_exists($filename)) {
+        if (true !== $this->option('force') && file_exists($filename)) {
             $this->error('Model file already exists: ' . $filename);
             $this->info('Use --force to overwrite the existing file.');
 
@@ -149,9 +156,12 @@ final class ModelCreateCommand extends Command
         }
 
         // Get the DSL content
-        $dsl = $this->getDslContent($filePath, $template);
+        $dsl = $this->getDslContent(
+            is_string($filePath) ? $filePath : null,
+            is_string($template) ? $template : null,
+        );
 
-        if (! $dsl) {
+        if (null === $dsl) {
             return self::FAILURE;
         }
 
@@ -167,7 +177,7 @@ final class ModelCreateCommand extends Command
 
         // Optionally create the model in OpenFGA
         if ($this->confirm('Do you want to create this model in OpenFGA now?')) {
-            return $this->createModelInOpenFga($manager, $connection, $dsl);
+            return $this->createModelInOpenFga($manager, is_string($connection) ? $connection : null, $dsl);
         }
 
         $this->info('You can create the model later using:');
@@ -197,7 +207,7 @@ final class ModelCreateCommand extends Command
         while (true) {
             $typeName = $this->ask('Enter type name (or press enter to finish)');
 
-            if (empty($typeName)) {
+            if (! is_string($typeName) || '' === $typeName) {
                 break;
             }
 
@@ -208,12 +218,13 @@ final class ModelCreateCommand extends Command
             while (true) {
                 $relationName = $this->ask('Enter relation name (or press enter to finish)');
 
-                if (empty($relationName)) {
+                if (! is_string($relationName) || '' === $relationName) {
                     break;
                 }
 
+                /** @var mixed $allowedTypes */
                 $allowedTypes = $this->ask(sprintf("Allowed types for '%s' (comma-separated, e.g., user, group#member)", $relationName), 'user');
-                $allowedTypesArray = array_map('trim', explode(',', (string) $allowedTypes));
+                $allowedTypesArray = array_map('trim', explode(',', is_string($allowedTypes) ? $allowedTypes : 'user'));
 
                 $relations[$relationName] = [
                     'allowed' => $allowedTypesArray,
@@ -221,8 +232,9 @@ final class ModelCreateCommand extends Command
                 ];
 
                 if ($this->confirm(sprintf("Does '%s' inherit from other relations?", $relationName))) {
+                    /** @var mixed $inherited */
                     $inherited = $this->ask('Enter inherited relations (comma-separated)');
-                    $relations[$relationName]['inherited'] = array_map('trim', explode(',', (string) $inherited));
+                    $relations[$relationName]['inherited'] = array_map('trim', explode(',', is_string($inherited) ? $inherited : ''));
                 }
             }
 
@@ -242,7 +254,7 @@ final class ModelCreateCommand extends Command
     private function createModelInOpenFga(OpenFgaManager $manager, ?string $connection, string $dsl): int
     {
         try {
-            $client = $manager->connection($connection);
+            $manager->connection($connection);
 
             $this->info('Creating model in OpenFGA...');
 
@@ -267,7 +279,7 @@ final class ModelCreateCommand extends Command
     /**
      * Generate DSL from type definitions.
      *
-     * @param array $types
+     * @param array<string, array<string, array{allowed: array<int, string>, inherited: array<int, string>}>> $types
      */
     private function generateDsl(array $types): string
     {
@@ -276,16 +288,19 @@ final class ModelCreateCommand extends Command
         foreach ($types as $typeName => $relations) {
             $dsl .= sprintf('type %s%s', $typeName, PHP_EOL);
 
-            if (! empty($relations)) {
+            if ([] !== $relations) {
                 $dsl .= "  relations\n";
 
                 foreach ($relations as $relationName => $config) {
                     $dsl .= sprintf('    define %s: ', $relationName);
 
-                    $definition = '[' . implode(', ', $config['allowed']) . ']';
+                    $allowed = $config['allowed'];
+                    $definition = '[' . implode(', ', $allowed) . ']';
 
-                    if (! empty($config['inherited'])) {
-                        $definition .= ' or ' . implode(' or ', $config['inherited']);
+                    $inherited = $config['inherited'];
+
+                    if ([] !== $inherited) {
+                        $definition .= ' or ' . implode(' or ', $inherited);
                     }
 
                     $dsl .= $definition . "\n";
@@ -325,18 +340,20 @@ final class ModelCreateCommand extends Command
     private function getDslContent(?string $filePath, ?string $template): ?string
     {
         // If a file is specified, read from it
-        if ($filePath) {
+        if (null !== $filePath) {
             if (! file_exists($filePath)) {
                 $this->error('File not found: ' . $filePath);
 
                 return null;
             }
 
-            return file_get_contents($filePath);
+            $content = file_get_contents($filePath);
+
+            return false !== $content ? $content : null;
         }
 
         // If a template is specified, use it
-        if ($template) {
+        if (null !== $template) {
             if (! isset(self::TEMPLATES[$template])) {
                 $this->error('Unknown template: ' . $template);
                 $this->info('Available templates: ' . implode(', ', array_keys(self::TEMPLATES)));
@@ -356,6 +373,8 @@ final class ModelCreateCommand extends Command
      *
      * @param string $filename
      * @param string $dsl
+     *
+     * @throws RuntimeException
      */
     private function saveDslFile(string $filename, string $dsl): void
     {

@@ -13,7 +13,13 @@ use function is_array;
 use function sprintf;
 
 /**
- * Additional assertion helpers for OpenFGA testing.
+ * Comprehensive assertion helpers for testing OpenFGA authorization logic.
+ *
+ * This helper class provides a rich set of assertion methods specifically designed
+ * for testing authorization scenarios with FakeOpenFga. It includes assertions for
+ * permission checks, tuple existence, user access patterns, and expansion results.
+ * These helpers make authorization tests more readable, maintainable, and expressive
+ * by providing semantic assertions that clearly communicate testing intent.
  */
 final class AssertionHelper
 {

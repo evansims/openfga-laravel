@@ -101,7 +101,7 @@ final readonly class MockScenarios
     /**
      * Combine multiple scenarios.
      *
-     * @param array $scenarios
+     * @param array<int, string> $scenarios
      */
     public function combine(array $scenarios): self
     {
@@ -161,7 +161,7 @@ final readonly class MockScenarios
     /**
      * Add custom scenario.
      *
-     * @param Closure $setup
+     * @param Closure(FakeOpenFga): void $setup
      */
     public function custom(Closure $setup): self
     {
@@ -253,17 +253,19 @@ final readonly class MockScenarios
     /**
      * Add specific denials to current scenario.
      *
-     * @param array $denials
+     * @param array<int, array{user: string, relation: string, object: string}> $denials
      */
     public function withDenials(array $denials): self
     {
         foreach ($denials as $denial) {
-            $this->fake->mockCheck(
-                $denial['user'],
-                $denial['relation'],
-                $denial['object'],
-                false,
-            );
+            if (isset($denial['user'], $denial['relation'], $denial['object'])) {
+                $this->fake->mockCheck(
+                    $denial['user'],
+                    $denial['relation'],
+                    $denial['object'],
+                    false,
+                );
+            }
         }
 
         return $this;
@@ -299,7 +301,7 @@ final readonly class MockScenarios
     /**
      * Add specific permissions to current scenario.
      *
-     * @param array $permissions
+     * @param array<int, array{user: string, relation: string, object: string}> $permissions
      */
     public function withPermissions(array $permissions): self
     {

@@ -23,6 +23,8 @@ use function is_string;
 
 /**
  * Service provider for OpenFGA Blade directives and view helpers.
+ *
+ * @internal
  */
 final class BladeServiceProvider extends ServiceProvider
 {
@@ -42,6 +44,7 @@ final class BladeServiceProvider extends ServiceProvider
      * @param mixed       $object
      * @param string|null $connection
      *
+     * @throws \Psr\SimpleCache\InvalidArgumentException
      * @throws BindingResolutionException
      * @throws ClientThrowable
      * @throws Exception
@@ -298,6 +301,7 @@ final class BladeServiceProvider extends ServiceProvider
                  * @param mixed       $object
                  * @param string|null $connection
                  *
+                 * @throws \Psr\SimpleCache\InvalidArgumentException
                  * @throws BindingResolutionException
                  * @throws ClientThrowable
                  * @throws Exception
@@ -319,6 +323,7 @@ final class BladeServiceProvider extends ServiceProvider
                  * @param mixed       $object
                  * @param string|null $connection
                  *
+                 * @throws \Psr\SimpleCache\InvalidArgumentException
                  * @throws BindingResolutionException
                  * @throws ClientThrowable
                  * @throws Exception
@@ -334,6 +339,7 @@ final class BladeServiceProvider extends ServiceProvider
                  * @param mixed              $object
                  * @param string|null        $connection
                  *
+                 * @throws \Psr\SimpleCache\InvalidArgumentException
                  * @throws BindingResolutionException
                  * @throws ClientThrowable
                  * @throws Exception
@@ -355,6 +361,7 @@ final class BladeServiceProvider extends ServiceProvider
                  * @param mixed              $object
                  * @param string|null        $connection
                  *
+                 * @throws \Psr\SimpleCache\InvalidArgumentException
                  * @throws BindingResolutionException
                  * @throws ClientThrowable
                  * @throws Exception

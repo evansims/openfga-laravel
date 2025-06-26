@@ -19,7 +19,17 @@ use OpenFGA\Laravel\Traits\{ResolvesAuthorizationObject, ResolvesAuthorizationUs
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Middleware for batch loading permissions to optimize multiple checks.
+ * Preloads permissions for route objects to optimize authorization checks.
+ *
+ * This middleware intelligently batches permission checks for all objects
+ * in the current route, warming the cache before your controller executes.
+ * This prevents N+1 authorization queries when checking multiple permissions
+ * on route model bindings. Particularly useful for resource controllers
+ * where you need to check multiple permissions on the same objects.
+ *
+ * Usage: Route::middleware('openfga.load:read,write,delete')
+ *
+ * @api
  */
 final readonly class LoadPermissions
 {

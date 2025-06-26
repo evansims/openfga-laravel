@@ -6,11 +6,18 @@ namespace OpenFGA\Laravel\Pool;
 
 use Exception;
 use Illuminate\Support\Collection;
-use OpenFGA\{Client};
+use OpenFGA\Authentication\{ClientCredentialAuthentication, TokenAuthentication};
+use OpenFGA\{Client, ClientInterface};
+use OpenFGA\Language;
 use OpenFGA\Laravel\Exceptions\ConnectionPoolException;
 
+use function is_int;
+use function is_string;
 use function sprintf;
 
+/**
+ * @internal
+ */
 final class ConnectionPool
 {
     private readonly int $connectionTimeout;
@@ -21,10 +28,19 @@ final class ConnectionPool
 
     private readonly int $minConnections;
 
+    /**
+     * @var Collection<int, PooledConnection>
+     */
     private Collection $available;
 
+    /**
+     * @var Collection<int, PooledConnection>
+     */
     private Collection $inUse;
 
+    /**
+     * @var array{created: int, destroyed: int, acquired: int, released: int, timeouts: int, errors: int}
+     */
     private array $stats = [
         'created' => 0,
         'destroyed' => 0,
@@ -34,6 +50,9 @@ final class ConnectionPool
         'errors' => 0,
     ];
 
+    /**
+     * @param array{max_connections?: int, min_connections?: int, max_idle_time?: int, connection_timeout?: int, url?: string, store_id?: string|null, model_id?: string|null, credentials?: array<string, mixed>, retries?: array<string, mixed>, http_options?: array<string, mixed>} $config
+     */
     public function __construct(private array $config = [])
     {
         $this->maxConnections = $this->config['max_connections'] ?? 10;
@@ -50,6 +69,8 @@ final class ConnectionPool
 
     /**
      * Acquire a connection from the pool.
+     *
+     * @throws ConnectionPoolException
      */
     public function acquire(): PooledConnection
     {
@@ -79,7 +100,13 @@ final class ConnectionPool
     /**
      * Execute a callback with a pooled connection.
      *
-     * @param callable $callback
+     * @template T
+     *
+     * @param callable(ClientInterface): T $callback
+     *
+     * @throws ConnectionPoolException
+     *
+     * @return T
      */
     public function execute(callable $callback)
     {
@@ -94,6 +121,8 @@ final class ConnectionPool
 
     /**
      * Get pool statistics.
+     *
+     * @return array{created: int, destroyed: int, acquired: int, released: int, timeouts: int, errors: int, available: int, in_use: int, total: int, utilization: float}
      */
     public function getStats(): array
     {
@@ -102,8 +131,8 @@ final class ConnectionPool
             'in_use' => $this->inUse->count(),
             'total' => $this->getTotalConnections(),
             'utilization' => 0 < $this->getTotalConnections()
-                ? round(($this->inUse->count() / $this->getTotalConnections()) * 100, 2)
-                : 0,
+                ? round(((float) $this->inUse->count() / (float) $this->getTotalConnections()) * 100.0, 2)
+                : 0.0,
         ]);
     }
 
@@ -117,6 +146,8 @@ final class ConnectionPool
 
     /**
      * Health check all connections.
+     *
+     * @return array{healthy: int, unhealthy: int, total: int}
      */
     public function healthCheck(): array
     {
@@ -124,7 +155,7 @@ final class ConnectionPool
         $unhealthy = 0;
 
         // Check available connections
-        $this->available->each(static function ($connection) use (&$healthy, &$unhealthy): void {
+        $this->available->each(static function (PooledConnection $connection) use (&$healthy, &$unhealthy): void {
             if ($connection->isHealthy()) {
                 ++$healthy;
             } else {
@@ -133,7 +164,7 @@ final class ConnectionPool
         });
 
         // Check in-use connections
-        $this->inUse->each(static function ($connection) use (&$healthy, &$unhealthy): void {
+        $this->inUse->each(static function (PooledConnection $connection) use (&$healthy, &$unhealthy): void {
             if ($connection->isHealthy()) {
                 ++$healthy;
             } else {
@@ -158,7 +189,7 @@ final class ConnectionPool
         ++$this->stats['released'];
 
         // Remove from in-use
-        $this->inUse = $this->inUse->reject(static fn ($conn): bool => $conn === $connection);
+        $this->inUse = $this->inUse->reject(static fn (PooledConnection $conn): bool => $conn === $connection);
 
         // Check if connection is still healthy
         if ($connection->isHealthy()) {
@@ -179,12 +210,12 @@ final class ConnectionPool
     public function shutdown(): void
     {
         // Close all available connections
-        $this->available->each(function ($connection): void {
+        $this->available->each(function (PooledConnection $connection): void {
             $this->destroyConnection($connection);
         });
 
         // Close all in-use connections
-        $this->inUse->each(function ($connection): void {
+        $this->inUse->each(function (PooledConnection $connection): void {
             $this->destroyConnection($connection);
         });
 
@@ -204,7 +235,7 @@ final class ConnectionPool
             return;
         }
 
-        $this->available = $this->available->reject(function ($connection) use (&$totalConnections): bool {
+        $this->available = $this->available->reject(function (PooledConnection $connection) use (&$totalConnections): bool {
             if ($totalConnections > $this->minConnections && $connection->isExpired($this->maxIdleTime)) {
                 $this->destroyConnection($connection);
                 --$totalConnections;
@@ -218,18 +249,41 @@ final class ConnectionPool
 
     /**
      * Create a new connection.
+     *
+     * @throws ConnectionPoolException
      */
     private function createConnection(): PooledConnection
     {
         try {
-            $client = new Client([
-                'api_url' => $this->config['url'] ?? 'http://localhost:8080',
-                'store_id' => $this->config['store_id'] ?? null,
-                'authorization_model_id' => $this->config['model_id'] ?? null,
-                'credentials' => $this->config['credentials'] ?? [],
-                'retries' => $this->config['retries'] ?? [],
-                'http_options' => $this->config['http_options'] ?? [],
-            ]);
+            // Create authentication if credentials are provided
+            $authentication = null;
+
+            if (isset($this->config['credentials']['client_id'], $this->config['credentials']['client_secret'])
+                && is_string($this->config['credentials']['client_id']) && is_string($this->config['credentials']['client_secret'])) {
+                $audience = isset($this->config['credentials']['audience']) && is_string($this->config['credentials']['audience'])
+                    ? $this->config['credentials']['audience'] : '';
+                $issuer = isset($this->config['credentials']['issuer']) && is_string($this->config['credentials']['issuer'])
+                    ? $this->config['credentials']['issuer'] : '';
+
+                $authentication = new ClientCredentialAuthentication(
+                    $this->config['credentials']['client_id'],
+                    $this->config['credentials']['client_secret'],
+                    $issuer,
+                    $audience,
+                );
+            } elseif (isset($this->config['credentials']['api_token']) && is_string($this->config['credentials']['api_token'])) {
+                $authentication = new TokenAuthentication($this->config['credentials']['api_token']);
+            }
+
+            $maxRetries = isset($this->config['retries']['max']) && is_int($this->config['retries']['max']) && 0 < $this->config['retries']['max']
+                ? $this->config['retries']['max'] : 3;
+
+            $client = new Client(
+                $this->config['url'] ?? 'http://localhost:8080',
+                $authentication,
+                Language::English,
+                $maxRetries,
+            );
 
             ++$this->stats['created'];
 
@@ -258,6 +312,7 @@ final class ConnectionPool
     private function getAvailableConnection(): ?PooledConnection
     {
         while ($this->available->isNotEmpty()) {
+            /** @var PooledConnection $connection */
             $connection = $this->available->shift();
 
             // Check if connection is still valid
@@ -289,6 +344,8 @@ final class ConnectionPool
 
     /**
      * Wait for a connection to become available.
+     *
+     * @throws ConnectionPoolException
      */
     private function waitForConnection(): PooledConnection
     {

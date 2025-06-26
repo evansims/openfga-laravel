@@ -141,6 +141,11 @@ return RectorConfig::configure()
         ],
         // Skip StringClassNameToClassConstantRector to avoid Psalm errors with str_contains() on literals
         StringClassNameToClassConstantRector::class,
+        // Skip RemoveNonExistingVarAnnotationRector for files that need type hints for Psalm
+        RemoveNonExistingVarAnnotationRector::class => [
+            __DIR__ . '/src/Testing/IntegrationTestCase.php',
+            __DIR__ . '/src/Testing/PermissionSnapshot.php',
+        ],
     ])
     ->withRules([
         // Additional rules not covered by the sets above

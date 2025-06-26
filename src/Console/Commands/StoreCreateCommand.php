@@ -9,6 +9,7 @@ use Illuminate\Console\Command;
 use OpenFGA\Laravel\OpenFgaManager;
 use RuntimeException;
 
+use function is_string;
 use function sprintf;
 
 final class StoreCreateCommand extends Command
@@ -16,7 +17,7 @@ final class StoreCreateCommand extends Command
     /**
      * The console command description.
      *
-     * @var string
+     * @var string|null
      */
     protected $description = 'Create a new OpenFGA store';
 
@@ -43,24 +44,26 @@ final class StoreCreateCommand extends Command
         $modelFile = $this->option('model');
 
         try {
-            $this->info(sprintf("Creating store '%s'...", $name));
+            /** @var string $storeName */
+            $storeName = $name;
+            $this->info(sprintf("Creating store '%s'...", $storeName));
 
             // Note: Actual implementation would use the OpenFGA client to create the store
             // For now, we'll simulate the process
 
-            $storeId = $this->createStore($name);
+            $storeId = $this->createStore($storeName);
 
             $this->info('✅ Store created successfully!');
             $this->comment('Store ID: ' . $storeId);
 
             // Create initial model if provided
-            if ($modelFile) {
+            if (is_string($modelFile)) {
                 $this->createInitialModel($storeId, $modelFile);
             }
 
             // Update configuration if requested
-            if ($this->option('update-config')) {
-                $this->updateConfiguration($storeId, $connection);
+            if (true === $this->option('update-config')) {
+                $this->updateConfiguration($storeId, is_string($connection) ? $connection : null);
             }
 
             $this->showNextSteps($storeId);
@@ -78,6 +81,8 @@ final class StoreCreateCommand extends Command
      *
      * @param string $storeId
      * @param string $modelFile
+     *
+     * @throws RuntimeException
      */
     private function createInitialModel(string $storeId, string $modelFile): void
     {
@@ -147,7 +152,7 @@ final class StoreCreateCommand extends Command
         $this->info('Configuration update instructions:');
         $this->comment('Add the following to your .env file:');
 
-        if ($connection) {
+        if (null !== $connection) {
             $envPrefix = strtoupper($connection);
             $this->comment(sprintf('%s_OPENFGA_STORE_ID=%s', $envPrefix, $storeId));
         } else {

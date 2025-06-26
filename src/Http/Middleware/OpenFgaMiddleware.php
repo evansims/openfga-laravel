@@ -26,6 +26,8 @@ use function strlen;
 
 /**
  * Middleware for protecting routes with OpenFGA authorization.
+ *
+ * @api
  */
 final class OpenFgaMiddleware
 {
@@ -52,6 +54,7 @@ final class OpenFgaMiddleware
      * @param string|null                  $object     The object to check permissions against (optional)
      * @param string|null                  $connection The OpenFGA connection to use (optional)
      *
+     * @throws \Psr\SimpleCache\InvalidArgumentException
      * @throws AuthenticationException
      * @throws AuthorizationException
      * @throws BindingResolutionException

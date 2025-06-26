@@ -9,10 +9,15 @@ use Illuminate\Support\Collection;
 use OpenFGA\Laravel\Compatibility\SpatieCompatibility;
 
 /**
- * Trait to add Spatie Laravel Permission compatible methods to User models.
+ * Compatibility layer for migrating from Spatie Laravel Permission to OpenFGA.
  *
- * This trait allows existing code using Spatie syntax to work with OpenFGA
- * with minimal changes.
+ * This trait provides familiar Spatie methods on your User model, translating
+ * them to OpenFGA operations behind the scenes. It eases migration by allowing
+ * existing code to work with minimal changes while you transition to OpenFGA's
+ * relationship-based model. Supports role assignment, permission checking, and
+ * synchronization operations using Spatie's API conventions.
+ *
+ * @api
  */
 trait SpatieCompatible
 {

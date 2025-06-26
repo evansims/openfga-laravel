@@ -8,6 +8,14 @@ use RuntimeException;
 
 use function sprintf;
 
+/**
+ * Exception thrown when OpenFGA connection pool operations fail.
+ *
+ * This exception indicates issues with the connection pool management, such as
+ * reaching maximum capacity, initialization failures, or timeout waiting for
+ * available connections. It helps diagnose and handle connection resource
+ * exhaustion scenarios in high-concurrency environments.
+ */
 final class ConnectionPoolException extends RuntimeException
 {
     /**

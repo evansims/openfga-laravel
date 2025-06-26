@@ -263,9 +263,10 @@ For more information, see the integration testing documentation.
         }
 
         // Start OpenFGA container
+        $port = parse_url($this->openFgaUrl, PHP_URL_PORT);
         $dockerCommand = sprintf(
             'docker run -d --name openfga-test -p %s:8080 -p 8081:8081 -p 3000:3000 openfga/openfga:latest run',
-            parse_url($this->openFgaUrl, PHP_URL_PORT) ?: '8080',
+            false !== $port ? (string) $port : '8080',
         );
 
         exec($dockerCommand . ' 2>&1', $output, $returnCode);

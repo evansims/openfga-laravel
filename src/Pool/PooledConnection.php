@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Pool;
 
-use Exception;
 use OpenFGA\ClientInterface;
 
+/**
+ * @internal
+ */
 final class PooledConnection
 {
     private readonly float $createdAt;
@@ -69,6 +71,8 @@ final class PooledConnection
 
     /**
      * Get connection statistics.
+     *
+     * @return array{id: string, age: float, idle_time: float, use_count: int, healthy: bool}
      */
     public function getStats(): array
     {
@@ -104,20 +108,10 @@ final class PooledConnection
      */
     public function isHealthy(): bool
     {
-        if (! $this->healthy) {
-            return false;
-        }
-
         // Perform a lightweight health check
-        try {
-            // This would ideally be a ping or lightweight operation
-            // For now, we'll assume the connection is healthy
-            return true;
-        } catch (Exception) {
-            $this->healthy = false;
-
-            return false;
-        }
+        // This would ideally be a ping or lightweight operation
+        // For now, we'll assume the connection is healthy
+        return $this->healthy;
     }
 
     /**

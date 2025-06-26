@@ -5,20 +5,37 @@ declare(strict_types=1);
 namespace OpenFGA\Laravel\Import;
 
 use Exception;
-use Illuminate\Support\Facades\{Log};
+use Illuminate\Contracts\Container\BindingResolutionException;
+use InvalidArgumentException;
+use OpenFGA\Exceptions\ClientThrowable;
 use OpenFGA\Laravel\OpenFgaManager;
 use OpenFGA\Models\Collections\TupleKeys;
 use OpenFGA\Models\TupleKey;
+use ReflectionException;
 use RuntimeException;
 
+use function count;
 use function function_exists;
 use function in_array;
 use function is_array;
+use function is_string;
 
 final class PermissionImporter
 {
-    private array $options = [];
+    /**
+     * @var array{batch_size: int, dry_run: bool, skip_duplicates: bool, validate: bool, progress?: (callable(): mixed)|null}
+     */
+    private array $options = [
+        'batch_size' => 100,
+        'dry_run' => false,
+        'skip_duplicates' => true,
+        'validate' => true,
+        'progress' => null,
+    ];
 
+    /**
+     * @var array{processed: int, imported: int, skipped: int, errors: int}
+     */
     private array $stats = [
         'processed' => 0,
         'imported' => 0,
@@ -32,6 +49,8 @@ final class PermissionImporter
 
     /**
      * Get import statistics.
+     *
+     * @return array{processed: int, imported: int, skipped: int, errors: int}
      */
     public function getStats(): array
     {
@@ -41,17 +60,22 @@ final class PermissionImporter
     /**
      * Import permissions from an array.
      *
-     * @param array $data
-     * @param array $options
+     * @param array<int, array{user: string, relation: string, object: string}>|array{permissions: array<int, array{user: string, relation: string, object: string}>} $data
+     * @param array{batch_size?: int, dry_run?: bool, skip_duplicates?: bool, validate?: bool, progress?: (callable(): mixed)|null}                                   $options
+     *
+     * @throws RuntimeException
+     *
+     * @return array{processed: int, imported: int, skipped: int, errors: int}
      */
     public function importFromArray(array $data, array $options = []): array
     {
-        $this->options = array_merge([
-            'batch_size' => 100,
-            'skip_errors' => false,
-            'dry_run' => false,
-            'validate' => true,
-        ], $options);
+        $this->options = [
+            'batch_size' => $options['batch_size'] ?? 100,
+            'dry_run' => $options['dry_run'] ?? false,
+            'skip_duplicates' => $options['skip_duplicates'] ?? true,
+            'validate' => $options['validate'] ?? true,
+            'progress' => $options['progress'] ?? null,
+        ];
 
         $this->resetStats();
 
@@ -61,7 +85,10 @@ final class PermissionImporter
         }
 
         // Process in batches
-        $batches = array_chunk($data['permissions'] ?? $data, $this->options['batch_size']);
+        /** @var array<int, array{user: string, relation: string, object: string}> $permissions */
+        $permissions = $data['permissions'] ?? $data;
+        $batchSize = max(1, $this->options['batch_size']);
+        $batches = array_chunk($permissions, $batchSize);
 
         foreach ($batches as $batch) {
             $this->processBatch($batch);
@@ -73,19 +100,31 @@ final class PermissionImporter
     /**
      * Import permissions from a file.
      *
-     * @param string $filename
-     * @param array  $options
+     * @param string                                                                                                                                                                            $filename
+     * @param array{format?: string, batch_size?: int, skip_errors?: bool, dry_run?: bool, clear_existing?: bool, validate?: bool, skip_duplicates?: bool, progress?: (callable(): mixed)|null} $options
+     *
+     * @throws RuntimeException
+     *
+     * @return array{processed: int, imported: int, skipped: int, errors: int}
      */
     public function importFromFile(string $filename, array $options = []): array
     {
-        $this->options = array_merge([
-            'format' => $this->detectFormat($filename),
-            'batch_size' => 100,
-            'skip_errors' => false,
-            'dry_run' => false,
-            'clear_existing' => false,
-            'validate' => true,
-        ], $options);
+        $format = $options['format'] ?? $this->detectFormat($filename);
+
+        $this->options = [
+            'batch_size' => $options['batch_size'] ?? 100,
+            'dry_run' => $options['dry_run'] ?? false,
+            'skip_duplicates' => $options['skip_duplicates'] ?? true,
+            'validate' => $options['validate'] ?? true,
+            'progress' => $options['progress'] ?? null,
+        ];
+
+        // Store additional options separately for this method
+        $fileOptions = [
+            'format' => $format,
+            'skip_errors' => $options['skip_errors'] ?? false,
+            'clear_existing' => $options['clear_existing'] ?? false,
+        ];
 
         $this->resetStats();
 
@@ -93,11 +132,11 @@ final class PermissionImporter
             throw new RuntimeException('Import file not found: ' . $filename);
         }
 
-        return match ($this->options['format']) {
+        return match ($fileOptions['format']) {
             'json' => $this->importJson($filename),
             'csv' => $this->importCsv($filename),
             'yaml' => $this->importYaml($filename),
-            default => throw new RuntimeException('Unsupported format: ' . $this->options['format']),
+            default => throw new RuntimeException('Unsupported format: ' . $fileOptions['format']),
         };
     }
 
@@ -122,28 +161,64 @@ final class PermissionImporter
      * Import from CSV file.
      *
      * @param string $filename
+     *
+     * @throws RuntimeException
+     *
+     * @return array{processed: int, imported: int, skipped: int, errors: int}
      */
     private function importCsv(string $filename): array
     {
         $handle = fopen($filename, 'r');
 
-        if (! $handle) {
+        if (false === $handle) {
             throw new RuntimeException('Cannot open CSV file: ' . $filename);
         }
 
         $headers = fgetcsv($handle);
 
-        if (! $headers || ! in_array('user', $headers, true) || ! in_array('relation', $headers, true) || ! in_array('object', $headers, true)) {
+        if (! is_array($headers)) {
+            throw new RuntimeException('Cannot read CSV headers');
+        }
+
+        /** @var list<string|null> $headers */
+
+        /** @var list<string> $mappedHeaders */
+        $mappedHeaders = [];
+
+        foreach ($headers as $header) {
+            $mappedHeaders[] = (string) $header;
+        }
+
+        /** @var array<int, string> $headerStrings */
+        $headerStrings = $mappedHeaders;
+
+        if (! in_array('user', $headerStrings, true) || ! in_array('relation', $headerStrings, true) || ! in_array('object', $headerStrings, true)) {
             throw new RuntimeException('CSV must have headers: user, relation, object');
         }
 
+        /** @var array<int, array{user: string, relation: string, object: string}> $permissions */
         $permissions = [];
 
         while (($row = fgetcsv($handle)) !== false) {
-            $permission = array_combine($headers, $row);
+            /** @var list<string|null> $row - We know it's not false here */
+            // Ensure row has same number of elements as headers
+            if (count($headerStrings) !== count($row)) {
+                continue; // Skip malformed rows
+            }
 
-            if ([] !== $permission) {
-                $permissions[] = $permission;
+            /** @var array<int, string> $rowStrings */
+            $rowStrings = array_map(static fn (mixed $value): string => (string) $value, $row);
+
+            $permission = array_combine($headerStrings, $rowStrings);
+
+            // Validate required fields
+            if (isset($permission['user'], $permission['relation'], $permission['object'])
+            ) {
+                $permissions[] = [
+                    'user' => $permission['user'],
+                    'relation' => $permission['relation'],
+                    'object' => $permission['object'],
+                ];
             }
         }
 
@@ -156,23 +231,75 @@ final class PermissionImporter
      * Import from JSON file.
      *
      * @param string $filename
+     *
+     * @throws RuntimeException
+     *
+     * @return array{processed: int, imported: int, skipped: int, errors: int}
      */
     private function importJson(string $filename): array
     {
         $content = file_get_contents($filename);
+
+        if (false === $content) {
+            throw new RuntimeException('Cannot read file: ' . $filename);
+        }
+
         $data = json_decode($content, true);
 
         if (JSON_ERROR_NONE !== json_last_error()) {
             throw new RuntimeException('Invalid JSON: ' . json_last_error_msg());
         }
 
-        return $this->importFromArray($data);
+        if (! is_array($data)) {
+            throw new RuntimeException('Invalid JSON data structure');
+        }
+
+        /** @var array<int, array{user: string, relation: string, object: string}> $permissionData */
+        $permissionData = [];
+
+        // Check if data has permissions key
+        if (isset($data['permissions']) && is_array($data['permissions'])) {
+            /** @var mixed $perm */
+            foreach ($data['permissions'] as $perm) {
+                if (is_array($perm)
+                    && isset($perm['user']) && is_string($perm['user'])
+                    && isset($perm['relation']) && is_string($perm['relation'])
+                    && isset($perm['object']) && is_string($perm['object'])) {
+                    $permissionData[] = [
+                        'user' => $perm['user'],
+                        'relation' => $perm['relation'],
+                        'object' => $perm['object'],
+                    ];
+                }
+            }
+        } else {
+            // Direct array of permissions
+            /** @var mixed $perm */
+            foreach ($data as $perm) {
+                if (is_array($perm)
+                    && isset($perm['user']) && is_string($perm['user'])
+                    && isset($perm['relation']) && is_string($perm['relation'])
+                    && isset($perm['object']) && is_string($perm['object'])) {
+                    $permissionData[] = [
+                        'user' => $perm['user'],
+                        'relation' => $perm['relation'],
+                        'object' => $perm['object'],
+                    ];
+                }
+            }
+        }
+
+        return $this->importFromArray($permissionData);
     }
 
     /**
      * Import from YAML file.
      *
      * @param string $filename
+     *
+     * @throws RuntimeException
+     *
+     * @return array{processed: int, imported: int, skipped: int, errors: int}
      */
     private function importYaml(string $filename): array
     {
@@ -186,16 +313,58 @@ final class PermissionImporter
             throw new RuntimeException('Invalid YAML file');
         }
 
-        return $this->importFromArray($data);
+        if (! is_array($data)) {
+            throw new RuntimeException('Invalid YAML data structure');
+        }
+
+        /** @var array<int, array{user: string, relation: string, object: string}> $permissionData */
+        $permissionData = [];
+
+        // Check if data has permissions key
+        if (isset($data['permissions']) && is_array($data['permissions'])) {
+            /** @var mixed $perm */
+            foreach ($data['permissions'] as $perm) {
+                if (is_array($perm)
+                    && isset($perm['user']) && is_string($perm['user'])
+                    && isset($perm['relation']) && is_string($perm['relation'])
+                    && isset($perm['object']) && is_string($perm['object'])) {
+                    $permissionData[] = [
+                        'user' => $perm['user'],
+                        'relation' => $perm['relation'],
+                        'object' => $perm['object'],
+                    ];
+                }
+            }
+        } else {
+            // Direct array of permissions
+            /** @var mixed $perm */
+            foreach ($data as $perm) {
+                if (is_array($perm)
+                    && isset($perm['user']) && is_string($perm['user'])
+                    && isset($perm['relation']) && is_string($perm['relation'])
+                    && isset($perm['object']) && is_string($perm['object'])) {
+                    $permissionData[] = [
+                        'user' => $perm['user'],
+                        'relation' => $perm['relation'],
+                        'object' => $perm['object'],
+                    ];
+                }
+            }
+        }
+
+        return $this->importFromArray($permissionData);
     }
 
     /**
      * Process a batch of permissions.
      *
-     * @param array $batch
+     * @param array<int, array{user: string, relation: string, object: string}> $batch
+     *
+     * @throws BindingResolutionException|ClientThrowable|Exception|InvalidArgumentException|ReflectionException
      */
     private function processBatch(array $batch): void
     {
+        /** @var array<int, TupleKey> $tuples */
         $tuples = [];
 
         foreach ($batch as $permission) {
@@ -220,14 +389,8 @@ final class PermissionImporter
             } catch (Exception $e) {
                 ++$this->stats['errors'];
 
-                if (! $this->options['skip_errors']) {
-                    throw $e;
-                }
-
-                Log::warning('Permission import error', [
-                    'permission' => $permission,
-                    'error' => $e->getMessage(),
-                ]);
+                // Always throw errors
+                throw $e;
             }
         }
 
@@ -254,7 +417,9 @@ final class PermissionImporter
     /**
      * Validate entire data structure.
      *
-     * @param array $data
+     * @param array<mixed> $data
+     *
+     * @throws RuntimeException
      */
     private function validateData(array $data): void
     {
@@ -274,7 +439,7 @@ final class PermissionImporter
     /**
      * Validate permission data.
      *
-     * @param array $permission
+     * @param array<string, mixed> $permission
      */
     private function validatePermission(array $permission): bool
     {
@@ -284,14 +449,18 @@ final class PermissionImporter
         }
 
         // Format validation
-        if (! preg_match('/^[a-zA-Z0-9_-]+:[a-zA-Z0-9_-]+$/', $permission['user'])) {
+        $user = is_string($permission['user']) ? $permission['user'] : '';
+        $relation = is_string($permission['relation']) ? $permission['relation'] : '';
+        $object = is_string($permission['object']) ? $permission['object'] : '';
+
+        if ('' === $user || ! str_contains($user, ':')) {
             return false;
         }
 
-        if (! preg_match('/^[a-zA-Z0-9_-]+$/', $permission['relation'])) {
+        if ('' === $relation || 1 !== preg_match('/^[a-zA-Z0-9_-]+$/', $relation)) {
             return false;
         }
 
-        return (bool) preg_match('/^[a-zA-Z0-9_-]+:[a-zA-Z0-9_-]+$/', $permission['object']);
+        return '' !== $object && str_contains($object, ':');
     }
 }

@@ -8,23 +8,48 @@ use Exception;
 use Illuminate\Support\Facades\Log;
 use OpenFGA\Laravel\Events\{BatchFailed, BatchProcessed};
 use OpenFGA\Laravel\OpenFgaManager;
+use OpenFGA\Models\Collections\TupleKeys;
+use OpenFGA\Models\TupleKey;
 use RuntimeException;
 
 use function count;
+use function is_callable;
 use function sprintf;
 
+/**
+ * Processes large batches of authorization operations with reliability features.
+ *
+ * This processor handles bulk permission changes with automatic chunking,
+ * retry logic, progress tracking, and error recovery. It optimizes operations
+ * before execution and provides detailed statistics about processing performance.
+ * Ideal for scenarios like user role migrations, bulk permission grants, or
+ * large-scale access control updates where reliability and monitoring are crucial.
+ *
+ * @internal
+ */
 final class BatchProcessor
 {
+    /**
+     * @var array{max_retries: int, retry_delay: int, fail_fast: bool, parallel_processing: bool, progress_callback: (callable(int, int, int): void)|null}
+     */
     private array $config;
 
+    /**
+     * @var array{total_batches: int, successful_batches: int, failed_batches: int, total_operations: int, total_time: float}
+     */
     private array $stats = [
         'total_batches' => 0,
         'successful_batches' => 0,
         'failed_batches' => 0,
         'total_operations' => 0,
-        'total_time' => 0,
+        'total_time' => 0.0,
     ];
 
+    /**
+     * @param OpenFgaManager                                                                                                                                      $manager
+     * @param BatchOptimizer                                                                                                                                      $optimizer
+     * @param array{max_retries?: int, retry_delay?: int, fail_fast?: bool, parallel_processing?: bool, progress_callback?: (callable(int, int, int): void)|null} $config
+     */
     public function __construct(
         private readonly OpenFgaManager $manager,
         private readonly BatchOptimizer $optimizer,
@@ -41,31 +66,35 @@ final class BatchProcessor
 
     /**
      * Get processing statistics.
+     *
+     * @return array{total_batches: int, successful_batches: int, failed_batches: int, total_operations: int, total_time: float, average_batch_time: float, average_operations_per_batch: float, success_rate: float}
      */
     public function getStats(): array
     {
         $avgTime = 0 < $this->stats['total_batches']
-            ? $this->stats['total_time'] / $this->stats['total_batches']
-            : 0;
+            ? $this->stats['total_time'] / (float) $this->stats['total_batches']
+            : 0.0;
 
         $avgOps = 0 < $this->stats['total_batches']
-            ? $this->stats['total_operations'] / $this->stats['total_batches']
-            : 0;
+            ? (float) $this->stats['total_operations'] / (float) $this->stats['total_batches']
+            : 0.0;
 
         return array_merge($this->stats, [
             'average_batch_time' => round($avgTime, 3),
             'average_operations_per_batch' => round($avgOps, 2),
             'success_rate' => 0 < $this->stats['total_batches']
-                ? round(($this->stats['successful_batches'] / $this->stats['total_batches']) * 100, 2)
-                : 0,
+                ? round(((float) $this->stats['successful_batches'] / (float) $this->stats['total_batches']) * 100.0, 2)
+                : 0.0,
         ]);
     }
 
     /**
      * Process a large batch of operations.
      *
-     * @param array $writes
-     * @param array $deletes
+     * @param array<int, array{user: string, relation: string, object: string}> $writes
+     * @param array<int, array{user: string, relation: string, object: string}> $deletes
+     *
+     * @throws Exception When fail_fast is enabled and an error occurs
      */
     public function processBatch(array $writes, array $deletes = []): BatchResult
     {
@@ -133,12 +162,15 @@ final class BatchProcessor
     /**
      * Process operations in parallel (if supported).
      *
-     * @param array $operations
+     * @param array<int, array{user: string, relation: string, object: string}> $operations
+     *
+     * @throws Exception        When fail_fast is enabled and an error occurs during processing
+     * @throws RuntimeException Always thrown as parallel processing is not yet implemented
      */
     public function processParallel(array $operations): BatchResult
     {
         if (! $this->config['parallel_processing']) {
-            return $this->processBatch($operations);
+            return $this->processBatch($operations, []);
         }
 
         // This would require additional implementation with process forking
@@ -156,7 +188,7 @@ final class BatchProcessor
             'successful_batches' => 0,
             'failed_batches' => 0,
             'total_operations' => 0,
-            'total_time' => 0,
+            'total_time' => 0.0,
         ];
 
         $this->optimizer->resetStats();
@@ -165,8 +197,9 @@ final class BatchProcessor
     /**
      * Create chunks from operations.
      *
-     * @param array $writes
-     * @param array $deletes
+     * @param  array<int, array{user: string, relation: string, object: string}>                                                                                                        $writes
+     * @param  array<int, array{user: string, relation: string, object: string}>                                                                                                        $deletes
+     * @return array<int, array{writes: array<int, array{user: string, relation: string, object: string}>, deletes: array<int, array{user: string, relation: string, object: string}>}>
      */
     private function createChunks(array $writes, array $deletes): array
     {
@@ -189,7 +222,8 @@ final class BatchProcessor
     /**
      * Process chunks with retry logic.
      *
-     * @param array $chunks
+     * @param  array<int, array{writes: array<int, array{user: string, relation: string, object: string}>, deletes: array<int, array{user: string, relation: string, object: string}>}> $chunks
+     * @return array{processed: int, failed: int, errors: array<int, string>}
      */
     private function processChunks(array $chunks): array
     {
@@ -205,11 +239,13 @@ final class BatchProcessor
                 $processed += $chunkSize;
 
                 // Progress callback
-                if ($this->config['progress_callback']) {
-                    ($this->config['progress_callback'])(
+                $callback = $this->config['progress_callback'];
+
+                if (is_callable($callback)) {
+                    $callback(
                         $index + 1,
                         count($chunks),
-                        $processed
+                        $processed,
                     );
                 }
             } catch (Exception $e) {
@@ -232,7 +268,10 @@ final class BatchProcessor
     /**
      * Process a single chunk with retry logic.
      *
-     * @param array $chunk
+     * @param array{writes: array<int, array{user: string, relation: string, object: string}>, deletes: array<int, array{user: string, relation: string, object: string}>} $chunk
+     *
+     * @throws Exception        When processing fails after all retries
+     * @throws RuntimeException When processing fails without a specific exception
      */
     private function processChunkWithRetry(array $chunk): void
     {
@@ -241,7 +280,35 @@ final class BatchProcessor
 
         while ($attempts < $this->config['max_retries']) {
             try {
-                $this->manager->write($chunk['writes'], $chunk['deletes']);
+                // Convert arrays to TupleKeysInterface for the manager
+                $writeTuples = null;
+                $deleteTuples = null;
+
+                if (0 < count($chunk['writes'])) {
+                    $writeTuples = new TupleKeys;
+
+                    foreach ($chunk['writes'] as $write) {
+                        $writeTuples->add(new TupleKey(
+                            user: $write['user'],
+                            relation: $write['relation'],
+                            object: $write['object'],
+                        ));
+                    }
+                }
+
+                if (0 < count($chunk['deletes'])) {
+                    $deleteTuples = new TupleKeys;
+
+                    foreach ($chunk['deletes'] as $delete) {
+                        $deleteTuples->add(new TupleKey(
+                            user: $delete['user'],
+                            relation: $delete['relation'],
+                            object: $delete['object'],
+                        ));
+                    }
+                }
+
+                $this->manager->write($writeTuples, $deleteTuples);
 
                 return;
             } catch (Exception $e) {
@@ -249,7 +316,7 @@ final class BatchProcessor
                 $lastException = $e;
 
                 if ($attempts < $this->config['max_retries']) {
-                    usleep($this->config['retry_delay'] * 1000 * $attempts); // Exponential backoff
+                    usleep((int) ($this->config['retry_delay'] * 1000 * $attempts)); // Exponential backoff
                 }
 
                 Log::warning('Batch chunk processing failed, retrying', [
@@ -259,6 +326,10 @@ final class BatchProcessor
             }
         }
 
-        throw $lastException;
+        if ($lastException instanceof Exception) {
+            throw $lastException;
+        }
+
+        throw new RuntimeException('Failed to process chunk after retries');
     }
 }

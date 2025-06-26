@@ -6,7 +6,7 @@ namespace OpenFGA\Laravel\Cache;
 
 use Illuminate\Cache\TaggedCache as LaravelTaggedCache;
 use Illuminate\Support\Facades\Cache;
-use InvalidArgumentException;
+use Psr\SimpleCache\InvalidArgumentException;
 
 use function count;
 use function is_bool;
@@ -16,6 +16,8 @@ use function sprintf;
 
 /**
  * Tagged cache implementation for granular cache invalidation.
+ *
+ * @internal
  */
 final class TaggedCache
 {

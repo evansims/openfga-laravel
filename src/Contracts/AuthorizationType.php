@@ -6,6 +6,8 @@ namespace OpenFGA\Laravel\Contracts;
 
 /**
  * Interface for models that can provide a custom authorization type.
+ *
+ * @api
  */
 interface AuthorizationType
 {

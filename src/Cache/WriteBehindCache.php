@@ -6,24 +6,37 @@ namespace OpenFGA\Laravel\Cache;
 
 use Exception;
 use Illuminate\Contracts\Cache\Repository as Cache;
-use Illuminate\Contracts\Queue\Queue;
 use Illuminate\Support\Facades\Log;
+use OpenFGA\Exceptions\ClientThrowable;
 use OpenFGA\Laravel\Jobs\FlushWriteBehindCacheJob;
 use OpenFGA\Laravel\OpenFgaManager;
 
 use function count;
 use function sprintf;
 
+/**
+ * @internal
+ */
 final class WriteBehindCache
 {
     private ?string $lastFlushTime = null;
 
+    /**
+     * @var array<string, array{user: string, relation: string, object: string, timestamp: int}>
+     */
     private array $pendingDeletes = [];
 
+    /**
+     * @var array<string, array{user: string, relation: string, object: string, timestamp: int}>
+     */
     private array $pendingWrites = [];
 
-    public function __construct(private readonly Cache $cache, private readonly Queue $queue, private readonly OpenFgaManager $manager, private readonly int $batchSize = 100, private readonly int $flushInterval = 5)
-    {
+    public function __construct(
+        private readonly Cache $cache,
+        private readonly OpenFgaManager $manager,
+        private readonly int $batchSize = 100,
+        private readonly int $flushInterval = 5,
+    ) {
     }
 
     /**
@@ -54,7 +67,7 @@ final class WriteBehindCache
             'user' => $user,
             'relation' => $relation,
             'object' => $object,
-            'timestamp' => now()->timestamp,
+            'timestamp' => (int) now()->timestamp,
         ];
 
         // Update cache immediately
@@ -66,6 +79,14 @@ final class WriteBehindCache
 
     /**
      * Force flush all pending operations.
+     */
+    /**
+     * Force flush all pending operations.
+     *
+     * @throws ClientThrowable
+     * @throws Exception
+     *
+     * @return array{writes: int, deletes: int}
      */
     public function flush(): array
     {
@@ -79,13 +100,13 @@ final class WriteBehindCache
         try {
             // Perform the actual write to OpenFGA
             if ([] !== $writes || [] !== $deletes) {
-                $this->manager->write(
-                    array_map(static fn ($w): array => [
+                $this->manager->writeBatch(
+                    array_map(static fn (array $w): array => [
                         'user' => $w['user'],
                         'relation' => $w['relation'],
                         'object' => $w['object'],
                     ], $writes),
-                    array_map(static fn ($d): array => [
+                    array_map(static fn (array $d): array => [
                         'user' => $d['user'],
                         'relation' => $d['relation'],
                         'object' => $d['object'],
@@ -118,6 +139,11 @@ final class WriteBehindCache
     /**
      * Get pending operations count.
      */
+    /**
+     * Get pending operations count.
+     *
+     * @return array{writes: int, deletes: int, total: int}
+     */
     public function getPendingCount(): array
     {
         return [
@@ -129,6 +155,11 @@ final class WriteBehindCache
 
     /**
      * Get all pending operations.
+     */
+    /**
+     * Get all pending operations.
+     *
+     * @return array{writes: array<string, array{user: string, relation: string, object: string, timestamp: int}>, deletes: array<string, array{user: string, relation: string, object: string, timestamp: int}>}
      */
     public function getPendingOperations(): array
     {
@@ -157,7 +188,7 @@ final class WriteBehindCache
             'user' => $user,
             'relation' => $relation,
             'object' => $object,
-            'timestamp' => now()->timestamp,
+            'timestamp' => (int) now()->timestamp,
         ];
 
         // Update cache immediately for read consistency
@@ -182,8 +213,10 @@ final class WriteBehindCache
         }
 
         // Flush if time interval passed
-        if ($this->lastFlushTime) {
-            $secondsSinceFlush = now()->timestamp - strtotime($this->lastFlushTime);
+        $lastFlushTime = $this->lastFlushTime;
+
+        if (null !== $lastFlushTime) {
+            $secondsSinceFlush = (int) now()->timestamp - (int) strtotime($lastFlushTime);
 
             if ($secondsSinceFlush >= $this->flushInterval) {
                 $this->scheduleFlush();
@@ -223,6 +256,8 @@ final class WriteBehindCache
     private function updateCache(string $user, string $relation, string $object, bool $allowed): void
     {
         $cacheKey = sprintf('openfga.check.%s.%s.%s', $user, $relation, $object);
+
+        /** @var int $ttl */
         $ttl = config('openfga.cache.write_behind_ttl', 300);
 
         $this->cache->put($cacheKey, $allowed, $ttl);

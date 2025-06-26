@@ -7,7 +7,14 @@ namespace OpenFGA\Laravel\Contracts;
 use OpenFGA\Models\TupleKey;
 
 /**
- * Interface for OpenFGA manager operations.
+ * Core interface defining OpenFGA manager operations.
+ *
+ * This interface defines the essential operations for interacting with OpenFGA,
+ * including permission checks, batch operations, and object listing. Implementations
+ * provide connection management, caching strategies, and error handling while
+ * maintaining a consistent API for authorization queries across your application.
+ *
+ * @api
  */
 interface ManagerInterface
 {

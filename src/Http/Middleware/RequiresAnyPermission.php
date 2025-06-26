@@ -23,6 +23,8 @@ use function strlen;
 
 /**
  * Middleware that requires any of multiple permissions.
+ *
+ * @api
  */
 final readonly class RequiresAnyPermission
 {

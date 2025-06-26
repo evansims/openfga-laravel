@@ -17,7 +17,17 @@ use function assert;
 use function is_array;
 
 /**
- * Provides a fluent query builder interface for OpenFGA operations.
+ * Fluent query builder for constructing OpenFGA authorization queries.
+ *
+ * This builder provides an expressive, chainable API for checking permissions,
+ * granting/revoking access, and querying relationships. It follows Laravel's
+ * query builder pattern, making authorization code readable and intuitive.
+ * Supports batch operations, contextual tuples, and all OpenFGA query types
+ * while maintaining type safety and validation.
+ *
+ * Example: $allowed = OpenFga::query()->for('user:123')->can('read')->on('document:456')->check();
+ *
+ * @api
  */
 final class AuthorizationQuery
 {
@@ -94,6 +104,7 @@ final class AuthorizationQuery
     /**
      * Execute a permission check.
      *
+     * @throws \Psr\SimpleCache\InvalidArgumentException
      * @throws BindingResolutionException
      * @throws ClientThrowable
      * @throws Exception

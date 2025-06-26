@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Listeners;
 
+use Illuminate\Events\Dispatcher;
 use OpenFGA\Laravel\Events\{BatchCheckPerformed, CheckPerformed, ExpandPerformed, ListObjectsPerformed, ListRelationsPerformed, ListUsersPerformed, ReadPerformed, WritePerformed};
 use OpenFGA\Laravel\Profiling\OpenFgaProfiler;
 
@@ -145,6 +146,10 @@ final readonly class ProfileOpenFgaOperations
         $profile->addMetadata('response_time', $event->duration);
     }
 
+    /**
+     * @param  Dispatcher                  $events
+     * @return array<class-string, string>
+     */
     public function subscribe($events): array
     {
         return [

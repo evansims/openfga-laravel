@@ -9,6 +9,7 @@ use Illuminate\Console\Command;
 use OpenFGA\Laravel\Export\PermissionExporter;
 
 use function count;
+use function is_string;
 use function sprintf;
 
 final class ExportCommand extends Command
@@ -16,7 +17,7 @@ final class ExportCommand extends Command
     /**
      * The console command description.
      *
-     * @var string
+     * @var string|null
      */
     protected $description = 'Export permissions to a file';
 
@@ -43,21 +44,26 @@ final class ExportCommand extends Command
      */
     public function handle(PermissionExporter $exporter): int
     {
+        /** @var string $file */
         $file = $this->argument('file');
 
         // Build filters
+        /** @var array{user?: non-empty-string, object?: non-empty-string, object_type?: non-empty-string, relation?: non-empty-string} $filters */
         $filters = array_filter([
             'user' => $this->option('user'),
             'object' => $this->option('object'),
             'object_type' => $this->option('object-type'),
             'relation' => $this->option('relation'),
-        ]);
+        ], static fn ($value): bool => is_string($value) && '' !== $value);
 
         // Build options
+        /** @var string|null $format */
+        $format = $this->option('format');
+
         $options = [
-            'format' => $this->option('format'),
-            'include_metadata' => ! $this->option('no-metadata'),
-            'pretty_print' => ! $this->option('compact'),
+            'format' => $format,
+            'include_metadata' => ! (bool) $this->option('no-metadata'),
+            'pretty_print' => ! (bool) $this->option('compact'),
         ];
 
         // Warn if no filters
@@ -69,7 +75,7 @@ final class ExportCommand extends Command
             }
         }
 
-        $this->info('Exporting permissions to: ' . $file);
+        $this->info(sprintf('Exporting permissions to: %s', $file));
 
         if ([] !== $filters) {
             $this->comment('Filters:');
@@ -80,14 +86,24 @@ final class ExportCommand extends Command
         }
 
         try {
-            $count = $exporter->exportToFile($file, $filters, $options);
+            /** @var array{format?: string, include_metadata?: bool, pretty_print?: bool} $exportOptions */
+            $exportOptions = [];
+
+            if (null !== $options['format']) {
+                $exportOptions['format'] = $options['format'];
+            }
+            $exportOptions['include_metadata'] = $options['include_metadata'];
+            $exportOptions['pretty_print'] = $options['pretty_print'];
+
+            $count = $exporter->exportToFile($file, $filters, $exportOptions);
 
             $this->info(sprintf('✅ Successfully exported %d permissions to %s', $count, $file));
 
             // Show file size
             if (file_exists($file)) {
                 $filesize = filesize($file);
-                if ($filesize !== false) {
+
+                if (false !== $filesize) {
                     $size = $this->formatFileSize($filesize);
                     $this->comment('File size: ' . $size);
                 }
@@ -110,12 +126,14 @@ final class ExportCommand extends Command
     {
         $units = ['B', 'KB', 'MB', 'GB'];
         $i = 0;
+        $size = (float) $bytes;
 
-        while (1024 <= $bytes && $i < count($units) - 1) {
-            $bytes /= 1024;
+        while (1024 <= $size && $i < count($units) - 1) {
+            $size /= 1024.0;
             ++$i;
         }
 
-        return round($bytes, 2) . ' ' . $units[$i];
+        /** @var int<0, 3> $i */
+        return number_format($size, 2) . ' ' . $units[$i];
     }
 }

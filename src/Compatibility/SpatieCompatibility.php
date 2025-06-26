@@ -4,11 +4,18 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Compatibility;
 
+use Exception;
+use Illuminate\Contracts\Container\BindingResolutionException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
+use InvalidArgumentException;
+use OpenFGA\Exceptions\ClientThrowable;
+use OpenFGA\Laravel\Contracts\AuthorizationUser;
 use OpenFGA\Laravel\Facades\OpenFga;
+use OpenFGA\Laravel\OpenFgaManager;
 
 use function in_array;
+use function is_scalar;
 
 /**
  * Spatie Laravel Permission compatibility layer.
@@ -20,6 +27,8 @@ final class SpatieCompatibility
 {
     /**
      * Permission to relation mapping for common Spatie permissions.
+     *
+     * @var array<string, string>
      */
     private array $permissionMapping = [
         'edit posts' => 'editor',
@@ -34,6 +43,8 @@ final class SpatieCompatibility
 
     /**
      * Role to relation mapping for common Spatie roles.
+     *
+     * @var array<string, string>
      */
     private array $roleMapping = [
         'admin' => 'admin',
@@ -71,37 +82,58 @@ final class SpatieCompatibility
      * @param Model   $user
      * @param string  $role
      * @param ?string $context
+     *
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
+     * @throws InvalidArgumentException
      */
     public function assignRole(Model $user, string $role, ?string $context = null): void
     {
         $relation = $this->mapRoleToRelation($role);
         $object = $context ?? 'organization:main';
 
-        OpenFga::grant($user->authorizationUser(), $relation, $object);
+        if ($user instanceof AuthorizationUser) {
+            $userId = $user->authorizationUser();
+        } else {
+            /** @var mixed $key */
+            $key = $user->getKey();
+            $userId = 'user:' . (is_scalar($key) ? (string) $key : '');
+        }
+
+        $manager = app(OpenFgaManager::class);
+        $manager->grant($userId, $relation, $object);
     }
 
     /**
      * Get all permissions for user (simulated).
      *
-     * @param Model   $user
-     * @param ?string $context
+     * @param  Model                   $user
+     * @param  ?string                 $context
+     * @return Collection<int, string>
+     *
+     * @psalm-return Collection<int<0, max>, string>
+     *
+     * @phpstan-return Collection<int, string>
      */
     public function getAllPermissions(Model $user, ?string $context = null): Collection
     {
         // This is a simplified version - in practice, you'd use OpenFGA's expand API
-        $permissions = collect();
+        $permissions = [];
 
         foreach (array_keys($this->permissionMapping) as $permission) {
             if ($this->hasPermissionTo($user, $permission)) {
-                $permissions->push($permission);
+                $permissions[] = $permission;
             }
         }
 
-        return $permissions;
+        return collect($permissions);
     }
 
     /**
      * Get current permission mappings.
+     *
+     * @return array<string, string>
      */
     public function getPermissionMappings(): array
     {
@@ -110,6 +142,8 @@ final class SpatieCompatibility
 
     /**
      * Get current role mappings.
+     *
+     * @return array<string, string>
      */
     public function getRoleMappings(): array
     {
@@ -119,20 +153,25 @@ final class SpatieCompatibility
     /**
      * Get all roles for user (simulated).
      *
-     * @param Model   $user
-     * @param ?string $context
+     * @param  Model                   $user
+     * @param  ?string                 $context
+     * @return Collection<int, string>
+     *
+     * @psalm-return Collection<int<0, max>, string>
+     *
+     * @phpstan-return Collection<int, string>
      */
     public function getRoleNames(Model $user, ?string $context = null): Collection
     {
-        $roles = collect();
+        $roles = [];
 
         foreach (array_keys($this->roleMapping) as $role) {
             if ($this->hasRole($user, $role, $context)) {
-                $roles->push($role);
+                $roles[] = $role;
             }
         }
 
-        return $roles;
+        return collect($roles);
     }
 
     /**
@@ -141,21 +180,37 @@ final class SpatieCompatibility
      * @param Model  $user
      * @param string $permission
      * @param ?Model $model
+     *
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
+     * @throws InvalidArgumentException
      */
     public function givePermissionTo(Model $user, string $permission, ?Model $model = null): void
     {
         $relation = $this->mapPermissionToRelation($permission);
-        $object = $model instanceof Model ? $model->authorizationObject() : $this->getDefaultObject($permission);
 
-        OpenFga::grant($user->authorizationUser(), $relation, $object);
+        /** @var string $object */
+        $object = $model instanceof Model && method_exists($model, 'authorizationObject') ? $model->authorizationObject() : $this->getDefaultObject($permission);
+
+        if ($user instanceof AuthorizationUser) {
+            $userId = $user->authorizationUser();
+        } else {
+            /** @var mixed $key */
+            $key = $user->getKey();
+            $userId = 'user:' . (is_scalar($key) ? (string) $key : '');
+        }
+
+        $manager = app(OpenFgaManager::class);
+        $manager->grant($userId, $relation, $object);
     }
 
     /**
      * Check if user has all of the given permissions.
      *
-     * @param Model  $user
-     * @param array  $permissions
-     * @param ?Model $model
+     * @param Model                     $user
+     * @param array<int|string, string> $permissions
+     * @param ?Model                    $model
      */
     public function hasAllPermissions(Model $user, array $permissions, ?Model $model = null): bool
     {
@@ -171,9 +226,9 @@ final class SpatieCompatibility
     /**
      * Check if user has all of the given roles.
      *
-     * @param Model   $user
-     * @param array   $roles
-     * @param ?string $context
+     * @param Model                     $user
+     * @param array<int|string, string> $roles
+     * @param ?string                   $context
      */
     public function hasAllRoles(Model $user, array $roles, ?string $context = null): bool
     {
@@ -189,9 +244,9 @@ final class SpatieCompatibility
     /**
      * Check if user has any of the given permissions.
      *
-     * @param Model  $user
-     * @param array  $permissions
-     * @param ?Model $model
+     * @param Model                     $user
+     * @param array<int|string, string> $permissions
+     * @param ?Model                    $model
      */
     public function hasAnyPermission(Model $user, array $permissions, ?Model $model = null): bool
     {
@@ -207,9 +262,9 @@ final class SpatieCompatibility
     /**
      * Check if user has any of the given roles.
      *
-     * @param Model   $user
-     * @param array   $roles
-     * @param ?string $context
+     * @param Model                     $user
+     * @param array<int|string, string> $roles
+     * @param ?string                   $context
      */
     public function hasAnyRole(Model $user, array $roles, ?string $context = null): bool
     {
@@ -228,13 +283,31 @@ final class SpatieCompatibility
      * @param Model  $user
      * @param string $permission
      * @param ?Model $model
+     *
+     * @throws \Psr\SimpleCache\InvalidArgumentException
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
+     * @throws InvalidArgumentException
      */
     public function hasPermissionTo(Model $user, string $permission, ?Model $model = null): bool
     {
         $relation = $this->mapPermissionToRelation($permission);
-        $object = $model instanceof Model ? $model->authorizationObject() : $this->getDefaultObject($permission);
 
-        return OpenFga::check($user->authorizationUser(), $relation, $object);
+        /** @var string $object */
+        $object = $model instanceof Model && method_exists($model, 'authorizationObject') ? $model->authorizationObject() : $this->getDefaultObject($permission);
+
+        if ($user instanceof AuthorizationUser) {
+            $userId = $user->authorizationUser();
+        } else {
+            /** @var mixed $key */
+            $key = $user->getKey();
+            $userId = 'user:' . (is_scalar($key) ? (string) $key : '');
+        }
+
+        $manager = app(OpenFgaManager::class);
+
+        return $manager->check($userId, $relation, $object);
     }
 
     /**
@@ -243,13 +316,29 @@ final class SpatieCompatibility
      * @param Model   $user
      * @param string  $role
      * @param ?string $context
+     *
+     * @throws \Psr\SimpleCache\InvalidArgumentException
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
+     * @throws InvalidArgumentException
      */
     public function hasRole(Model $user, string $role, ?string $context = null): bool
     {
         $relation = $this->mapRoleToRelation($role);
         $object = $context ?? 'organization:main';
 
-        return OpenFga::check($user->authorizationUser(), $relation, $object);
+        if ($user instanceof AuthorizationUser) {
+            $userId = $user->authorizationUser();
+        } else {
+            /** @var mixed $key */
+            $key = $user->getKey();
+            $userId = 'user:' . (is_scalar($key) ? (string) $key : '');
+        }
+
+        $manager = app(OpenFgaManager::class);
+
+        return $manager->check($userId, $relation, $object);
     }
 
     /**
@@ -258,13 +347,27 @@ final class SpatieCompatibility
      * @param Model   $user
      * @param string  $role
      * @param ?string $context
+     *
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
+     * @throws InvalidArgumentException
      */
     public function removeRole(Model $user, string $role, ?string $context = null): void
     {
         $relation = $this->mapRoleToRelation($role);
         $object = $context ?? 'organization:main';
 
-        OpenFga::revoke($user->authorizationUser(), $relation, $object);
+        if ($user instanceof AuthorizationUser) {
+            $userId = $user->authorizationUser();
+        } else {
+            /** @var mixed $key */
+            $key = $user->getKey();
+            $userId = 'user:' . (is_scalar($key) ? (string) $key : '');
+        }
+
+        $manager = app(OpenFgaManager::class);
+        $manager->revoke($userId, $relation, $object);
     }
 
     /**
@@ -273,21 +376,39 @@ final class SpatieCompatibility
      * @param Model  $user
      * @param string $permission
      * @param ?Model $model
+     *
+     * @throws BindingResolutionException|ClientThrowable|Exception|InvalidArgumentException
      */
     public function revokePermissionTo(Model $user, string $permission, ?Model $model = null): void
     {
         $relation = $this->mapPermissionToRelation($permission);
-        $object = $model instanceof Model ? $model->authorizationObject() : $this->getDefaultObject($permission);
 
-        OpenFga::revoke($user->authorizationUser(), $relation, $object);
+        /** @var string $object */
+        $object = $model instanceof Model && method_exists($model, 'authorizationObject') ? $model->authorizationObject() : $this->getDefaultObject($permission);
+
+        if ($user instanceof AuthorizationUser) {
+            $userId = $user->authorizationUser();
+        } else {
+            /** @var mixed $key */
+            $key = $user->getKey();
+            $userId = 'user:' . (is_scalar($key) ? (string) $key : '');
+        }
+
+        $manager = app(OpenFgaManager::class);
+        $manager->revoke($userId, $relation, $object);
     }
 
     /**
      * Sync permissions for user.
      *
-     * @param Model  $user
-     * @param array  $permissions
-     * @param ?Model $model
+     * @param Model                     $user
+     * @param array<int|string, string> $permissions
+     * @param ?Model                    $model
+     *
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
+     * @throws InvalidArgumentException
      */
     public function syncPermissions(Model $user, array $permissions, ?Model $model = null): void
     {
@@ -311,9 +432,9 @@ final class SpatieCompatibility
     /**
      * Sync roles for user.
      *
-     * @param Model   $user
-     * @param array   $roles
-     * @param ?string $context
+     * @param Model                     $user
+     * @param array<int|string, string> $roles
+     * @param ?string                   $context
      */
     public function syncRoles(Model $user, array $roles, ?string $context = null): void
     {

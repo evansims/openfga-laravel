@@ -6,6 +6,12 @@ namespace OpenFGA\Laravel\Events;
 
 final readonly class ListRelationsPerformed
 {
+    /**
+     * @param array<int, string> $relations
+     * @param string             $user
+     * @param string             $object
+     * @param float              $duration
+     */
     public function __construct(
         public string $user,
         public string $object,

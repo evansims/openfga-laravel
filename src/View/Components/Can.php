@@ -25,7 +25,14 @@ use function is_scalar;
 use function is_string;
 
 /**
- * Blade component for rendering content based on OpenFGA permissions.
+ * Blade component for conditional rendering based on OpenFGA permissions.
+ *
+ * This component provides a declarative way to show/hide content in Blade templates
+ * based on user permissions. It integrates seamlessly with OpenFGA authorization
+ * checks and supports all object types (models, strings, IDs). Use this for
+ * UI-level authorization - always validate permissions server-side as well.
+ *
+ * Example: <x-openfga-can relation="read" :object="$document">Show content</x-openfga-can>
  *
  * @property string|null           $componentName
  * @property array<string>         $except
@@ -52,6 +59,7 @@ final class Can extends Component
     /**
      * Determine if the user has the required permission.
      *
+     * @throws \Psr\SimpleCache\InvalidArgumentException
      * @throws BindingResolutionException
      * @throws ClientThrowable
      * @throws Exception
@@ -77,6 +85,7 @@ final class Can extends Component
     /**
      * Get the view / contents that represent the component.
      *
+     * @throws \Psr\SimpleCache\InvalidArgumentException
      * @throws BindingResolutionException
      * @throws ClientThrowable
      * @throws Exception

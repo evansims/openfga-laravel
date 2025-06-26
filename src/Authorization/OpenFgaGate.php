@@ -21,7 +21,13 @@ use function is_string;
 use function sprintf;
 
 /**
- * OpenFGA-powered Gate implementation that integrates with Laravel's authorization system.
+ * Laravel Gate implementation powered by OpenFGA for fine-grained authorization.
+ *
+ * This Gate seamlessly integrates OpenFGA with Laravel's built-in authorization
+ * system, allowing you to use familiar Laravel syntax (Gate::allows, @can) while
+ * leveraging OpenFGA's relationship-based access control. It automatically detects
+ * whether to use OpenFGA or fall back to traditional Gate policies based on the
+ * arguments provided, making migration from Laravel's default authorization smooth.
  *
  * @template TUser of Authenticatable&Model
  */

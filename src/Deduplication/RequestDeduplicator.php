@@ -7,16 +7,27 @@ namespace OpenFGA\Laravel\Deduplication;
 use Exception;
 use Illuminate\Contracts\Cache\Repository as Cache;
 use Illuminate\Support\Str;
+use Psr\SimpleCache\InvalidArgumentException;
 use RuntimeException;
 
+use function is_string;
 use function sprintf;
 
 final class RequestDeduplicator
 {
+    /**
+     * @var array{enabled: bool, ttl: int, in_flight_ttl: int, prefix: string}
+     */
     private array $config;
 
+    /**
+     * @var array<string, array{started_at: float, result: mixed, completed: bool}>
+     */
     private array $inFlight = [];
 
+    /**
+     * @var array{total_requests: int, deduplicated: int, cache_hits: int, cache_misses: int}
+     */
     private array $stats = [
         'total_requests' => 0,
         'deduplicated' => 0,
@@ -24,14 +35,18 @@ final class RequestDeduplicator
         'cache_misses' => 0,
     ];
 
+    /**
+     * @param Cache                                                                  $cache
+     * @param array{enabled?: bool, ttl?: int, in_flight_ttl?: int, prefix?: string} $config
+     */
     public function __construct(private readonly Cache $cache, array $config = [])
     {
-        $this->config = array_merge([
-            'enabled' => true,
-            'ttl' => 60, // seconds
-            'in_flight_ttl' => 5, // seconds
-            'prefix' => 'openfga_dedup',
-        ], $config);
+        $this->config = [
+            'enabled' => $config['enabled'] ?? true,
+            'ttl' => $config['ttl'] ?? 60,
+            'in_flight_ttl' => $config['in_flight_ttl'] ?? 5,
+            'prefix' => $config['prefix'] ?? 'openfga_dedup',
+        ];
     }
 
     /**
@@ -47,9 +62,16 @@ final class RequestDeduplicator
     /**
      * Execute a request with deduplication.
      *
-     * @param string   $operation
-     * @param array    $params
-     * @param callable $callback
+     * @template T
+     *
+     * @param string               $operation
+     * @param array<string, mixed> $params
+     * @param callable(): T        $callback
+     *
+     * @throws Exception
+     * @throws InvalidArgumentException
+     *
+     * @return T
      */
     public function execute(string $operation, array $params, callable $callback)
     {
@@ -67,6 +89,7 @@ final class RequestDeduplicator
         if (null !== $cached) {
             ++$this->stats['cache_hits'];
 
+            /** @var T $cached */
             return $cached;
         }
 
@@ -74,6 +97,7 @@ final class RequestDeduplicator
         if ($this->isInFlight($key)) {
             ++$this->stats['deduplicated'];
 
+            /** @var T */
             return $this->waitForInFlight($key);
         }
 
@@ -101,16 +125,18 @@ final class RequestDeduplicator
 
     /**
      * Get deduplication statistics.
+     *
+     * @return array{total_requests: int, deduplicated: int, cache_hits: int, cache_misses: int, hit_rate: float, deduplication_rate: float}
      */
     public function getStats(): array
     {
         $hitRate = 0 < $this->stats['total_requests']
-            ? round(($this->stats['cache_hits'] / $this->stats['total_requests']) * 100, 2)
-            : 0;
+            ? round(((float) $this->stats['cache_hits'] / (float) $this->stats['total_requests']) * 100.0, 2)
+            : 0.0;
 
         $deduplicationRate = 0 < $this->stats['total_requests']
-            ? round(($this->stats['deduplicated'] / $this->stats['total_requests']) * 100, 2)
-            : 0;
+            ? round(((float) $this->stats['deduplicated'] / (float) $this->stats['total_requests']) * 100.0, 2)
+            : 0.0;
 
         return array_merge($this->stats, [
             'hit_rate' => $hitRate,
@@ -150,12 +176,15 @@ final class RequestDeduplicator
      * Check if we have a cached result.
      *
      * @param string $key
+     *
+     * @throws InvalidArgumentException
      */
     private function checkCache(string $key): mixed
     {
+        /** @var mixed $cached */
         $cached = $this->cache->get($key);
 
-        if (null !== $cached) {
+        if (is_string($cached)) {
             return unserialize($cached);
         }
 
@@ -167,15 +196,21 @@ final class RequestDeduplicator
     /**
      * Generate a cache key for the request.
      *
-     * @param string $operation
-     * @param array  $params
+     * @param string               $operation
+     * @param array<string, mixed> $params
      */
     private function generateKey(string $operation, array $params): string
     {
         // Sort params for consistent key generation
         ksort($params);
 
-        $hash = md5($operation . ':' . json_encode($params));
+        $encoded = json_encode($params);
+
+        if (false === $encoded) {
+            $encoded = '';
+        }
+
+        $hash = md5($operation . ':' . $encoded);
 
         return sprintf('%s:%s:%s', $this->config['prefix'], $operation, $hash);
     }
@@ -235,6 +270,8 @@ final class RequestDeduplicator
      * Wait for an in-flight request to complete.
      *
      * @param string $key
+     *
+     * @throws RuntimeException
      */
     private function waitForInFlight(string $key): mixed
     {
@@ -243,11 +280,16 @@ final class RequestDeduplicator
 
         while ((microtime(true) - $start) < $timeout) {
             // Check local in-flight
-            if (isset($this->inFlight[$key]) && $this->inFlight[$key]['completed']) {
-                return $this->inFlight[$key]['result'];
+            if (isset($this->inFlight[$key])) {
+                $inflight = $this->inFlight[$key];
+
+                if ($inflight['completed']) {
+                    return $inflight['result'];
+                }
             }
 
             // Check cache (request might have completed on another server)
+            /** @var mixed $cached */
             $cached = $this->checkCache($key);
 
             if (null !== $cached) {
@@ -257,6 +299,7 @@ final class RequestDeduplicator
             // Check if still in flight in cache
             if (! $this->cache->has($key . ':inflight')) {
                 // Request completed, check cache again
+                /** @var mixed $cached */
                 $cached = $this->checkCache($key);
 
                 if (null !== $cached) {

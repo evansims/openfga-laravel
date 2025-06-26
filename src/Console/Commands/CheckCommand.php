@@ -16,7 +16,15 @@ use function is_string;
 use function sprintf;
 
 /**
- * Command to check if a user has a specific permission.
+ * Artisan command for testing OpenFGA permission checks from the CLI.
+ *
+ * This command allows you to quickly verify authorization relationships
+ * without writing code. Useful for debugging permissions, testing your
+ * authorization model, and validating that your OpenFGA configuration
+ * is working correctly. Supports contextual tuples and custom context
+ * for advanced authorization scenarios.
+ *
+ * Example: php artisan openfga:check user:123 read document:456
  */
 final class CheckCommand extends Command
 {
@@ -43,6 +51,7 @@ final class CheckCommand extends Command
      *
      * @param OpenFgaManager $manager
      *
+     * @throws \Psr\SimpleCache\InvalidArgumentException
      * @throws ClientThrowable
      * @throws InvalidArgumentException
      */

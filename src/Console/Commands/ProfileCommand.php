@@ -5,13 +5,16 @@ declare(strict_types=1);
 namespace OpenFGA\Laravel\Console\Commands;
 
 use Illuminate\Console\Command;
-use OpenFGA\Laravel\Profiling\OpenFgaProfiler;
+use OpenFGA\Laravel\Profiling\{OpenFgaProfiler};
 
 use function count;
 use function sprintf;
 
 final class ProfileCommand extends Command
 {
+    /**
+     * @var string|null
+     */
     protected $description = 'Display OpenFGA profiling information';
 
     protected $signature = 'openfga:profile
@@ -23,36 +26,40 @@ final class ProfileCommand extends Command
 
     public function handle(OpenFgaProfiler $profiler): int
     {
-        if ($this->option('enable')) {
+        if (true === $this->option('enable')) {
             $profiler->enable();
             $this->info('OpenFGA profiling enabled');
 
             return 0;
         }
 
-        if ($this->option('disable')) {
+        if (true === $this->option('disable')) {
             $profiler->disable();
             $this->info('OpenFGA profiling disabled');
 
             return 0;
         }
 
-        if ($this->option('reset')) {
+        if (true === $this->option('reset')) {
             $profiler->reset();
             $this->info('Profiling statistics reset');
 
             return 0;
         }
 
-        if ($this->option('json')) {
-            $this->output->writeln(json_encode($profiler->toArray(), JSON_PRETTY_PRINT));
+        if (true === $this->option('json')) {
+            $encoded = json_encode($profiler->toArray(), JSON_PRETTY_PRINT);
+
+            if (false !== $encoded) {
+                $this->output->writeln($encoded);
+            }
 
             return 0;
         }
 
         $this->displayProfileSummary($profiler);
 
-        if ($this->option('slow')) {
+        if (true === $this->option('slow')) {
             $this->displaySlowQueries($profiler);
         }
 
@@ -61,6 +68,7 @@ final class ProfileCommand extends Command
 
     private function displayProfileSummary(OpenFgaProfiler $profiler): void
     {
+        /** @var array{total_operations: int, total_time: float, slow_queries: int, operations: array<string, array{count: int, total_time: float, avg_time: float, min_time: float, max_time: float}>} $summary */
         $summary = $profiler->getSummary();
 
         $this->info('OpenFGA Profile Summary');
@@ -105,7 +113,9 @@ final class ProfileCommand extends Command
             return;
         }
 
-        $this->warn(sprintf('Slow Queries (> %d ms)', config('openfga.profiling.slow_query_threshold', 100)));
+        /** @var mixed $threshold */
+        $threshold = config('openfga.profiling.slow_query_threshold', 100);
+        $this->warn(sprintf('Slow Queries (> %d ms)', is_numeric($threshold) ? (int) $threshold : 100));
         $this->line('');
 
         $headers = ['Operation', 'Duration (ms)', 'Parameters', 'Cache Status'];

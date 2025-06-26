@@ -6,10 +6,14 @@ namespace OpenFGA\Laravel\Console\Commands;
 
 use Exception;
 use Illuminate\Console\Command;
+use InvalidArgumentException;
 use OpenFGA\Laravel\OpenFgaManager;
+use RuntimeException;
 
 use function count;
 use function is_array;
+use function is_scalar;
+use function is_string;
 use function sprintf;
 
 final class AuditPermissionsCommand extends Command
@@ -17,7 +21,7 @@ final class AuditPermissionsCommand extends Command
     /**
      * The console command description.
      *
-     * @var string
+     * @var string|null
      */
     protected $description = 'Audit and analyze OpenFGA permissions';
 
@@ -38,18 +42,23 @@ final class AuditPermissionsCommand extends Command
      * Execute the console command.
      *
      * @param OpenFgaManager $manager
+     *
+     * @throws InvalidArgumentException
      */
     public function handle(OpenFgaManager $manager): int
     {
         $connection = $this->option('connection');
-        $manager->connection($connection);
+
+        if (is_string($connection) || null === $connection) {
+            $manager->connection($connection);
+        }
 
         $this->info('Starting permission audit...');
 
         try {
             $auditData = $this->collectAuditData();
 
-            if ($this->option('export')) {
+            if (false !== $this->option('export') && null !== $this->option('export')) {
                 $this->exportResults($auditData);
             } else {
                 $this->displayResults($auditData);
@@ -66,7 +75,8 @@ final class AuditPermissionsCommand extends Command
     /**
      * Analyze permissions for potential issues.
      *
-     * @param array $permissions
+     * @param  array<int, array{user?: string, relation?: string, object?: string}> $permissions
+     * @return array<int, string>
      */
     private function analyzePermissions(array $permissions): array
     {
@@ -74,7 +84,11 @@ final class AuditPermissionsCommand extends Command
 
         // Check for overly broad permissions
         $broadPermissions = collect($permissions)
-            ->filter(static fn ($p): bool => str_ends_with($p['object'] ?? '', ':*'))
+            ->filter(static function (array $p): bool {
+                $object = $p['object'] ?? '';
+
+                return str_ends_with($object, ':*');
+            })
             ->count();
 
         if (0 < $broadPermissions) {
@@ -83,7 +97,13 @@ final class AuditPermissionsCommand extends Command
 
         // Check for duplicate permissions
         $duplicates = collect($permissions)
-            ->groupBy(static fn ($p): string => ($p['user'] ?? '') . '-' . ($p['relation'] ?? '') . '-' . ($p['object'] ?? ''))
+            ->groupBy(static function (array $p): string {
+                $user = $p['user'] ?? '';
+                $relation = $p['relation'] ?? '';
+                $object = $p['object'] ?? '';
+
+                return $user . '-' . $relation . '-' . $object;
+            })
             ->filter(static fn ($group): bool => 1 < $group->count())
             ->count();
 
@@ -97,7 +117,8 @@ final class AuditPermissionsCommand extends Command
     /**
      * Audit permissions on a specific object.
      *
-     * @param string $object
+     * @param  string                            $object
+     * @return array<int, array<string, string>>
      */
     private function auditObjectPermissions(string $object): array
     {
@@ -114,7 +135,8 @@ final class AuditPermissionsCommand extends Command
     /**
      * Audit permissions for a specific user.
      *
-     * @param string $user
+     * @param  string                            $user
+     * @return array<int, array<string, string>>
      */
     private function auditUserPermissions(string $user): array
     {
@@ -133,6 +155,8 @@ final class AuditPermissionsCommand extends Command
 
     /**
      * Collect audit data based on options.
+     *
+     * @return array<string, mixed>
      */
     private function collectAuditData(): array
     {
@@ -143,14 +167,18 @@ final class AuditPermissionsCommand extends Command
         ];
 
         // User-specific audit
-        if ($user = $this->option('user')) {
+        $user = $this->option('user');
+
+        if (is_string($user)) {
             $data['permissions'] = $this->auditUserPermissions($user);
             $data['summary']['user'] = $user;
             $data['summary']['total_permissions'] = count($data['permissions']);
         }
 
         // Object-specific audit
-        elseif ($object = $this->option('object')) {
+        $object = $this->option('object');
+
+        if (! is_string($user) && is_string($object)) {
             $data['permissions'] = $this->auditObjectPermissions($object);
             $data['summary']['object'] = $object;
             $data['summary']['total_users'] = count(array_unique(array_column($data['permissions'], 'user')));
@@ -161,8 +189,11 @@ final class AuditPermissionsCommand extends Command
             $this->warn('Performing general audit. This may take some time...');
             $data = $this->performGeneralAudit();
         }
+
         // Analyze for warnings
-        $data['warnings'] = $this->analyzePermissions($data['permissions']);
+        /** @var array<int, array{user?: string, relation?: string, object?: string}> $permissions */
+        $permissions = isset($data['permissions']) && is_array($data['permissions']) ? $data['permissions'] : [];
+        $data['warnings'] = $this->analyzePermissions($permissions);
 
         return $data;
     }
@@ -170,39 +201,46 @@ final class AuditPermissionsCommand extends Command
     /**
      * Display audit results.
      *
-     * @param array $data
+     * @param array<string, mixed> $data
      */
     private function displayResults(array $data): void
     {
         // Summary
-        if (! empty($data['summary'])) {
+        if (isset($data['summary']) && is_array($data['summary']) && [] !== $data['summary']) {
             $this->info('Audit Summary:');
             $this->table(
                 ['Metric', 'Value'],
                 collect($data['summary'])->map(static fn ($value, $key): array => [
-                    ucwords(str_replace('_', ' ', $key)),
-                    is_array($value) ? implode(', ', $value) : $value,
+                    ucwords(str_replace('_', ' ', is_string($key) ? $key : (string) $key)),
+                    is_array($value) ? implode(', ', $value) : (is_scalar($value) ? (string) $value : ''),
                 ])->toArray(),
             );
         }
 
         // Permissions table
-        if (! empty($data['permissions'])) {
+        if (isset($data['permissions']) && is_array($data['permissions']) && [] !== $data['permissions']) {
             $this->newLine();
             $this->info('Permissions:');
             $this->table(
                 ['User', 'Relation', 'Object'],
-                $data['permissions'],
+                array_map(static fn ($p): array => is_array($p) ? [
+                    $p['user'] ?? '',
+                    $p['relation'] ?? '',
+                    $p['object'] ?? '',
+                ] : ['', '', ''], $data['permissions']),
             );
         }
 
         // Warnings
-        if (! empty($data['warnings'])) {
+        if (isset($data['warnings']) && is_array($data['warnings']) && [] !== $data['warnings']) {
             $this->newLine();
             $this->warn('Warnings:');
 
+            /** @var mixed $warning */
             foreach ($data['warnings'] as $warning) {
-                $this->comment('⚠️  ' . $warning);
+                if (is_string($warning)) {
+                    $this->comment('⚠️  ' . $warning);
+                }
             }
         }
     }
@@ -210,12 +248,20 @@ final class AuditPermissionsCommand extends Command
     /**
      * Export results to file.
      *
-     * @param array $data
+     * @param array<string, mixed> $data
+     *
+     * @throws RuntimeException
      */
     private function exportResults(array $data): void
     {
         $format = $this->option('export');
-        $filename = 'openfga_audit_' . now()->format('Y-m-d_His') . ('.' . $format);
+
+        if (! is_string($format)) {
+            $this->error('Invalid export format');
+
+            return;
+        }
+        $filename = 'openfga_audit_' . now()->format('Y-m-d_His') . '.' . $format;
 
         switch ($format) {
             case 'csv':
@@ -240,23 +286,33 @@ final class AuditPermissionsCommand extends Command
     /**
      * Export to CSV.
      *
-     * @param array  $data
-     * @param string $filename
+     * @param array<string, mixed> $data
+     * @param string               $filename
+     *
+     * @throws RuntimeException
      */
     private function exportToCsv(array $data, string $filename): void
     {
         $handle = fopen($filename, 'w');
 
+        if (false === $handle) {
+            throw new RuntimeException('Cannot open file for writing: ' . $filename);
+        }
+
         // Write headers
         fputcsv($handle, ['User', 'Relation', 'Object']);
 
         // Write permissions
-        foreach ($data['permissions'] as $permission) {
-            fputcsv($handle, [
-                $permission['user'] ?? '',
-                $permission['relation'] ?? '',
-                $permission['object'] ?? '',
-            ]);
+        if (isset($data['permissions']) && is_array($data['permissions'])) {
+            /** @var mixed $permission */
+            foreach ($data['permissions'] as $permission) {
+                if (is_array($permission)) {
+                    $user = isset($permission['user']) && is_scalar($permission['user']) ? (string) $permission['user'] : '';
+                    $relation = isset($permission['relation']) && is_scalar($permission['relation']) ? (string) $permission['relation'] : '';
+                    $object = isset($permission['object']) && is_scalar($permission['object']) ? (string) $permission['object'] : '';
+                    fputcsv($handle, [$user, $relation, $object]);
+                }
+            }
         }
 
         fclose($handle);
@@ -265,16 +321,25 @@ final class AuditPermissionsCommand extends Command
     /**
      * Export to JSON.
      *
-     * @param array  $data
-     * @param string $filename
+     * @param array<string, mixed> $data
+     * @param string               $filename
+     *
+     * @throws RuntimeException
      */
     private function exportToJson(array $data, string $filename): void
     {
-        file_put_contents($filename, json_encode($data, JSON_PRETTY_PRINT));
+        $json = json_encode($data, JSON_PRETTY_PRINT);
+
+        if (false === $json) {
+            throw new RuntimeException('Failed to encode data to JSON: ' . json_last_error_msg());
+        }
+        file_put_contents($filename, $json);
     }
 
     /**
      * Perform a general system-wide audit.
+     *
+     * @return array<string, mixed>
      */
     private function performGeneralAudit(): array
     {

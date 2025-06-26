@@ -4,8 +4,14 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Debugbar;
 
-use DebugBar\DataCollector\{DataCollector, DataCollectorInterface, Renderable};
 use OpenFGA\Laravel\Profiling\OpenFgaProfiler;
+
+// Only define the class if the parent classes exist
+if (! class_exists('DebugBar\\DataCollector\\DataCollector')) {
+    return;
+}
+
+use DebugBar\DataCollector\{DataCollector, DataCollectorInterface, Renderable};
 
 final class OpenFgaCollector extends DataCollector implements DataCollectorInterface, Renderable
 {
@@ -14,6 +20,9 @@ final class OpenFgaCollector extends DataCollector implements DataCollectorInter
     ) {
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function collect(): array
     {
         $summary = $this->profiler->getSummary();
@@ -23,7 +32,7 @@ final class OpenFgaCollector extends DataCollector implements DataCollectorInter
             'nb_operations' => $summary['total_operations'],
             'total_time' => $summary['total_time'],
             'slow_queries' => $summary['slow_queries'],
-            'operations' => $profiles->map->toArray()->values()->all(),
+            'operations' => $profiles->map(static fn ($profile): array => $profile->toArray())->values()->all(),
             'summary' => $summary,
         ];
     }
@@ -33,6 +42,9 @@ final class OpenFgaCollector extends DataCollector implements DataCollectorInter
         return 'openfga';
     }
 
+    /**
+     * @return array<string, array<string, mixed>|string>
+     */
     public function getWidgets(): array
     {
         return [

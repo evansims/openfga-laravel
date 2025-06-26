@@ -9,6 +9,8 @@ use OpenFGA\Laravel\Facades\OpenFga;
 use PHPUnit\Framework\AssertionFailedError;
 
 use function count;
+use function is_array;
+use function is_string;
 use function sprintf;
 
 /**
@@ -26,15 +28,22 @@ final class PerformanceTesting
 
     /**
      * Performance metrics collected during tests.
+     *
+     * @var array<int, array{type?: string, stats?: array<string, mixed>, timestamp?: string, name?: string, duration?: float, memory_used?: int, peak_memory?: int}>
      */
     private array $metrics = [];
 
     /**
      * Assert that an operation completes within a time limit.
      *
-     * @param int     $milliseconds
-     * @param Closure $operation
-     * @param ?string $message
+     * @param int             $milliseconds
+     * @param Closure(): void $operation
+     * @param ?string         $message
+     *
+     * @throws AssertionFailedError
+     *
+     * @psalm-suppress InternalClass
+     * @psalm-suppress InternalMethod
      */
     public function assertCompletesWithin(int $milliseconds, Closure $operation, ?string $message = null): void
     {
@@ -43,7 +52,7 @@ final class PerformanceTesting
         if ($metrics['duration'] > $milliseconds) {
             $message ??= sprintf(
                 'Operation took %.2fms, expected less than %dms',
-                $metrics['duration'],
+                $metrics['duration'] ?? 0.0,
                 $milliseconds,
             );
 
@@ -54,9 +63,14 @@ final class PerformanceTesting
     /**
      * Assert that memory usage stays below a threshold.
      *
-     * @param int     $bytes
-     * @param Closure $operation
-     * @param ?string $message
+     * @param int             $bytes
+     * @param Closure(): void $operation
+     * @param ?string         $message
+     *
+     * @throws AssertionFailedError
+     *
+     * @psalm-suppress InternalClass
+     * @psalm-suppress InternalMethod
      */
     public function assertMemoryUsageBelow(int $bytes, Closure $operation, ?string $message = null): void
     {
@@ -78,9 +92,10 @@ final class PerformanceTesting
     /**
      * Benchmark multiple operations.
      *
-     * @param string  $name
-     * @param Closure $operation
-     * @param int     $iterations
+     * @param  string                                                                                                                          $name
+     * @param  Closure(): void                                                                                                                 $operation
+     * @param  int                                                                                                                             $iterations
+     * @return array{name: string, iterations: int, mean: float, median: float, min: float, max: float, p95: float, p99: float, stddev: float}
      */
     public function benchmark(string $name, Closure $operation, int $iterations = 100): array
     {
@@ -92,7 +107,7 @@ final class PerformanceTesting
         for ($i = 0; $i < $iterations; ++$i) {
             $startTime = microtime(true);
             $operation();
-            $duration = (microtime(true) - $startTime) * 1000;
+            $duration = (microtime(true) - $startTime) * 1000.0;
             $results[] = $duration;
         }
 
@@ -112,11 +127,12 @@ final class PerformanceTesting
     /**
      * Compare performance of two operations.
      *
-     * @param string  $name1
-     * @param Closure $operation1
-     * @param string  $name2
-     * @param Closure $operation2
-     * @param int     $iterations
+     * @param  string                                                                                                                                                                                               $name1
+     * @param  Closure(): void                                                                                                                                                                                      $operation1
+     * @param  string                                                                                                                                                                                               $name2
+     * @param  Closure(): void                                                                                                                                                                                      $operation2
+     * @param  int                                                                                                                                                                                                  $iterations
+     * @return array{test1: array<string, mixed>, test2: array<string, mixed>, difference: array{mean: float, median: float, min: float, max: float}, ratio: array{mean: float, median: float}, conclusion: string}
      */
     public function compare(string $name1, Closure $operation1, string $name2, Closure $operation2, int $iterations = 50): array
     {
@@ -137,8 +153,8 @@ final class PerformanceTesting
                 'median' => $results2['median'] / max($results1['median'], 0.001),
             ],
             'conclusion' => $results1['mean'] < $results2['mean'] ?
-                $name1 . ' is faster by ' . round((1 - $results1['mean'] / $results2['mean']) * 100, 2) . '%' :
-                $name2 . ' is faster by ' . round((1 - $results2['mean'] / $results1['mean']) * 100, 2) . '%',
+                $name1 . ' is faster by ' . number_format((1.0 - $results1['mean'] / $results2['mean']) * 100.0, 2) . '%' :
+                $name2 . ' is faster by ' . number_format((1.0 - $results2['mean'] / $results1['mean']) * 100.0, 2) . '%',
         ];
     }
 
@@ -164,20 +180,23 @@ final class PerformanceTesting
 
         $report .= "Summary:\n";
         $report .= sprintf("- Total Operations: %d\n", $summary['total_operations']);
-        $report .= sprintf("- Total Time: %.2fms\n", $summary['operations']['total_time'] ?? 0);
-        $report .= sprintf("- Average Time: %.2fms\n", $summary['operations']['average_time'] ?? 0);
-        $report .= sprintf("- Min Time: %.2fms\n", $summary['operations']['min_time'] ?? 0);
-        $report .= sprintf("- Max Time: %.2fms\n\n", $summary['operations']['max_time'] ?? 0);
+        $report .= sprintf("- Total Time: %.2fms\n", (float) ($summary['operations']['total_time'] ?? 0));
+        $report .= sprintf("- Average Time: %.2fms\n", (float) ($summary['operations']['average_time'] ?? 0));
+        $report .= sprintf("- Min Time: %.2fms\n", (float) ($summary['operations']['min_time'] ?? 0));
+        $report .= sprintf("- Max Time: %.2fms\n\n", (float) ($summary['operations']['max_time'] ?? 0));
 
-        if (! empty($summary['benchmarks'])) {
+        if (isset($summary['benchmarks']) && [] !== $summary['benchmarks']) {
             $report .= "Benchmarks:\n";
 
-            foreach ($summary['benchmarks'] as $benchmark) {
+            /** @var array<int, array{name: mixed, mean: mixed, iterations: mixed}> $benchmarks */
+            $benchmarks = $summary['benchmarks'];
+
+            foreach ($benchmarks as $benchmark) {
                 $report .= sprintf(
                     "- %s: %.2fms (avg over %d iterations)\n",
-                    $benchmark['name'],
-                    $benchmark['mean'],
-                    $benchmark['iterations'],
+                    is_string($benchmark['name']) ? $benchmark['name'] : 'Unknown',
+                    is_numeric($benchmark['mean']) ? (float) $benchmark['mean'] : 0.0,
+                    is_numeric($benchmark['iterations']) ? (int) $benchmark['iterations'] : 0,
                 );
             }
             $report .= "\n";
@@ -190,7 +209,7 @@ final class PerformanceTesting
                 if (isset($metric['duration'])) {
                     $report .= sprintf(
                         "- %s: %.2fms, Memory: %s\n",
-                        $metric['name'],
+                        $metric['name'] ?? 'Unknown',
                         $metric['duration'],
                         $this->formatBytes($metric['memory_used'] ?? 0),
                     );
@@ -203,6 +222,8 @@ final class PerformanceTesting
 
     /**
      * Get all collected metrics.
+     *
+     * @return array<int, array{type?: string, stats?: array<string, mixed>, timestamp?: string, name?: string, duration?: float, memory_used?: int, peak_memory?: int}>
      */
     public function getMetrics(): array
     {
@@ -211,6 +232,8 @@ final class PerformanceTesting
 
     /**
      * Get metrics summary.
+     *
+     * @return array{total_operations: int, operations: array{count: int, total_time: float|null, average_time: float|null, min_time: float|null, max_time: float|null}, benchmarks: array<int, array{name: mixed, mean: mixed, iterations: mixed}>}
      */
     public function getSummary(): array
     {
@@ -222,28 +245,47 @@ final class PerformanceTesting
             ->where('type', 'benchmark')
             ->pluck('stats');
 
+        $totalTime = is_numeric($operations->sum()) ? (float) $operations->sum() : 0.0;
+        $minTime = is_numeric($operations->min()) ? (float) $operations->min() : 0.0;
+        $maxTime = is_numeric($operations->max()) ? (float) $operations->max() : 0.0;
+        $avgTime = is_numeric($operations->average()) ? (float) $operations->average() : 0.0;
+
+        /** @var array<int, array{name: mixed, mean: mixed, iterations: mixed}> $benchmarkArray */
+        $benchmarkArray = [];
+
+        /** @var array<int, mixed> $benchmarksArray */
+        $benchmarksArray = $benchmarks->toArray();
+
+        /** @var mixed $benchmark */
+        foreach ($benchmarksArray as $benchmark) {
+            if (is_array($benchmark)) {
+                $benchmarkArray[] = [
+                    'name' => $benchmark['name'] ?? '',
+                    'mean' => $benchmark['mean'] ?? 0.0,
+                    'iterations' => $benchmark['iterations'] ?? 0,
+                ];
+            }
+        }
+
         return [
             'total_operations' => $operations->count() + $benchmarks->count(),
             'operations' => [
                 'count' => $operations->count(),
-                'total_time' => $operations->sum(),
-                'average_time' => $operations->average(),
-                'min_time' => $operations->min(),
-                'max_time' => $operations->max(),
+                'total_time' => $totalTime,
+                'average_time' => $avgTime,
+                'min_time' => $minTime,
+                'max_time' => $maxTime,
             ],
-            'benchmarks' => $benchmarks->map(static fn ($b): array => [
-                'name' => $b['name'],
-                'mean' => $b['mean'],
-                'iterations' => $b['iterations'],
-            ])->toArray(),
+            'benchmarks' => $benchmarkArray,
         ];
     }
 
     /**
      * Measure the performance of a single operation.
      *
-     * @param string  $name
-     * @param Closure $operation
+     * @param  string                                                                                      $name
+     * @param  Closure(): mixed                                                                            $operation
+     * @return array{name: string, duration: float, memory_used: int, peak_memory: int, timestamp: string}
      */
     public function measure(string $name, Closure $operation): array
     {
@@ -260,7 +302,7 @@ final class PerformanceTesting
 
         $metrics = [
             'name' => $name,
-            'duration' => ($endTime - $startTime) * 1000, // Convert to milliseconds
+            'duration' => ($endTime - $startTime) * 1000.0, // Convert to milliseconds
             'memory_used' => $endMemory - $startMemory,
             'peak_memory' => $endPeakMemory - $startPeakMemory,
             'timestamp' => now()->toIso8601String(),
@@ -274,8 +316,9 @@ final class PerformanceTesting
     /**
      * Measure batch check performance.
      *
-     * @param array   $checks
-     * @param ?string $name
+     * @param  array<int, mixed>                                                                           $checks
+     * @param  ?string                                                                                     $name
+     * @return array{name: string, duration: float, memory_used: int, peak_memory: int, timestamp: string}
      */
     public function measureBatchCheck(array $checks, ?string $name = null): array
     {
@@ -287,10 +330,11 @@ final class PerformanceTesting
     /**
      * Measure permission check performance.
      *
-     * @param string  $user
-     * @param string  $relation
-     * @param string  $object
-     * @param ?string $name
+     * @param  string                                                                                      $user
+     * @param  string                                                                                      $relation
+     * @param  string                                                                                      $object
+     * @param  ?string                                                                                     $name
+     * @return array{name: string, duration: float, memory_used: int, peak_memory: int, timestamp: string}
      */
     public function measureCheck(string $user, string $relation, string $object, ?string $name = null): array
     {
@@ -302,9 +346,10 @@ final class PerformanceTesting
     /**
      * Measure expand performance.
      *
-     * @param string  $object
-     * @param string  $relation
-     * @param ?string $name
+     * @param  string                                                                                      $object
+     * @param  string                                                                                      $relation
+     * @param  ?string                                                                                     $name
+     * @return array{name: string, duration: float, memory_used: int, peak_memory: int, timestamp: string}
      */
     public function measureExpand(string $object, string $relation, ?string $name = null): array
     {
@@ -316,10 +361,11 @@ final class PerformanceTesting
     /**
      * Measure list objects performance.
      *
-     * @param string  $user
-     * @param string  $relation
-     * @param string  $objectType
-     * @param ?string $name
+     * @param  string                                                                                      $user
+     * @param  string                                                                                      $relation
+     * @param  string                                                                                      $objectType
+     * @param  ?string                                                                                     $name
+     * @return array{name: string, duration: float, memory_used: int, peak_memory: int, timestamp: string}
      */
     public function measureListObjects(string $user, string $relation, string $objectType, ?string $name = null): array
     {
@@ -331,9 +377,10 @@ final class PerformanceTesting
     /**
      * Measure write performance.
      *
-     * @param array   $writes
-     * @param array   $deletes
-     * @param ?string $name
+     * @param  array<int, array{user: string, relation: string, object: string}>                           $writes
+     * @param  array<int, array{user: string, relation: string, object: string}>                           $deletes
+     * @param  ?string                                                                                     $name
+     * @return array{name: string, duration: float, memory_used: int, peak_memory: int, timestamp: string}
      */
     public function measureWrite(array $writes, array $deletes = [], ?string $name = null): array
     {
@@ -346,15 +393,17 @@ final class PerformanceTesting
     /**
      * Profile memory usage during operation.
      *
-     * @param string  $name
-     * @param Closure $operation
-     * @param int     $samples
+     * @param  string                                                                                                             $name
+     * @param  Closure(): mixed                                                                                                   $operation
+     * @param  int                                                                                                                $samples
+     * @return array{name: string, duration: float, memory_usage: array{initial: int, peak: int, difference: int}, result: mixed}
      */
     public function profileMemory(string $name, Closure $operation, int $samples = 10): array
     {
         $startTime = microtime(true);
 
         // Execute operation
+        /** @var mixed $result */
         $result = $operation();
 
         $duration = microtime(true) - $startTime;
@@ -365,7 +414,7 @@ final class PerformanceTesting
 
         return [
             'name' => $name,
-            'duration' => $duration * 1000,
+            'duration' => $duration * 1000.0,
             'memory_usage' => [
                 'initial' => $initialMemory,
                 'peak' => $peakMemory,
@@ -388,20 +437,34 @@ final class PerformanceTesting
     /**
      * Calculate statistics for a set of measurements.
      *
-     * @param array $values
+     * @param  array<int, float>                                                                                $values
+     * @return array{mean: float, median: float, min: float, max: float, p95: float, p99: float, stddev: float}
      */
     private function calculateStats(array $values): array
     {
         sort($values);
         $count = count($values);
 
+        if (0 === $count) {
+            return [
+                'mean' => 0.0,
+                'median' => 0.0,
+                'min' => 0.0,
+                'max' => 0.0,
+                'p95' => 0.0,
+                'p99' => 0.0,
+                'stddev' => 0.0,
+            ];
+        }
+
+        /** @var non-empty-list<float> $values */
         return [
-            'mean' => array_sum($values) / $count,
+            'mean' => array_sum($values) / (float) $count,
             'median' => $values[(int) ($count / 2)],
             'min' => min($values),
             'max' => max($values),
-            'p95' => $values[(int) ($count * 0.95)],
-            'p99' => $values[(int) ($count * 0.99)],
+            'p95' => $values[(int) ((float) $count * 0.95)],
+            'p99' => $values[(int) ((float) $count * 0.99)],
             'stddev' => $this->calculateStdDev($values),
         ];
     }
@@ -409,12 +472,17 @@ final class PerformanceTesting
     /**
      * Calculate standard deviation.
      *
-     * @param array $values
+     * @param array<int, float> $values
      */
     private function calculateStdDev(array $values): float
     {
-        $mean = array_sum($values) / count($values);
-        $variance = array_sum(array_map(static fn ($x): float | int => ($x - $mean) ** 2, $values)) / count($values);
+        $count = count($values);
+
+        if (0 === $count) {
+            return 0.0;
+        }
+        $mean = array_sum($values) / (float) $count;
+        $variance = array_sum(array_map(static fn (float $x): float => ($x - $mean) ** 2.0, $values)) / (float) $count;
 
         return sqrt($variance);
     }
@@ -428,12 +496,14 @@ final class PerformanceTesting
     {
         $units = ['B', 'KB', 'MB', 'GB'];
         $i = 0;
+        $size = (float) $bytes;
 
-        while (1024 <= abs($bytes) && $i < count($units) - 1) {
-            $bytes /= 1024;
+        while (1024 <= abs($size) && $i < count($units) - 1) {
+            $size /= 1024.0;
             ++$i;
         }
 
-        return round($bytes, 2) . ' ' . $units[$i];
+        /** @var int<0, 3> $i */
+        return number_format($size, 2) . ' ' . $units[$i];
     }
 }

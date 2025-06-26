@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Export;
 
-use OpenFGA\Laravel\OpenFgaManager;
 use RuntimeException;
 
 use function count;
@@ -12,16 +11,21 @@ use function function_exists;
 
 final class PermissionExporter
 {
-    private array $options = [];
-
-    public function __construct(private readonly OpenFgaManager $manager)
-    {
-    }
+    /**
+     * @var array{format: string, include_metadata: bool, pretty_print: bool, chunk_size?: int|null}
+     */
+    private array $options = [
+        'format' => 'json',
+        'include_metadata' => true,
+        'pretty_print' => true,
+        'chunk_size' => null,
+    ];
 
     /**
      * Export permissions to array.
      *
-     * @param array $filters
+     * @param  array{users?: array<int, string>, relations?: array<int, string>, objects?: array<int, string>} $filters
+     * @return array<mixed>
      */
     public function exportToArray(array $filters = []): array
     {
@@ -46,17 +50,19 @@ final class PermissionExporter
     /**
      * Export permissions to a file.
      *
-     * @param string $filename
-     * @param array  $filters
-     * @param array  $options
+     * @param string                                                                                                                                                                   $filename
+     * @param array{user?: string, object?: string, object_type?: string, relation?: string, users?: array<int, string>, relations?: array<int, string>, objects?: array<int, string>} $filters
+     * @param array{include_metadata?: bool, format?: string, chunk_size?: int, pretty_print?: bool}                                                                                   $options
      */
     public function exportToFile(string $filename, array $filters = [], array $options = []): int
     {
-        $this->options = array_merge([
-            'format' => $this->detectFormat($filename),
-            'include_metadata' => true,
-            'pretty_print' => true,
-        ], $options);
+        /** @var array{format: string, include_metadata: bool, pretty_print: bool, chunk_size?: int} $options */
+        $this->options = [
+            'format' => $options['format'] ?? $this->detectFormat($filename),
+            'include_metadata' => $options['include_metadata'] ?? true,
+            'pretty_print' => $options['pretty_print'] ?? true,
+            'chunk_size' => $options['chunk_size'] ?? null,
+        ];
 
         $permissions = $this->collectPermissions($filters);
         $count = count($permissions);
@@ -76,14 +82,13 @@ final class PermissionExporter
     /**
      * Collect permissions based on filters.
      *
-     * @param array $filters
+     * @param  array{user?: string, object?: string, object_type?: string, relation?: string, users?: array<int, string>, relations?: array<int, string>, objects?: array<int, string>} $filters
+     * @return array<int, array{user: string, relation: string, object: string}>
      */
     private function collectPermissions(array $filters): array
     {
         // Note: In a real implementation, this would query OpenFGA
         // For now, we'll simulate with example data
-
-        $permissions = [];
 
         // Filter by user
         if (isset($filters['user'])) {
@@ -107,7 +112,7 @@ final class PermissionExporter
 
         // Apply additional filters
         if (isset($filters['relation'])) {
-            $permissions = array_filter($permissions, static fn ($p): bool => $p['relation'] === $filters['relation']);
+            $permissions = array_filter($permissions, static fn (array $p): bool => $p['relation'] === $filters['relation']);
         }
 
         return array_values($permissions);
@@ -133,11 +138,20 @@ final class PermissionExporter
     /**
      * Export to CSV format.
      *
-     * @param array $permissions
+     * @param array<int, array{user: string, relation: string, object: string}> $permissions
+     */
+    /**
+     * @param array<int, array{user: string, relation: string, object: string}> $permissions
+     *
+     * @throws RuntimeException
      */
     private function exportCsv(array $permissions): string
     {
         $output = fopen('php://temp', 'r+');
+
+        if (false === $output) {
+            throw new RuntimeException('Failed to create temporary file');
+        }
 
         // Write headers
         fputcsv($output, ['user', 'relation', 'object']);
@@ -155,14 +169,16 @@ final class PermissionExporter
         $content = stream_get_contents($output);
         fclose($output);
 
-        return $content;
+        return false !== $content ? $content : '';
     }
 
     /**
      * Export to JSON format.
      *
-     * @param array $permissions
-     * @param array $filters
+     * @param array<int, array{user: string, relation: string, object: string}>                                                                                                        $permissions
+     * @param array{user?: string, object?: string, object_type?: string, relation?: string, users?: array<int, string>, relations?: array<int, string>, objects?: array<int, string>} $filters
+     *
+     * @throws RuntimeException
      */
     private function exportJson(array $permissions, array $filters = []): string
     {
@@ -183,14 +199,22 @@ final class PermissionExporter
             ? JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES
             : 0;
 
-        return json_encode($data, $flags);
+        $encoded = json_encode($data, $flags);
+
+        if (false === $encoded) {
+            throw new RuntimeException('Failed to encode JSON');
+        }
+
+        return $encoded;
     }
 
     /**
      * Export to YAML format.
      *
-     * @param array $permissions
-     * @param array $filters
+     * @param array<int, array{user: string, relation: string, object: string}>                                                                                                        $permissions
+     * @param array{user?: string, object?: string, object_type?: string, relation?: string, users?: array<int, string>, relations?: array<int, string>, objects?: array<int, string>} $filters
+     *
+     * @throws RuntimeException
      */
     private function exportYaml(array $permissions, array $filters = []): string
     {
@@ -216,6 +240,8 @@ final class PermissionExporter
 
     /**
      * Simulate getting all permissions (dangerous in production).
+     *
+     * @return array<int, array{user: string, relation: string, object: string}>
      */
     private function getAllPermissions(): array
     {
@@ -230,7 +256,8 @@ final class PermissionExporter
     /**
      * Simulate getting permissions for an object.
      *
-     * @param string $object
+     * @param  string                                                            $object
+     * @return array<int, array{user: string, relation: string, object: string}>
      */
     private function getPermissionsForObject(string $object): array
     {
@@ -245,7 +272,8 @@ final class PermissionExporter
     /**
      * Simulate getting permissions for an object type.
      *
-     * @param string $type
+     * @param  string                                                            $type
+     * @return array<int, array{user: string, relation: string, object: string}>
      */
     private function getPermissionsForObjectType(string $type): array
     {
@@ -260,7 +288,8 @@ final class PermissionExporter
     /**
      * Simulate getting permissions for a user.
      *
-     * @param string $user
+     * @param  string                                                            $user
+     * @return array<int, array{user: string, relation: string, object: string}>
      */
     private function getPermissionsForUser(string $user): array
     {

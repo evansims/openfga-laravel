@@ -11,6 +11,8 @@ use Override;
 
 /**
  * Event service provider for OpenFGA events and listeners.
+ *
+ * @internal
  */
 final class EventServiceProvider extends ServiceProvider
 {

@@ -31,11 +31,13 @@
         <directory name="src" />
         <ignoreFiles>
             <directory name="vendor" />
+            <directory name="tests" />
         </ignoreFiles>
     </projectFiles>
 
     <stubs>
         <file name="stubs/laravel.phpstub" />
+        <file name="stubs/debugbar.phpstub" />
     </stubs>
 
     <!-- Suppress issues that conflict with modern PHP patterns -->

@@ -21,6 +21,8 @@ use function is_string;
 /**
  * Provides authorization methods for Eloquent models.
  *
+ * @api
+ *
  * @mixin Model
  */
 trait HasAuthorization

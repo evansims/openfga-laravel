@@ -6,9 +6,11 @@ namespace OpenFGA\Laravel\Console\Commands;
 
 use Exception;
 use Illuminate\Console\Command;
+use OpenFGA\Exceptions\ClientThrowable;
 use OpenFGA\Laravel\Cache\WriteBehindCache;
 
 use function array_slice;
+use function is_string;
 use function sprintf;
 
 final class WriteBehindCacheCommand extends Command
@@ -16,7 +18,7 @@ final class WriteBehindCacheCommand extends Command
     /**
      * The console command description.
      *
-     * @var string
+     * @var string|null
      */
     protected $description = 'Manage write-behind cache';
 
@@ -35,7 +37,7 @@ final class WriteBehindCacheCommand extends Command
      */
     public function handle(WriteBehindCache $cache): int
     {
-        if (! config('openfga.cache.write_behind.enabled')) {
+        if (true !== config('openfga.cache.write_behind.enabled')) {
             $this->error('Write-behind cache is not enabled.');
             $this->comment('Enable it by setting OPENFGA_WRITE_BEHIND_ENABLED=true');
 
@@ -43,6 +45,12 @@ final class WriteBehindCacheCommand extends Command
         }
 
         $action = $this->argument('action');
+
+        if (! is_string($action)) {
+            $this->error('Invalid action provided.');
+
+            return self::FAILURE;
+        }
 
         return match ($action) {
             'status' => $this->showStatus($cache),
@@ -67,7 +75,7 @@ final class WriteBehindCacheCommand extends Command
             return self::SUCCESS;
         }
 
-        if (! $this->confirm(sprintf('This will discard %s pending operations. Are you sure?', $pending['total']))) {
+        if (! $this->confirm(sprintf('This will discard %d pending operations. Are you sure?', $pending['total']))) {
             return self::SUCCESS;
         }
 
@@ -81,6 +89,8 @@ final class WriteBehindCacheCommand extends Command
      * Flush the cache.
      *
      * @param WriteBehindCache $cache
+     *
+     * @throws ClientThrowable
      */
     private function flushCache(WriteBehindCache $cache): int
     {
@@ -92,7 +102,7 @@ final class WriteBehindCacheCommand extends Command
             return self::SUCCESS;
         }
 
-        $this->info(sprintf('Flushing %s pending operations...', $pending['total']));
+        $this->info(sprintf('Flushing %d pending operations...', $pending['total']));
 
         try {
             $stats = $cache->flush();
@@ -137,15 +147,21 @@ final class WriteBehindCacheCommand extends Command
         $pending = $cache->getPendingCount();
         $operations = $cache->getPendingOperations();
 
+        /** @var mixed $batchSize */
+        $batchSize = config('openfga.cache.write_behind.batch_size', 100);
+
+        /** @var mixed $flushInterval */
+        $flushInterval = config('openfga.cache.write_behind.flush_interval', 5);
+
         $this->info('Write-Behind Cache Status:');
         $this->table(
             ['Metric', 'Value'],
             [
-                ['Pending Writes', $pending['writes']],
-                ['Pending Deletes', $pending['deletes']],
-                ['Total Operations', $pending['total']],
-                ['Batch Size', config('openfga.cache.write_behind.batch_size', 100)],
-                ['Flush Interval', config('openfga.cache.write_behind.flush_interval', 5) . ' seconds'],
+                ['Pending Writes', (string) $pending['writes']],
+                ['Pending Deletes', (string) $pending['deletes']],
+                ['Total Operations', (string) $pending['total']],
+                ['Batch Size', (string) (is_numeric($batchSize) ? (int) $batchSize : 100)],
+                ['Flush Interval', (string) (is_numeric($flushInterval) ? (int) $flushInterval : 5) . ' seconds'],
             ],
         );
 
@@ -161,7 +177,7 @@ final class WriteBehindCacheCommand extends Command
                     $op['user'],
                     $op['relation'],
                     $op['object'],
-                    now()->diffForHumans($op['timestamp'], true),
+                    now()->diffForHumans(now()->timestamp($op['timestamp'])),
                 ));
             }
 
@@ -173,7 +189,7 @@ final class WriteBehindCacheCommand extends Command
                     $op['user'],
                     $op['relation'],
                     $op['object'],
-                    now()->diffForHumans($op['timestamp'], true),
+                    now()->diffForHumans(now()->timestamp($op['timestamp'])),
                 ));
             }
         }

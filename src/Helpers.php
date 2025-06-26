@@ -37,6 +37,7 @@ if (! function_exists('openfga_can')) {
      * @throws ClientThrowable
      * @throws Exception
      * @throws InvalidArgumentException
+     * @throws \Psr\SimpleCache\InvalidArgumentException
      */
     function openfga_can(
         string $relation,
@@ -80,6 +81,7 @@ if (! function_exists('openfga_cannot')) {
      * @throws ClientThrowable
      * @throws Exception
      * @throws InvalidArgumentException
+     * @throws \Psr\SimpleCache\InvalidArgumentException
      */
     function openfga_cannot(
         string $relation,
@@ -97,6 +99,12 @@ if (! function_exists('openfga_can_any')) {
      * @param array<string> $relations
      * @param mixed         $object
      * @param string|null   $connection
+     *
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
+     * @throws InvalidArgumentException
+     * @throws \Psr\SimpleCache\InvalidArgumentException
      */
     function openfga_can_any(
         array $relations,
@@ -120,6 +128,12 @@ if (! function_exists('openfga_can_all')) {
      * @param array<string> $relations
      * @param mixed         $object
      * @param string|null   $connection
+     *
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
+     * @throws InvalidArgumentException
+     * @throws \Psr\SimpleCache\InvalidArgumentException
      */
     function openfga_can_all(
         array $relations,

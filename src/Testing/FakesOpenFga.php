@@ -8,6 +8,8 @@ use OpenFGA\Laravel\OpenFgaManager;
 
 /**
  * Trait for faking OpenFGA in tests.
+ *
+ * @api
  */
 trait FakesOpenFga // @phpstan-ignore trait.unused
 {

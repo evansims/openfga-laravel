@@ -11,7 +11,12 @@ use Illuminate\Queue\SerializesModels;
 use function sprintf;
 
 /**
- * Event fired when a permission is granted.
+ * Event dispatched when a new permission is successfully granted.
+ *
+ * This event is fired after an OpenFGA write operation adds a new authorization
+ * tuple, granting a user permission on an object. Use this event for audit
+ * logging, notifications, cache invalidation, or triggering dependent permission
+ * updates. The event includes timing information for performance monitoring.
  */
 final class PermissionGranted
 {

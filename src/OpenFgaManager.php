@@ -33,8 +33,16 @@ use function is_string;
 use function sprintf;
 
 /**
- * Manages multiple OpenFGA connections and provides a fluent API
- * for interacting with OpenFGA services.
+ * Central manager for OpenFGA operations with multi-connection support.
+ *
+ * This class orchestrates all OpenFGA interactions, providing connection pooling,
+ * caching, batch operations, and a fluent API. It supports multiple OpenFGA
+ * connections with different configurations, automatic retry logic, and
+ * comprehensive error handling through both Result pattern and exceptions.
+ * Use this manager to check permissions, manage authorization tuples, and
+ * query relationship data efficiently.
+ *
+ * @api
  */
 final class OpenFgaManager implements ManagerInterface
 {
@@ -230,9 +238,10 @@ final class OpenFgaManager implements ManagerInterface
      * @param array<string, mixed>                                                  $context          Optional context
      * @param string|null                                                           $connection       Optional connection name
      *
+     * @throws \Psr\SimpleCache\InvalidArgumentException
      * @throws BindingResolutionException
      * @throws ClientThrowable
-     * @throws Exception                  If throwExceptions is true and an error occurs
+     * @throws Exception                                 If throwExceptions is true and an error occurs
      * @throws InvalidArgumentException
      */
     #[Override]
@@ -935,6 +944,54 @@ final class OpenFgaManager implements ManagerInterface
         $success = $this->handleResult($result, static fn (): true => true);
 
         return true === $success;
+    }
+
+    /**
+     * Write batch operations for arrays of writes and deletes.
+     *
+     * @param array<int, array{user: string, relation: string, object: string}> $writes
+     * @param array<int, array{user: string, relation: string, object: string}> $deletes
+     * @param string|null                                                       $connection
+     *
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
+     * @throws InvalidArgumentException
+     */
+    public function writeBatch(
+        array $writes = [],
+        array $deletes = [],
+        ?string $connection = null,
+    ): bool {
+        // Convert arrays to TupleKeys
+        $writeTuples = null;
+        $deleteTuples = null;
+
+        if ([] !== $writes) {
+            $writeTuples = new TupleKeys;
+
+            foreach ($writes as $write) {
+                $writeTuples->add(new TupleKey(
+                    user: $write['user'],
+                    relation: $write['relation'],
+                    object: $write['object'],
+                ));
+            }
+        }
+
+        if ([] !== $deletes) {
+            $deleteTuples = new TupleKeys;
+
+            foreach ($deletes as $delete) {
+                $deleteTuples->add(new TupleKey(
+                    user: $delete['user'],
+                    relation: $delete['relation'],
+                    object: $delete['object'],
+                ));
+            }
+        }
+
+        return $this->write($writeTuples, $deleteTuples, $connection);
     }
 
     /**
