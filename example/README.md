@@ -19,7 +19,7 @@ The application uses a comprehensive OpenFGA authorization model that supports:
 ### Object Types
 - `organization` - Top-level tenant
 - `department` - Organizational units
-- `team` - Work groups within departments  
+- `team` - Work groups within departments
 - `document` - Individual documents
 - `folder` - Document containers
 - `user` - System users
@@ -43,7 +43,7 @@ The application uses a comprehensive OpenFGA authorization model that supports:
 ### 1. Install Dependencies
 
 ```bash
-composer require openfga/laravel-sdk
+composer require evansms/openfga-laravel
 ```
 
 ### 2. Configure OpenFGA
@@ -80,7 +80,7 @@ php artisan serve
 class Document extends Model
 {
     use HasAuthorization;
-    
+
     protected function authorizationRelations(): array
     {
         return ['owner', 'editor', 'viewer'];
@@ -215,7 +215,7 @@ type organization
     define admin: [user]
     define member: [user] or admin
 
-type department  
+type department
   relations
     define parent: [organization]
     define admin: admin from parent
@@ -225,7 +225,7 @@ type department
 type team
   relations
     define parent: [department]
-    define admin: admin from parent  
+    define admin: admin from parent
     define manager: manager from parent
     define lead: [user] or manager
     define member: [user] or lead
@@ -234,7 +234,7 @@ type folder
   relations
     define parent: [organization, department, team]
     define admin: admin from parent
-    define manager: manager from parent  
+    define manager: manager from parent
     define editor: [user] or manager
     define viewer: [user] or editor
 
@@ -287,5 +287,5 @@ For questions about this example or the OpenFGA Laravel package:
 
 - [Package Documentation](../docs/)
 - [OpenFGA Documentation](https://openfga.dev/docs)
-- [GitHub Issues](https://github.com/openfga/laravel-sdk/issues)
+- [GitHub Issues](https://github.com/evansms/openfga-laravel/issues)
 - [Community Slack](https://openfga.dev/community)

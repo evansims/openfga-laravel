@@ -49,9 +49,8 @@ RUN --mount=type=cache,target=/var/cache/apk \
     # For XML extensions
     libxslt-dev;
 
-# Enable and configure extensions with cache mount
-RUN --mount=type=cache,target=/usr/src/php/ext \
-    set -eux; \
+# Enable and configure extensions
+RUN set -eux; \
     # Install core extensions one by one to avoid issues
     docker-php-ext-configure gd \
         --with-freetype \
@@ -105,9 +104,6 @@ COPY src/ src/
 COPY config/ config/
 COPY tests/ tests/
 COPY phpunit.xml ./
-
-# Copy any other essential files
-COPY .env.example .env.testing* ./
 
 # Generate optimized autoloader
 RUN composer dump-autoload --optimize

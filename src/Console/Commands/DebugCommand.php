@@ -235,7 +235,7 @@ final class DebugCommand extends Command
         $this->table(
             ['Property', 'Value'],
             [
-                ['Package', 'openfga/laravel'],
+                ['Package', 'evansms/openfga-laravel'],
                 ['Laravel Version', app()->version()],
                 ['PHP Version', PHP_VERSION],
             ],
@@ -249,7 +249,7 @@ final class DebugCommand extends Command
     {
         $this->info('Package Information:');
 
-        $composerFile = base_path('vendor/openfga/laravel/composer.json');
+        $composerFile = base_path('vendor/evansms/openfga-laravel/composer.json');
 
         if (file_exists($composerFile)) {
             $contents = file_get_contents($composerFile);
@@ -257,7 +257,7 @@ final class DebugCommand extends Command
             if (false !== $contents) {
                 /** @var array<string, mixed>|null $composer */
                 $composer = json_decode($contents, true);
-                $packageName = is_array($composer) && isset($composer['name']) && is_scalar($composer['name']) ? (string) $composer['name'] : 'openfga/laravel';
+                $packageName = is_array($composer) && isset($composer['name']) && is_scalar($composer['name']) ? (string) $composer['name'] : 'evansms/openfga-laravel';
                 $packageVersion = is_array($composer) && isset($composer['version']) && is_scalar($composer['version']) ? (string) $composer['version'] : 'dev';
 
                 $this->table(

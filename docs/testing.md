@@ -64,11 +64,11 @@ use OpenFGA\Laravel\Testing\FakesOpenFga;
 class MyTest extends TestCase
 {
     use FakesOpenFga;
-    
+
     public function test_authorization()
     {
         $fake = $this->fakeOpenFga();
-        
+
         // Your test code here
     }
 }
@@ -84,12 +84,12 @@ use OpenFGA\Laravel\Testing\CreatesPermissionData;
 class MyTest extends TestCase
 {
     use FakesOpenFga, CreatesPermissionData;
-    
+
     public function test_blog_permissions()
     {
         $fake = $this->fakeOpenFga();
         $data = $this->createBlogSystem($fake);
-        
+
         // Test with pre-configured blog permission structure
         $this->assertTrue($fake->check($data['users']['admin'], 'admin', $data['blog']));
     }
@@ -494,16 +494,16 @@ public function test_blog_author_permissions()
 {
     $fake = $this->fakeOpenFga();
     $data = $this->createBlogSystem($fake);
-    
+
     // Author can edit their own posts
     $this->assertTrue($fake->check($data['users']['author1'], 'author', $data['posts']['post1']));
-    
+
     // Author cannot edit other's posts
     $this->assertFalse($fake->check($data['users']['author1'], 'author', $data['posts']['post2']));
-    
+
     // Editor can edit all posts
     $this->assertTrue($fake->check($data['users']['editor'], 'editor', $data['blog']));
-    
+
     // Subscribers can read posts
     $this->assertTrue($fake->check($data['users']['subscriber'], 'reader', $data['posts']['post1']));
 }
@@ -516,23 +516,23 @@ public function test_file_system_permissions()
 {
     $fake = $this->fakeOpenFga();
     $data = $this->createFileSystem($fake);
-    
+
     // Users can access their home directories
     AssertionHelper::assertUserHasAllPermissions(
-        $fake, 
-        $data['users']['user1'], 
-        ['read', 'write', 'execute'], 
+        $fake,
+        $data['users']['user1'],
+        ['read', 'write', 'execute'],
         $data['folders']['user1_home']
     );
-    
+
     // Users cannot access other home directories
     AssertionHelper::assertUserDoesNotHavePermission(
-        $fake, 
-        $data['users']['user1'], 
-        'read', 
+        $fake,
+        $data['users']['user1'],
+        'read',
         $data['folders']['user2_home']
     );
-    
+
     // Shared files are accessible to all
     AssertionHelper::assertUserHasAccessToObjects(
         $fake,
@@ -550,10 +550,10 @@ public function test_ecommerce_permissions()
 {
     $fake = $this->fakeOpenFga();
     $data = $this->createEcommerceSystem($fake);
-    
+
     // Customers can view their own orders
     $this->assertTrue($fake->check($data['users']['customer1'], 'view', $data['orders']['order1']));
-    
+
     // Support can view all orders
     AssertionHelper::assertUserHasAccessToObjects(
         $fake,
@@ -561,7 +561,7 @@ public function test_ecommerce_permissions()
         'view',
         array_values($data['orders'])
     );
-    
+
     // Vendors can manage their products
     $this->assertTrue($fake->check($data['users']['vendor1'], 'manage', $data['products']['product1']));
     $this->assertFalse($fake->check($data['users']['vendor1'], 'manage', $data['products']['product3']));
@@ -575,14 +575,14 @@ public function test_organization_hierarchy()
 {
     $fake = $this->fakeOpenFga();
     $data = $this->createOrganizationStructure($fake);
-    
+
     // CEO has admin access to organization
     $this->assertTrue($fake->check($data['users']['ceo'], 'admin', $data['organization']));
-    
+
     // Department managers can manage their departments
     $this->assertTrue($fake->check($data['users']['hr_manager'], 'manager', $data['departments']['hr']));
     $this->assertFalse($fake->check($data['users']['hr_manager'], 'manager', $data['departments']['it']));
-    
+
     // Project contributors have appropriate access
     $this->assertTrue($fake->check($data['users']['developer'], 'contributor', $data['projects']['project1']));
 }
@@ -595,14 +595,14 @@ public function test_nested_hierarchy_permissions()
 {
     $fake = $this->fakeOpenFga();
     $data = $this->createNestedHierarchy($fake);
-    
+
     // Super admin has top-level access
     $this->assertTrue($fake->check($data['users']['super_admin'], 'super_admin', $data['hierarchy']['company']));
-    
+
     // Managers have appropriate scope
     $this->assertTrue($fake->check($data['users']['dept_manager'], 'manager', $data['hierarchy']['department']));
     $this->assertTrue($fake->check($data['users']['team_lead'], 'lead', $data['hierarchy']['team']));
-    
+
     // Contributors have project access
     AssertionHelper::assertUserHasAllPermissions(
         $fake,
@@ -842,7 +842,7 @@ Always use the fake implementation for unit tests to ensure isolation:
 public function test_isolated_permission_check()
 {
     $fake = $this->fakeOpenFga();
-    
+
     // Each test starts with a clean slate
     $this->assertNoPermissionChecks();
 }
@@ -856,19 +856,19 @@ Test both positive and negative cases:
 public function test_permission_boundaries()
 {
     $fake = $this->fakeOpenFga();
-    
+
     // Grant specific permission
     $fake->grant('user:123', 'read', 'document:456');
-    
+
     // Test granted permission
     $this->assertTrue($fake->check('user:123', 'read', 'document:456'));
-    
+
     // Test different user (should fail)
     $this->assertFalse($fake->check('user:999', 'read', 'document:456'));
-    
+
     // Test different permission (should fail)
     $this->assertFalse($fake->check('user:123', 'write', 'document:456'));
-    
+
     // Test different object (should fail)
     $this->assertFalse($fake->check('user:123', 'read', 'document:999'));
 }
@@ -883,10 +883,10 @@ public function test_complex_organization_permissions()
 {
     $fake = $this->fakeOpenFga();
     $data = $this->createOrganizationStructure($fake);
-    
+
     // Test CEO has admin access to organization
     $this->assertTrue($fake->check($data['users']['ceo'], 'admin', $data['organization']));
-    
+
     // Test department managers can manage their departments
     $this->assertTrue($fake->check($data['users']['hr_manager'], 'manager', $data['departments']['hr']));
     $this->assertFalse($fake->check($data['users']['hr_manager'], 'manager', $data['departments']['it']));
@@ -901,11 +901,11 @@ Ensure your code doesn't make unnecessary permission checks:
 public function test_no_redundant_permission_checks()
 {
     $fake = $this->fakeOpenFga();
-    
+
     // Perform action that should only check once
     $service = new DocumentService();
     $service->getPublicDocuments();
-    
+
     // Assert exactly the expected number of checks
     $this->assertPermissionCheckCount(1);
 }
@@ -921,16 +921,16 @@ public function test_permission_checks_are_cached()
     $fake = $this->fakeOpenFga();
     $user = User::factory()->create();
     $document = Document::factory()->create();
-    
+
     // Grant permission
     $fake->grant("user:{$user->id}", 'viewer', "document:{$document->id}");
-    
+
     // First check
     $document->check($user, 'viewer');
-    
+
     // Second check should hit cache (if implemented)
     $document->check($user, 'viewer');
-    
+
     // Verify only one actual check was made
     $this->assertPermissionCheckCount(1);
 }
@@ -984,7 +984,7 @@ Error: OpenFGA fake is not active. Call fakeOpenFga() first.
 public function test_something()
 {
     $fake = $this->fakeOpenFga(); // Must call this first
-    
+
     // Now you can use assertions
     $this->assertNoPermissionChecks();
 }
@@ -1016,9 +1016,9 @@ Use the assertion helpers to debug what checks are being made:
 public function test_debug_checks()
 {
     $fake = $this->fakeOpenFga();
-    
+
     // Your code here
-    
+
     // Debug what checks were made
     $checks = $fake->getChecks();
     dd($checks); // See all permission checks that occurred
@@ -1034,7 +1034,7 @@ For consistent testing, configure your test environment:
 protected function setUp(): void
 {
     parent::setUp();
-    
+
     // Always use fake in tests by default
     if (!app()->environment('production')) {
         $this->fakeOpenFga();
@@ -1063,7 +1063,7 @@ class PermissionFixtures
 - Optimize with [Performance Guide](performance.md)
 - See [Troubleshooting Guide](troubleshooting.md)
 - Check the [API Reference](api-reference.md)
-- Review [Example Application](https://github.com/openfga/laravel-example)
+- Review [Example Application](https://github.com/evansims/openfga-laravel)
 
 ## Additional Resources
 

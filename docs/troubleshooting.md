@@ -111,7 +111,7 @@ This guide helps you diagnose and resolve common issues when using OpenFGA Larav
    ```php
    // ✅ Correct format
    OpenFga::grant('user:123', 'viewer', 'document:456');
-   
+
    // ❌ Incorrect format
    OpenFga::grant('123', 'viewer', '456');
    ```
@@ -164,7 +164,7 @@ This guide helps you diagnose and resolve common issues when using OpenFGA Larav
 1. **Ensure trait is properly imported:**
    ```php
    use OpenFGA\Laravel\Traits\HasAuthorization;
-   
+
    class Document extends Model
    {
        use HasAuthorization;
@@ -197,7 +197,7 @@ This guide helps you diagnose and resolve common issues when using OpenFGA Larav
    class Document extends Model
    {
        use HasAuthorization;
-       
+
        // Ensure this matches your OpenFGA model
        protected function authorizationType(): string
        {
@@ -225,7 +225,7 @@ This guide helps you diagnose and resolve common issues when using OpenFGA Larav
                'relation' => $relation,
                'object' => $object,
            ]);
-           
+
            // ... rest of middleware
        }
    }
@@ -235,7 +235,7 @@ This guide helps you diagnose and resolve common issues when using OpenFGA Larav
    ```php
    // Correct format
    Route::middleware(['openfga:editor,document:{document}'])
-   
+
    // Incorrect - missing object
    Route::middleware(['openfga:editor'])
    ```
@@ -370,11 +370,11 @@ public function register()
 1. **Ensure trait is used:**
    ```php
    use OpenFGA\Laravel\Testing\FakesOpenFga;
-   
+
    class MyTest extends TestCase
    {
        use FakesOpenFga;
-       
+
        protected function setUp(): void
        {
            parent::setUp();
@@ -400,7 +400,7 @@ public function register()
    ```php
    // First perform the action
    $document->grant($user, 'editor');
-   
+
    // Then assert
    OpenFga::assertGranted(
        "user:{$user->id}",
@@ -518,5 +518,5 @@ For enterprise support, contact the OpenFGA team through official channels.
 
 4. **Keep dependencies updated:**
    ```bash
-   composer update openfga/laravel
+   composer update evansms/openfga-laravel
    ```

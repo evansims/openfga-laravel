@@ -44,7 +44,7 @@ echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
     touch database/database.sqlite
     echo "✅ Created SQLite database"
-    
+
     # Update .env file to use SQLite
     sed -i.bak 's/DB_CONNECTION=mysql/DB_CONNECTION=sqlite/' .env
     sed -i.bak 's/DB_DATABASE=.*/DB_DATABASE=database\/database.sqlite/' .env
@@ -81,37 +81,37 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
             -p 3000:3000 \
             openfga/openfga:latest \
             run --playground-enabled
-        
+
         echo "✅ OpenFGA started on http://localhost:8080"
         echo "🎮 Playground available at http://localhost:3000"
-        
+
         # Wait for OpenFGA to start
         echo "⏳ Waiting for OpenFGA to start..."
         sleep 5
-        
+
         # Create store and model
         echo "🏪 Creating OpenFGA store and model..."
-        
+
         # Create store
         STORE_RESPONSE=$(curl -s -X POST http://localhost:8080/stores \
             -H "Content-Type: application/json" \
             -d '{"name": "openfga-laravel-example"}')
-        
+
         STORE_ID=$(echo $STORE_RESPONSE | grep -o '"id":"[^"]*"' | cut -d'"' -f4)
-        
+
         if [ -n "$STORE_ID" ]; then
             echo "✅ Created store with ID: $STORE_ID"
-            
+
             # Create authorization model
             MODEL_RESPONSE=$(curl -s -X POST "http://localhost:8080/stores/$STORE_ID/authorization-models" \
                 -H "Content-Type: application/json" \
                 -d @openfga/model.fga)
-            
+
             MODEL_ID=$(echo $MODEL_RESPONSE | grep -o '"authorization_model_id":"[^"]*"' | cut -d'"' -f4)
-            
+
             if [ -n "$MODEL_ID" ]; then
                 echo "✅ Created authorization model with ID: $MODEL_ID"
-                
+
                 # Update .env file
                 sed -i.bak "s/OPENFGA_STORE_ID=.*/OPENFGA_STORE_ID=$STORE_ID/" .env
                 sed -i.bak "s/OPENFGA_MODEL_ID=.*/OPENFGA_MODEL_ID=$MODEL_ID/" .env
@@ -138,7 +138,7 @@ echo "3. Visit http://localhost:8000 to see the example application"
 echo ""
 echo "👥 Demo user accounts:"
 echo "- admin@example.com (Organization Admin)"
-echo "- manager@example.com (Department Manager)"  
+echo "- manager@example.com (Department Manager)"
 echo "- lead@example.com (Team Lead)"
 echo "- editor@example.com (Content Editor)"
 echo "- viewer@example.com (Content Viewer)"
@@ -146,4 +146,4 @@ echo ""
 echo "🔐 Password for all accounts: password"
 echo ""
 echo "📖 For more information, see the README.md file"
-echo "🐛 For issues, visit: https://github.com/openfga/laravel-sdk/issues"
+echo "🐛 For issues, visit: https://github.com/evansms/openfga-laravel/issues"

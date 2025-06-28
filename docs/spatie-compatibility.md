@@ -102,7 +102,7 @@ $compatibility = app(SpatieCompatibility::class);
 // Add permission mapping
 $compatibility->addPermissionMapping('custom permission', 'custom_relation');
 
-// Add role mapping  
+// Add role mapping
 $compatibility->addRoleMapping('custom role', 'custom_relation');
 ```
 
@@ -274,7 +274,7 @@ class PostController extends Controller
         $this->middleware('permission:edit posts')->only(['create', 'store', 'edit', 'update']);
         $this->middleware('permission:delete posts')->only(['destroy']);
     }
-    
+
     // ... controller methods
 }
 ```
@@ -483,7 +483,7 @@ class MigrationTest extends TestCase
     {
         $user = User::factory()->create();
         $user->assignRole('admin');
-        
+
         $this->assertTrue($user->hasRole('admin'));
         $this->assertTrue($user->hasPermissionTo('manage users'));
     }
@@ -505,6 +505,6 @@ Log::info('Permission check duration', ['duration' => $duration]);
 
 ## Support
 
-- **Issues**: Report compatibility issues on [GitHub](https://github.com/openfga/laravel-sdk/issues)
+- **Issues**: Report compatibility issues on [GitHub](https://github.com/evansims/openfga-laravel/issues)
 - **Migration Help**: Use the `migration` label for migration-related questions
 - **Documentation**: Check the main [OpenFGA Laravel documentation](../README.md)

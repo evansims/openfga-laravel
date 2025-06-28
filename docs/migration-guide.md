@@ -89,7 +89,7 @@ class PostPolicy
 
 1. **Install OpenFGA Laravel**:
 ```bash
-composer require openfga/laravel-sdk
+composer require evansims/openfga-laravel
 php artisan vendor:publish --provider="OpenFGA\Laravel\OpenFgaServiceProvider"
 ```
 
@@ -119,7 +119,7 @@ class MigrateToOpenFga extends Command
                     // Grant admin access to organization
                     OpenFga::grant($user->authorizationUser(), 'admin', 'organization:main');
                 }
-                
+
                 // Migrate post ownership
                 foreach ($user->posts as $post) {
                     OpenFga::grant($user->authorizationUser(), 'owner', $post->authorizationObject());
@@ -480,10 +480,10 @@ class ShadowModeAuthorization
     public function check(User $user, string $permission, $resource = null): bool
     {
         $legacyResult = $this->legacyCheck($user, $permission, $resource);
-        
+
         if (config('features.openfga_shadow_mode')) {
             $openFgaResult = $this->openFgaCheck($user, $permission, $resource);
-            
+
             // Log discrepancies for analysis
             if ($legacyResult !== $openFgaResult) {
                 Log::warning('Authorization mismatch', [
@@ -512,18 +512,18 @@ class BigBangMigration extends Command
     {
         DB::transaction(function () {
             $this->info('Starting complete migration...');
-            
+
             // Disable legacy authorization
             config(['features.legacy_auth' => false]);
-            
+
             // Migrate all data
             $this->migrateAllUsers();
             $this->migrateAllResources();
             $this->migrateAllPermissions();
-            
+
             // Enable OpenFGA
             config(['features.openfga_auth' => true]);
-            
+
             $this->info('Migration completed!');
         });
     }
@@ -581,12 +581,12 @@ class PerformantMigration
 
         do {
             $tuples = $this->prepareTuples($offset, $batchSize);
-            
+
             if (!empty($tuples)) {
                 OpenFga::writeBatch($tuples);
                 $this->info("Migrated batch starting at offset {$offset}");
             }
-            
+
             $offset += $batchSize;
         } while (count($tuples) === $batchSize);
     }
@@ -623,11 +623,11 @@ class ConsistentMigration
     private function verifyMigration()
     {
         $sampleUsers = User::inRandomOrder()->limit(100)->get();
-        
+
         foreach ($sampleUsers as $user) {
             $legacyPermissions = $this->getLegacyPermissions($user);
             $openFgaPermissions = $this->getOpenFgaPermissions($user);
-            
+
             if (!$this->permissionsMatch($legacyPermissions, $openFgaPermissions)) {
                 throw new Exception("Migration verification failed for user {$user->id}");
             }
@@ -703,12 +703,12 @@ class MigrationPerformanceTest extends TestCase
     public function test_migration_completes_within_time_limit()
     {
         $startTime = microtime(true);
-        
+
         $migration = new FullMigration();
         $migration->migrate();
-        
+
         $duration = microtime(true) - $startTime;
-        
+
         $this->assertLessThan(300, $duration, 'Migration should complete within 5 minutes');
     }
 }

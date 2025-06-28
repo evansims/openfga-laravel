@@ -16,7 +16,7 @@ This guide will walk you through installing and configuring the OpenFGA Laravel 
 Install the package using Composer:
 
 ```bash
-composer require openfga/laravel
+composer require evansimsopenfga-laravel
 ```
 
 ### Step 2: Publish Configuration
@@ -203,7 +203,7 @@ For authentication issues:
 If you encounter any issues:
 
 1. Check the [Troubleshooting Guide](troubleshooting.md)
-2. Search existing [GitHub Issues](https://github.com/openfga/laravel/issues)
+2. Search existing [GitHub Issues](https://github.com/evansims/openfga-laravel/issues)
 3. Create a new issue with detailed information about your problem
 
 ## Version Compatibility

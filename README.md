@@ -27,7 +27,7 @@
 ## Installation
 
 ```bash
-composer require openfga/laravel
+composer require evansims/openfga-laravel
 ```
 
 Publish the configuration:

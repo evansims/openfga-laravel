@@ -388,4 +388,4 @@ class Document extends Model
 
 - Check the [API Reference](api-reference.md)
 - See the [Troubleshooting Guide](troubleshooting.md)
-- Visit our [GitHub repository](https://github.com/openfga/laravel)
+- Visit our [GitHub repository](https://github.com/evansims/openfga-laravel)
