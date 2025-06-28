@@ -1,15 +1,12 @@
 <?php
 
 declare(strict_types=1);
-
-namespace OpenFGA\Laravel\Tests\Integration;
-
 use OpenFGA\Laravel\Tests\Support\FeatureTestCase;
 
-final class StoreAndAuditCommandsTest extends FeatureTestCase
-{
-    public function test_analyze_permissions_command_all_options(): void
-    {
+uses(FeatureTestCase::class);
+
+describe('Store And Audit Commands', function (): void {
+    it('analyze permissions command all options', function (): void {
         $this->artisan('openfga:analyze', [
             '--show-paths' => true,
             '--find-conflicts' => true,
@@ -20,68 +17,60 @@ final class StoreAndAuditCommandsTest extends FeatureTestCase
             ->expectsOutputToContain('Conflicts:')
             ->expectsOutputToContain('Optimizations:')
             ->assertSuccessful();
-    }
+    });
 
-    public function test_analyze_permissions_command_default(): void
-    {
+    it('analyze permissions command default', function (): void {
         $this->artisan('openfga:analyze')
             ->expectsOutputToContain('Analyzing permission structure...')
             ->expectsOutputToContain('Structure:')
             ->expectsOutputToContain('Usage:')
             ->expectsOutputToContain('Health:')
             ->assertSuccessful();
-    }
+    });
 
-    public function test_analyze_permissions_command_find_conflicts(): void
-    {
+    it('analyze permissions command find conflicts', function (): void {
         $this->artisan('openfga:analyze', ['--find-conflicts' => true])
             ->expectsOutputToContain('Searching for permission conflicts...')
             ->expectsOutputToContain('Conflicts:')
             ->assertSuccessful();
-    }
+    });
 
-    public function test_analyze_permissions_command_optimize(): void
-    {
+    it('analyze permissions command optimize', function (): void {
         $this->artisan('openfga:analyze', ['--optimize' => true])
             ->expectsOutputToContain('Analyzing for optimization opportunities...')
             ->expectsOutputToContain('Suggestions:')
             ->assertSuccessful();
-    }
+    });
 
-    public function test_analyze_permissions_command_show_paths(): void
-    {
+    it('analyze permissions command show paths', function (): void {
         $this->artisan('openfga:analyze', ['--show-paths' => true])
             ->expectsOutputToContain('Analyzing permission inheritance paths...')
             ->expectsOutputToContain('Inheritance Chains:')
             ->assertSuccessful();
-    }
+    });
 
-    public function test_audit_permissions_command_for_object(): void
-    {
+    it('audit permissions command for object', function (): void {
         $this->artisan('openfga:audit', ['--object' => 'document:1'])
             ->expectsOutputToContain('Auditing permissions on object: document:1')
             ->assertSuccessful();
-    }
+    });
 
-    public function test_audit_permissions_command_for_user(): void
-    {
+    it('audit permissions command for user', function (): void {
         $this->artisan('openfga:audit', ['--user' => 'user:123'])
             ->expectsOutputToContain('Starting permission audit...')
             ->expectsOutputToContain('Auditing permissions for user: user:123')
             ->expectsOutputToContain('Audit Summary:')
             ->assertSuccessful();
-    }
+    });
 
-    public function test_audit_permissions_command_general(): void
-    {
+    it('audit permissions command general', function (): void {
         $this->artisan('openfga:audit')
             ->expectsOutputToContain('Performing general audit')
             ->expectsOutputToContain('Audit Summary:')
             ->assertSuccessful();
-    }
+    });
 
-    public function test_audit_permissions_command_with_export_csv(): void
-    {
+    it('audit permissions command with export csv', function (): void {
         $this->artisan('openfga:audit', [
             '--user' => 'user:123',
             '--export' => 'csv',
@@ -95,10 +84,9 @@ final class StoreAndAuditCommandsTest extends FeatureTestCase
         foreach ($files as $file) {
             unlink($file);
         }
-    }
+    });
 
-    public function test_audit_permissions_command_with_export_json(): void
-    {
+    it('audit permissions command with export json', function (): void {
         $this->artisan('openfga:audit', [
             '--user' => 'user:123',
             '--export' => 'json',
@@ -112,30 +100,27 @@ final class StoreAndAuditCommandsTest extends FeatureTestCase
         foreach ($files as $file) {
             unlink($file);
         }
-    }
+    });
 
-    public function test_store_create_command(): void
-    {
+    it('store create command', function (): void {
         $this->artisan('openfga:store:create', ['name' => 'TestStore'])
             ->expectsOutputToContain('Creating store \'TestStore\'...')
             ->expectsOutputToContain('Store created successfully!')
             ->expectsOutputToContain('Store ID: store_')
             ->expectsOutputToContain('Next steps:')
             ->assertSuccessful();
-    }
+    });
 
-    public function test_store_create_command_with_invalid_model(): void
-    {
+    it('store create command with invalid model', function (): void {
         $this->artisan('openfga:store:create', [
             'name' => 'TestStore',
             '--model' => '/nonexistent/model.fga',
         ])
             ->expectsOutputToContain('Failed to create store:')
             ->assertFailed();
-    }
+    });
 
-    public function test_store_create_command_with_model(): void
-    {
+    it('store create command with model', function (): void {
         $modelFile = tempnam(sys_get_temp_dir(), 'model');
         file_put_contents($modelFile, "model\n  schema 1.1\n\ntype user");
 
@@ -147,5 +132,5 @@ final class StoreAndAuditCommandsTest extends FeatureTestCase
             ->assertSuccessful();
 
         unlink($modelFile);
-    }
-}
+    });
+});

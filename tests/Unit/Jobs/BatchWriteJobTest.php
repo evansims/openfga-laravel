@@ -2,28 +2,21 @@
 
 declare(strict_types=1);
 
-namespace OpenFGA\Laravel\Tests\Unit\Jobs;
-
-use DateTimeImmutable;
 use OpenFGA\Laravel\Jobs\BatchWriteJob;
 use OpenFGA\Laravel\Testing\FakesOpenFga;
-use OpenFGA\Laravel\Tests\TestCase;
 
-final class BatchWriteJobTest extends TestCase
-{
-    use FakesOpenFga;
+describe('BatchWriteJob', function (): void {
+    uses(FakesOpenFga::class);
 
-    public function test_batch_write_job_backoff_strategy(): void
-    {
+    it('has correct backoff strategy', function (): void {
         $job = new BatchWriteJob;
 
         $backoff = $job->backoff();
 
-        $this->assertEquals([1, 5, 10], $backoff);
-    }
+        expect($backoff)->toBe([1, 5, 10]);
+    });
 
-    public function test_batch_write_job_can_be_instantiated(): void
-    {
+    it('can be instantiated', function (): void {
         $writes = [
             ['user' => 'user:1', 'relation' => 'reader', 'object' => 'document:1'],
             ['user' => 'user:2', 'relation' => 'writer', 'object' => 'document:2'],
@@ -35,14 +28,13 @@ final class BatchWriteJobTest extends TestCase
 
         $job = new BatchWriteJob($writes, $deletes, 'main');
 
-        $this->assertInstanceOf(BatchWriteJob::class, $job);
-        $this->assertEquals(3, $job->tries);
-        $this->assertEquals(120, $job->timeout);
-        $this->assertTrue($job->shouldBeEncrypted);
-    }
+        expect($job)->toBeInstanceOf(BatchWriteJob::class);
+        expect($job->tries)->toBe(3);
+        expect($job->timeout)->toBe(120);
+        expect($job->shouldBeEncrypted)->toBeTrue();
+    });
 
-    public function test_batch_write_job_has_correct_tags(): void
-    {
+    it('has correct tags', function (): void {
         $writes = [
             ['user' => 'user:1', 'relation' => 'reader', 'object' => 'document:1'],
             ['user' => 'user:2', 'relation' => 'writer', 'object' => 'document:2'],
@@ -56,20 +48,19 @@ final class BatchWriteJobTest extends TestCase
 
         $tags = $job->tags();
 
-        $this->assertContains('openfga', $tags);
-        $this->assertContains('batch-write', $tags);
-        $this->assertContains('connection:test', $tags);
-        $this->assertContains('writes:2', $tags);
-        $this->assertContains('deletes:1', $tags);
-    }
+        expect($tags)->toContain('openfga');
+        expect($tags)->toContain('batch-write');
+        expect($tags)->toContain('connection:test');
+        expect($tags)->toContain('writes:2');
+        expect($tags)->toContain('deletes:1');
+    });
 
-    public function test_batch_write_job_retry_until(): void
-    {
+    it('has retry until configured', function (): void {
         $job = new BatchWriteJob;
 
         $retryUntil = $job->retryUntil();
 
-        $this->assertInstanceOf(DateTimeImmutable::class, $retryUntil);
-        $this->assertGreaterThan(now(), $retryUntil);
-    }
-}
+        expect($retryUntil)->toBeInstanceOf(DateTimeImmutable::class);
+        expect($retryUntil->getTimestamp())->toBeGreaterThan(now()->timestamp);
+    });
+});

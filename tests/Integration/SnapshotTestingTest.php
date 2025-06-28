@@ -2,34 +2,23 @@
 
 declare(strict_types=1);
 
-namespace OpenFGA\Laravel\Tests\Integration;
-
 use OpenFGA\Laravel\Testing\{FakesOpenFga, SnapshotsTesting};
 use OpenFGA\Laravel\Tests\Support\FeatureTestCase;
 use PHPUnit\Framework\AssertionFailedError;
 
-final class SnapshotTestingTest extends FeatureTestCase
-{
-    use FakesOpenFga;
+uses(FeatureTestCase::class, FakesOpenFga::class, SnapshotsTesting::class);
 
-    use SnapshotsTesting;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
-
+describe('Snapshot Testing', function (): void {
+    beforeEach(function (): void {
         $this->fakeOpenFga();
         $this->setUpSnapshots();
-    }
+    });
 
-    protected function tearDown(): void
-    {
+    afterEach(function (): void {
         $this->tearDownSnapshots();
-        parent::tearDown();
-    }
+    });
 
-    public function test_basic_permission_snapshot(): void
-    {
+    it('basic permission snapshot', function (): void {
         // Set up some permissions
         $fake = $this->getFakeOpenFga();
         $fake->grant('user:1', 'owner', 'document:1');
@@ -53,11 +42,10 @@ final class SnapshotTestingTest extends FeatureTestCase
         });
 
         // Add explicit assertion to satisfy PHPUnit
-        $this->assertTrue(true);
-    }
+        expect(true)->toBeTrue();
+    });
 
-    public function test_comparing_snapshots(): void
-    {
+    it('comparing snapshots', function (): void {
         $fake = $this->getFakeOpenFga();
 
         // Create first snapshot
@@ -73,20 +61,15 @@ final class SnapshotTestingTest extends FeatureTestCase
         $snapshot2->saveSnapshot('state2');
 
         // Compare snapshots (this would fail as they're different)
-        try {
-            $this->assertSnapshotsMatch('state1', 'state2');
-            $this->fail('Expected snapshots to be different');
-        } catch (AssertionFailedError $e) {
-            $this->assertStringContainsString('Differences between', $e->getMessage());
-        }
+        expect(fn () => $this->assertSnapshotsMatch('state1', 'state2'))
+            ->toThrow(AssertionFailedError::class, 'Differences between');
 
         // Clean up
         $this->deleteSnapshot('state1');
         $this->deleteSnapshot('state2');
-    }
+    });
 
-    public function test_complex_scenario_snapshot(): void
-    {
+    it('complex scenario snapshot', function (): void {
         // Set up a complex authorization scenario
         $fake = $this->getFakeOpenFga();
 
@@ -127,11 +110,10 @@ final class SnapshotTestingTest extends FeatureTestCase
         });
 
         // Add explicit assertion to satisfy PHPUnit
-        $this->assertTrue(true);
-    }
+        expect(true)->toBeTrue();
+    });
 
-    public function test_object_relationships_snapshot(): void
-    {
+    it('object relationships snapshot', function (): void {
         // Set up object relationships
         $fake = $this->getFakeOpenFga();
         $fake->grant('user:1', 'owner', 'document:important');
@@ -152,11 +134,10 @@ final class SnapshotTestingTest extends FeatureTestCase
         );
 
         // Add explicit assertion to satisfy PHPUnit
-        $this->assertTrue(true);
-    }
+        expect(true)->toBeTrue();
+    });
 
-    public function test_permission_matrix_snapshot(): void
-    {
+    it('permission matrix snapshot', function (): void {
         // Set up a permission matrix
         $fake = $this->getFakeOpenFga();
         $fake->grant('user:admin', 'admin', 'organization:acme');
@@ -173,11 +154,10 @@ final class SnapshotTestingTest extends FeatureTestCase
         );
 
         // Add explicit assertion to satisfy PHPUnit
-        $this->assertTrue(true);
-    }
+        expect(true)->toBeTrue();
+    });
 
-    public function test_snapshot_detects_permission_changes(): void
-    {
+    it('snapshot detects permission changes', function (): void {
         // This test will fail if permissions change unexpectedly
         $fake = $this->getFakeOpenFga();
 
@@ -198,11 +178,10 @@ final class SnapshotTestingTest extends FeatureTestCase
         });
 
         // Add explicit assertion to satisfy PHPUnit
-        $this->assertTrue(true);
-    }
+        expect(true)->toBeTrue();
+    });
 
-    public function test_updating_snapshots(): void
-    {
+    it('updating snapshots', function (): void {
         // Enable snapshot updates for this test
         $this->updateSnapshots();
 
@@ -216,12 +195,12 @@ final class SnapshotTestingTest extends FeatureTestCase
 
         // Verify the snapshot was created
         $snapshots = $this->getAvailableSnapshots();
-        $this->assertNotEmpty($snapshots);
-        $this->assertTrue(
+        expect($snapshots)->not->toBeEmpty();
+        expect(
             collect($snapshots)->pluck('name')->contains('updatable_snapshot'),
-        );
+        )->toBeTrue();
 
         // Clean up
         $this->deleteSnapshot('updatable_snapshot');
-    }
-}
+    });
+});

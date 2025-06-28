@@ -5,13 +5,11 @@ declare(strict_types=1);
 namespace OpenFGA\Laravel\Tests\Unit;
 
 use Illuminate\Container\Container;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\App;
 use InvalidArgumentException;
 use Mockery;
 use OpenFGA\Laravel\OpenFgaManager;
 use OpenFGA\Laravel\Tests\Support\{TestDocument, TestUser};
-use OpenFGA\Laravel\Traits\HasAuthorization;
 use ReflectionClass;
 
 describe('HasAuthorization Trait', function (): void {

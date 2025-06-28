@@ -1,21 +1,19 @@
 <?php
 
 declare(strict_types=1);
+use OpenFGA\Laravel\Tests\Support\FeatureTestCase;
 
-namespace OpenFGA\Laravel\Tests\Integration;
+uses(FeatureTestCase::class);
 
 use Illuminate\Http\Client\{Factory as Http, Response};
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Event;
 use Mockery;
 use OpenFGA\Laravel\Events\{PermissionChanged, PermissionGranted};
-use OpenFGA\Laravel\Tests\Support\FeatureTestCase;
 use OpenFGA\Laravel\Webhooks\{WebhookManager, WebhookServiceProvider};
 
-final class WebhookTest extends FeatureTestCase
-{
-    public function test_webhook_command_list(): void
-    {
+describe('Webhook', function (): void {
+    it('webhook command list', function (): void {
         // Create webhook manager with HTTP mock for this test
         $httpMock = Mockery::mock(Http::class);
         $webhookManager = new WebhookManager($httpMock);
@@ -27,10 +25,9 @@ final class WebhookTest extends FeatureTestCase
         // Run the command and check the output
         $this->artisan('openfga:webhook', ['action' => 'list'])
             ->assertSuccessful();
-    }
+    });
 
-    public function test_webhook_command_test(): void
-    {
+    it('webhook command test', function (): void {
         // Create webhook manager with HTTP mock for this test
         $httpMock = Mockery::mock(Http::class);
         $webhookManager = new WebhookManager($httpMock);
@@ -66,10 +63,9 @@ final class WebhookTest extends FeatureTestCase
             ->expectsOutputToContain('Testing webhook: https://example.com/test')
             ->expectsOutputToContain('✅ Webhook test completed')
             ->assertSuccessful();
-    }
+    });
 
-    public function test_webhook_enable_disable(): void
-    {
+    it('webhook enable disable', function (): void {
         // Create webhook manager with HTTP mock for this test
         $httpMock = Mockery::mock(Http::class);
         $webhookManager = new WebhookManager($httpMock);
@@ -79,16 +75,15 @@ final class WebhookTest extends FeatureTestCase
         // Disable
         $webhookManager->disable('test');
         $webhooks = $webhookManager->getWebhooks();
-        $this->assertFalse($webhooks['test']['active']);
+        expect($webhooks['test']['active'])->toBeFalse();
 
         // Enable
         $webhookManager->enable('test');
         $webhooks = $webhookManager->getWebhooks();
-        $this->assertTrue($webhooks['test']['active']);
-    }
+        expect($webhooks['test']['active'])->toBeTrue();
+    });
 
-    public function test_webhook_filters_by_event_type(): void
-    {
+    it('webhook filters by event type', function (): void {
         // Test that webhook is NOT called for non-matching event
         $httpMock = Mockery::mock(Http::class);
         $webhookManager = new WebhookManager($httpMock);
@@ -140,11 +135,10 @@ final class WebhookTest extends FeatureTestCase
         $webhookManager->notifyPermissionChange($event2);
 
         // Verify expectations were met
-        $this->assertTrue(true);
-    }
+        expect(true)->toBeTrue();
+    });
 
-    public function test_webhook_listener_integration(): void
-    {
+    it('webhook listener integration', function (): void {
         // Configure webhook in config
         config(['openfga.webhooks.enabled' => true]);
         config(['openfga.webhooks.endpoints.test' => [
@@ -190,11 +184,10 @@ final class WebhookTest extends FeatureTestCase
         ));
 
         // Verify that expectations were met
-        $this->addToAssertionCount(1);
-    }
+        expect(true)->toBeTrue();
+    });
 
-    public function test_webhook_notification_sent(): void
-    {
+    it('webhook notification sent', function (): void {
         // Create a fresh webhook manager for this test to avoid interference
         $httpMock = Mockery::mock(Http::class);
         $webhookManager = new WebhookManager($httpMock);
@@ -239,11 +232,10 @@ final class WebhookTest extends FeatureTestCase
         $webhookManager->notifyPermissionChange($event);
 
         // Add assertion to verify mock expectations were met
-        $this->addToAssertionCount(1);
-    }
+        expect(true)->toBeTrue();
+    });
 
-    public function test_webhook_registration(): void
-    {
+    it('webhook registration', function (): void {
         // Create webhook manager with HTTP mock for this test
         $httpMock = Mockery::mock(Http::class);
         $webhookManager = new WebhookManager($httpMock);
@@ -257,22 +249,21 @@ final class WebhookTest extends FeatureTestCase
 
         $webhooks = $webhookManager->getWebhooks();
 
-        $this->assertArrayHasKey('test', $webhooks);
-        $this->assertEquals('https://example.com/webhook', $webhooks['test']['url']);
-        $this->assertEquals(['permission.granted'], $webhooks['test']['events']);
-        $this->assertTrue($webhooks['test']['active']);
-    }
+        expect($webhooks)->toHaveKey('test');
+        expect($webhooks['test']['url'])->toBe('https://example.com/webhook');
+        expect($webhooks['test']['events'])->toBe(['permission.granted']);
+        expect($webhooks['test']['active'])->toBeTrue();
+    });
 
-    public function test_webhook_unregister(): void
-    {
+    it('webhook unregister', function (): void {
         // Create webhook manager with HTTP mock for this test
         $httpMock = Mockery::mock(Http::class);
         $webhookManager = new WebhookManager($httpMock);
 
         $webhookManager->register('test', 'https://example.com/webhook');
-        $this->assertArrayHasKey('test', $webhookManager->getWebhooks());
+        expect($webhookManager->getWebhooks())->toHaveKey('test');
 
         $webhookManager->unregister('test');
-        $this->assertArrayNotHasKey('test', $webhookManager->getWebhooks());
-    }
-}
+        expect($webhookManager->getWebhooks())->not->toHaveKey('test');
+    });
+});

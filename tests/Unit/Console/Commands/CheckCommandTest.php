@@ -2,39 +2,33 @@
 
 declare(strict_types=1);
 
-namespace OpenFGA\Laravel\Tests\Unit\Console\Commands;
-
 use OpenFGA\Laravel\Console\Commands\CheckCommand;
 use OpenFGA\Laravel\Testing\FakesOpenFga;
-use OpenFGA\Laravel\Tests\TestCase;
 
-final class CheckCommandTest extends TestCase
-{
-    use FakesOpenFga;
+describe('CheckCommand', function (): void {
+    uses(FakesOpenFga::class);
 
-    public function test_check_command_can_be_instantiated(): void
-    {
+    it('can be instantiated', function (): void {
         $command = new CheckCommand;
 
-        $this->assertEquals('openfga:check', $command->getName());
-        $this->assertStringContainsString('Check if a user has a specific permission', $command->getDescription());
-    }
+        expect($command->getName())->toBe('openfga:check');
+        expect($command->getDescription())->toContain('Check if a user has a specific permission');
+    });
 
-    public function test_check_command_signature(): void
-    {
+    it('has correct signature', function (): void {
         $command = new CheckCommand;
 
         $definition = $command->getDefinition();
 
         // Check arguments
-        $this->assertTrue($definition->hasArgument('user'));
-        $this->assertTrue($definition->hasArgument('relation'));
-        $this->assertTrue($definition->hasArgument('object'));
+        expect($definition->hasArgument('user'))->toBeTrue();
+        expect($definition->hasArgument('relation'))->toBeTrue();
+        expect($definition->hasArgument('object'))->toBeTrue();
 
         // Check options
-        $this->assertTrue($definition->hasOption('connection'));
-        $this->assertTrue($definition->hasOption('json'));
-        $this->assertTrue($definition->hasOption('contextual-tuple'));
-        $this->assertTrue($definition->hasOption('context'));
-    }
-}
+        expect($definition->hasOption('connection'))->toBeTrue();
+        expect($definition->hasOption('json'))->toBeTrue();
+        expect($definition->hasOption('contextual-tuple'))->toBeTrue();
+        expect($definition->hasOption('context'))->toBeTrue();
+    });
+});

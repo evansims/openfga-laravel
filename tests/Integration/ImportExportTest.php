@@ -1,35 +1,27 @@
 <?php
 
 declare(strict_types=1);
+use OpenFGA\Laravel\Tests\Support\FeatureTestCase;
 
-namespace OpenFGA\Laravel\Tests\Integration;
+uses(FeatureTestCase::class);
 
 use OpenFGA\Laravel\Export\PermissionExporter;
 use OpenFGA\Laravel\Import\PermissionImporter;
 use OpenFGA\Laravel\OpenFgaManager;
-use OpenFGA\Laravel\Tests\Support\FeatureTestCase;
 
-final class ImportExportTest extends FeatureTestCase
-{
-    protected string $tempDir;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
+describe('Import Export', function (): void {
+    beforeEach(function (): void {
         $this->tempDir = sys_get_temp_dir() . '/openfga_test_' . uniqid();
         mkdir($this->tempDir);
-    }
+    });
 
-    protected function tearDown(): void
-    {
+    afterEach(function (): void {
         // Clean up temp files
         array_map('unlink', glob("{$this->tempDir}/*"));
         rmdir($this->tempDir);
-        parent::tearDown();
-    }
+    });
 
-    public function test_export_command(): void
-    {
+    it('export command', function (): void {
         // For now, skip the command test and use the exporter directly
         $manager = $this->app->make(OpenFgaManager::class);
         $exporter = new PermissionExporter($manager);
@@ -37,44 +29,41 @@ final class ImportExportTest extends FeatureTestCase
         $file = "{$this->tempDir}/cmd_export.json";
         $count = $exporter->exportToFile($file, ['user' => 'user:123']);
 
-        $this->assertFileExists($file);
-        $this->assertGreaterThanOrEqual(0, $count);
-    }
+        expect($file)->toBeFile();
+        expect($count)->toBeGreaterThanOrEqual(0);
+    });
 
-    public function test_export_to_csv(): void
-    {
+    it('export to csv', function (): void {
         $manager = $this->app->make(OpenFgaManager::class);
         $exporter = new PermissionExporter($manager);
 
         $file = "{$this->tempDir}/export.csv";
         $count = $exporter->exportToFile($file, ['object' => 'document:1']);
 
-        $this->assertFileExists($file);
+        expect($file)->toBeFile();
 
         $lines = file($file);
-        $this->assertEquals('user,relation,object', trim($lines[0]));
-        $this->assertCount($count + 1, $lines); // +1 for header
-    }
+        expect(trim($lines[0]))->toBe('user,relation,object');
+        expect($lines)->toHaveCount($count + 1); // +1 for header
+    });
 
-    public function test_export_to_json(): void
-    {
+    it('export to json', function (): void {
         $manager = $this->app->make(OpenFgaManager::class);
         $exporter = new PermissionExporter($manager);
 
         $file = "{$this->tempDir}/export.json";
         $count = $exporter->exportToFile($file, ['user' => 'user:123']);
 
-        $this->assertFileExists($file);
-        $this->assertGreaterThan(0, $count);
+        expect($file)->toBeFile();
+        expect($count)->toBeGreaterThan(0);
 
         $content = json_decode(file_get_contents($file), true);
-        $this->assertArrayHasKey('metadata', $content);
-        $this->assertArrayHasKey('permissions', $content);
-        $this->assertEquals($count, $content['metadata']['total']);
-    }
+        expect($content)->toHaveKey('metadata');
+        expect($content)->toHaveKey('permissions');
+        expect($content['metadata']['total'])->toBe($count);
+    });
 
-    public function test_import_command(): void
-    {
+    it('import command', function (): void {
         // Create test file
         $data = ['permissions' => [
             ['user' => 'user:1', 'relation' => 'owner', 'object' => 'document:1'],
@@ -88,22 +77,20 @@ final class ImportExportTest extends FeatureTestCase
 
         $stats = $importer->importFromFile($file, ['dry_run' => true]);
 
-        $this->assertEquals(1, $stats['processed']);
-        $this->assertEquals(1, $stats['imported']);
-        $this->assertEquals(0, $stats['errors']);
-    }
+        expect($stats['processed'])->toBe(1);
+        expect($stats['imported'])->toBe(1);
+        expect($stats['errors'])->toBe(0);
+    });
 
-    public function test_import_command_file_not_found(): void
-    {
+    it('import command file not found', function (): void {
         $this->artisan('openfga:import', [
             'file' => '/nonexistent/file.json',
         ])
             ->expectsOutputToContain('File not found')
             ->assertFailed();
-    }
+    });
 
-    public function test_import_dry_run(): void
-    {
+    it('import dry run', function (): void {
         $manager = $this->app->make(OpenFgaManager::class);
         $importer = new PermissionImporter($manager);
 
@@ -118,13 +105,12 @@ final class ImportExportTest extends FeatureTestCase
 
         $stats = $importer->importFromFile($file, ['dry_run' => true]);
 
-        $this->assertEquals(1, $stats['processed']);
-        $this->assertEquals(1, $stats['imported']);
-        $this->assertEquals(0, $stats['errors']);
-    }
+        expect($stats['processed'])->toBe(1);
+        expect($stats['imported'])->toBe(1);
+        expect($stats['errors'])->toBe(0);
+    });
 
-    public function test_import_from_csv(): void
-    {
+    it('import from csv', function (): void {
         $manager = $this->app->make(OpenFgaManager::class);
         $importer = new PermissionImporter($manager);
 
@@ -137,12 +123,11 @@ final class ImportExportTest extends FeatureTestCase
 
         $stats = $importer->importFromFile($file);
 
-        $this->assertEquals(2, $stats['processed']);
-        $this->assertEquals(2, $stats['imported']);
-    }
+        expect($stats['processed'])->toBe(2);
+        expect($stats['imported'])->toBe(2);
+    });
 
-    public function test_import_from_json(): void
-    {
+    it('import from json', function (): void {
         $manager = $this->app->make(OpenFgaManager::class);
         $importer = new PermissionImporter($manager);
 
@@ -158,13 +143,12 @@ final class ImportExportTest extends FeatureTestCase
 
         $stats = $importer->importFromFile($file);
 
-        $this->assertEquals(2, $stats['processed']);
-        $this->assertEquals(2, $stats['imported']);
-        $this->assertEquals(0, $stats['errors']);
-    }
+        expect($stats['processed'])->toBe(2);
+        expect($stats['imported'])->toBe(2);
+        expect($stats['errors'])->toBe(0);
+    });
 
-    public function test_import_with_validation_errors(): void
-    {
+    it('import with validation errors', function (): void {
         $manager = $this->app->make(OpenFgaManager::class);
         $importer = new PermissionImporter($manager);
 
@@ -180,8 +164,8 @@ final class ImportExportTest extends FeatureTestCase
 
         $stats = $importer->importFromFile($file, ['skip_errors' => true]);
 
-        $this->assertEquals(2, $stats['processed']);
-        $this->assertEquals(1, $stats['imported']);
-        $this->assertEquals(1, $stats['skipped']);
-    }
-}
+        expect($stats['processed'])->toBe(2);
+        expect($stats['imported'])->toBe(1);
+        expect($stats['skipped'])->toBe(1);
+    });
+});

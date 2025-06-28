@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OpenFGA\Laravel\Testing;
 
 use Closure;
+use Illuminate\Config\Repository;
 use Illuminate\Support\Facades\Config;
 
 use function count;
@@ -31,9 +32,8 @@ trait IntegrationTestHelpers
         array $contextualTuples,
         bool $expectedResult,
     ): void {
-        // The Laravel SDK doesn't directly support contextual tuples in check method
-        // This would need to be implemented differently or using raw client
-        $result = $this->getClient()->check($user, $relation, $object);
+        // Use the manager for contextual checks
+        $result = $this->getManager()->check($user, $relation, $object, $contextualTuples, [], 'integration_test');
 
         $this->assertEquals(
             $expectedResult,
@@ -175,7 +175,7 @@ trait IntegrationTestHelpers
         string $objectType,
         array $expectedObjects,
     ): void {
-        $objects = $this->getClient()->listObjects($user, $relation, $objectType);
+        $objects = $this->getManager()->listObjects($user, $relation, $objectType, [], [], 'integration_test');
 
         foreach ($expectedObjects as $expectedObject) {
             $this->assertContains($expectedObject, $objects, sprintf('Expected %s in list of accessible objects', $expectedObject));
@@ -236,9 +236,9 @@ trait IntegrationTestHelpers
             if (isset($item['parents'])) {
                 foreach ($item['parents'] as $parentRelation => $parentObject) {
                     $tuples[] = [
-                        'user' => $item['object'],
+                        'user' => $parentObject,
                         'relation' => $parentRelation,
-                        'object' => $parentObject,
+                        'object' => $item['object'],
                     ];
                 }
             }
@@ -346,18 +346,38 @@ trait IntegrationTestHelpers
         $storeB = $this->createStore('store_b_' . uniqid());
 
         try {
-            // Set up store A
+            // Set up store A with its own model
+            $this->testStoreId = $storeA['id'];
+            $modelA = $this->createAuthorizationModel($this->getTestAuthorizationModel());
             Config::set('openfga.connections.integration_test.store_id', $storeA['id']);
-            $this->openFgaManager->purge('integration_test');
+            Config::set('openfga.connections.integration_test.model_id', $modelA['authorization_model_id']);
+
+            // Update the manager's internal config
+            /** @var Repository $configRepository */
+            $configRepository = app('config');
+
+            /** @var array{default?: string, connections?: array<string, array<string, mixed>>, cache?: array<string, mixed>, queue?: array<string, mixed>, logging?: array<string, mixed>} $updatedConfig */
+            $updatedConfig = $configRepository->get('openfga', []);
+            $this->openFgaManager->updateConfig($updatedConfig);
+            $this->waitForConsistency();
+
             $storeASetup();
 
-            // Set up store B
+            // Set up store B with its own model
+            $this->testStoreId = $storeB['id'];
+            $modelB = $this->createAuthorizationModel($this->getTestAuthorizationModel());
             Config::set('openfga.connections.integration_test.store_id', $storeB['id']);
-            $this->openFgaManager->purge('integration_test');
+            Config::set('openfga.connections.integration_test.model_id', $modelB['authorization_model_id']);
+
+            // Update the manager's internal config to reflect the new store ID
+            $updatedConfig = $configRepository->get('openfga', []);
+            $this->openFgaManager->updateConfig($updatedConfig);
+            $this->waitForConsistency();
+
             $storeBSetup();
 
             // Run assertions
-            $assertions($storeA['id'], $storeB['id']);
+            $assertions($storeA['id'], $storeB['id'], $modelA['authorization_model_id'], $modelB['authorization_model_id']);
         } finally {
             // Clean up
             $this->deleteStore($storeA['id']);

@@ -120,13 +120,14 @@ final class TaggedCache
      * @param string $user
      * @param string $relation
      * @param string $object
+     * @param string $storeId
      *
      * @throws InvalidArgumentException
      */
-    public function getPermission(string $user, string $relation, string $object): ?bool
+    public function getPermission(string $user, string $relation, string $object, string $storeId = ''): ?bool
     {
-        $key = $this->getPermissionKey($user, $relation, $object);
-        $tags = $this->getPermissionTags($user, $relation, $object);
+        $key = $this->getPermissionKey($user, $relation, $object, $storeId);
+        $tags = $this->getPermissionTags($user, $relation, $object, $storeId);
 
         /** @var mixed $result */
         $result = $this->get($key, $tags);
@@ -162,6 +163,16 @@ final class TaggedCache
     public function invalidateRelation(string $relation): bool
     {
         return $this->flush([$this->getRelationTag($relation)]);
+    }
+
+    /**
+     * Invalidate cache for a specific store.
+     *
+     * @param string $storeId
+     */
+    public function invalidateStore(string $storeId): bool
+    {
+        return $this->flush([$this->getStoreTag($storeId)]);
     }
 
     /**
@@ -222,6 +233,7 @@ final class TaggedCache
      * @param string $object
      * @param bool   $result
      * @param ?int   $ttl
+     * @param string $storeId
      */
     public function putPermission(
         string $user,
@@ -229,9 +241,10 @@ final class TaggedCache
         string $object,
         bool $result,
         ?int $ttl = null,
+        string $storeId = '',
     ): bool {
-        $key = $this->getPermissionKey($user, $relation, $object);
-        $tags = $this->getPermissionTags($user, $relation, $object);
+        $key = $this->getPermissionKey($user, $relation, $object, $storeId);
+        $tags = $this->getPermissionTags($user, $relation, $object, $storeId);
 
         return $this->put($key, $result, $tags, $ttl);
     }
@@ -301,16 +314,18 @@ final class TaggedCache
      * @param string $user
      * @param string $relation
      * @param string $object
+     * @param string $storeId
      */
-    private function getPermissionKey(string $user, string $relation, string $object): string
+    private function getPermissionKey(string $user, string $relation, string $object, string $storeId = ''): string
     {
         /** @var mixed $configPrefix */
         $configPrefix = $this->config['prefix'] ?? null;
         $prefix = is_string($configPrefix) ? $configPrefix : 'openfga';
 
         return sprintf(
-            '%s:check:%s:%s:%s',
+            '%s:check:%s:%s:%s:%s',
             $prefix,
+            $storeId,
             $user,
             $relation,
             $object,
@@ -323,15 +338,21 @@ final class TaggedCache
      * @param  string        $user
      * @param  string        $relation
      * @param  string        $object
+     * @param  string        $storeId
      * @return array<string>
      */
-    private function getPermissionTags(string $user, string $relation, string $object): array
+    private function getPermissionTags(string $user, string $relation, string $object, string $storeId = ''): array
     {
         $tags = [
             $this->getUserTag($user),
             $this->getRelationTag($relation),
             $this->getObjectTag($object),
         ];
+
+        // Add store tag if provided
+        if ('' !== $storeId) {
+            $tags[] = $this->getStoreTag($storeId);
+        }
 
         // Add type tags
         $userType = $this->extractType($user);
@@ -360,6 +381,19 @@ final class TaggedCache
         $prefix = $this->config['prefix'] ?? 'openfga';
 
         return (is_string($prefix) ? $prefix : 'openfga') . ':relation:' . $relation;
+    }
+
+    /**
+     * Get tag for a specific store.
+     *
+     * @param string $storeId
+     */
+    private function getStoreTag(string $storeId): string
+    {
+        /** @var mixed $prefix */
+        $prefix = $this->config['prefix'] ?? 'openfga';
+
+        return (is_string($prefix) ? $prefix : 'openfga') . ':store:' . $storeId;
     }
 
     /**

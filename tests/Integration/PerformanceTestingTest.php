@@ -2,33 +2,22 @@
 
 declare(strict_types=1);
 
-namespace OpenFGA\Laravel\Tests\Integration;
-
 use OpenFGA\Laravel\Testing\{FakesOpenFga, MeasuresPerformance};
 use OpenFGA\Laravel\Tests\Support\FeatureTestCase;
 
-final class PerformanceTestingTest extends FeatureTestCase
-{
-    use FakesOpenFga;
+uses(FeatureTestCase::class, FakesOpenFga::class, MeasuresPerformance::class);
 
-    use MeasuresPerformance;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
-
+describe('Performance Testing', function (): void {
+    beforeEach(function (): void {
         $this->fakeOpenFga();
         $this->setUpPerformanceTesting();
-    }
+    });
 
-    protected function tearDown(): void
-    {
+    afterEach(function (): void {
         $this->tearDownPerformanceTesting();
-        parent::tearDown();
-    }
+    });
 
-    public function test_assert_faster_than(): void
-    {
+    it('assert faster than', function (): void {
         $fake = $this->getFakeOpenFga();
 
         // Direct check should be faster than checking with non-existent permission
@@ -49,11 +38,10 @@ final class PerformanceTestingTest extends FeatureTestCase
         );
 
         // Add a simple assertion to avoid risky test warning
-        $this->assertTrue(true);
-    }
+        expect(true)->toBeTrue();
+    });
 
-    public function test_batch_operations_performance(): void
-    {
+    it('batch operations performance', function (): void {
         $fake = $this->getFakeOpenFga();
 
         // Benchmark batch writes
@@ -70,16 +58,15 @@ final class PerformanceTestingTest extends FeatureTestCase
             $fake->writeBatch($writes);
         }, 10);
 
-        $this->assertArrayHasKey('mean', $results);
-        $this->assertArrayHasKey('median', $results);
-        $this->assertArrayHasKey('p95', $results);
+        expect($results)->toHaveKey('mean');
+        expect($results)->toHaveKey('median');
+        expect($results)->toHaveKey('p95');
 
         // Mean time should be reasonable for 100 operations
-        $this->assertLessThan(50, $results['mean']);
-    }
+        expect($results['mean'])->toBeLessThan(50);
+    });
 
-    public function test_comparing_single_vs_batch_checks(): void
-    {
+    it('comparing single vs batch checks', function (): void {
         $fake = $this->getFakeOpenFga();
 
         // Set up permissions
@@ -115,12 +102,11 @@ final class PerformanceTestingTest extends FeatureTestCase
             20,
         );
 
-        $this->assertArrayHasKey('conclusion', $comparison);
-        $this->assertArrayHasKey('ratio', $comparison);
-    }
+        expect($comparison)->toHaveKey('conclusion');
+        expect($comparison)->toHaveKey('ratio');
+    });
 
-    public function test_detailed_performance_report(): void
-    {
+    it('detailed performance report', function (): void {
         $perf = $this->performance()->enableDetailed();
 
         $fake = $this->getFakeOpenFga();
@@ -146,15 +132,14 @@ final class PerformanceTestingTest extends FeatureTestCase
         // Get the report
         $report = $this->getPerformanceReport();
 
-        $this->assertStringContainsString('Performance Test Report', $report);
-        $this->assertStringContainsString('Summary:', $report);
-        $this->assertStringContainsString('Detailed Metrics:', $report);
-        $this->assertStringContainsString('Admin check', $report);
-        $this->assertStringContainsString('bulk-checks', $report);
-    }
+        expect($report)->toContain('Performance Test Report');
+        expect($report)->toContain('Summary:');
+        expect($report)->toContain('Detailed Metrics:');
+        expect($report)->toContain('Admin check');
+        expect($report)->toContain('bulk-checks');
+    });
 
-    public function test_memory_usage_assertion(): void
-    {
+    it('memory usage assertion', function (): void {
         $fake = $this->getFakeOpenFga();
 
         // Assert memory usage stays below 1MB
@@ -166,11 +151,10 @@ final class PerformanceTestingTest extends FeatureTestCase
         });
 
         // Add a simple assertion to avoid risky test warning
-        $this->assertTrue(true);
-    }
+        expect(true)->toBeTrue();
+    });
 
-    public function test_performance_metrics_collection(): void
-    {
+    it('performance metrics collection', function (): void {
         $fake = $this->getFakeOpenFga();
         $perf = $this->performance();
 
@@ -184,15 +168,14 @@ final class PerformanceTestingTest extends FeatureTestCase
         // Get summary
         $summary = $perf->getSummary();
 
-        $this->assertArrayHasKey('total_operations', $summary);
-        $this->assertArrayHasKey('operations', $summary);
-        $this->assertEquals(2, $summary['operations']['count']);
-        $this->assertGreaterThan(0, $summary['operations']['total_time']);
-        $this->assertGreaterThan(0, $summary['operations']['average_time']);
-    }
+        expect($summary)->toHaveKey('total_operations');
+        expect($summary)->toHaveKey('operations');
+        expect($summary['operations']['count'])->toBe(2);
+        expect($summary['operations']['total_time'])->toBeGreaterThan(0);
+        expect($summary['operations']['average_time'])->toBeGreaterThan(0);
+    });
 
-    public function test_performance_scaling_with_data_size(): void
-    {
+    it('performance scaling with data size', function (): void {
         $fake = $this->getFakeOpenFga();
         $results = [];
 
@@ -212,15 +195,12 @@ final class PerformanceTestingTest extends FeatureTestCase
         // Performance shouldn't degrade significantly with more data
         // In a real implementation, this would test actual scaling
         // Add small tolerance for timing variations
-        $this->assertLessThanOrEqual(
+        expect($results[1000])->toBeLessThanOrEqual(
             $results[10] * 2.1, // Allow 5% tolerance
-            $results[1000],
-            'Performance degraded more than 2x with 100x more data',
         );
-    }
+    });
 
-    public function test_performance_within_baseline(): void
-    {
+    it('performance within baseline', function (): void {
         $fake = $this->getFakeOpenFga();
 
         // Set up some initial data
@@ -252,11 +232,10 @@ final class PerformanceTestingTest extends FeatureTestCase
         );
 
         // Add explicit assertion to satisfy PHPUnit
-        $this->assertTrue(true);
-    }
+        expect(true)->toBeTrue();
+    });
 
-    public function test_permission_check_completes_within_time_limit(): void
-    {
+    it('permission check completes within time limit', function (): void {
         $fake = $this->getFakeOpenFga();
         $fake->grant('user:1', 'viewer', 'post:1');
 
@@ -266,22 +245,21 @@ final class PerformanceTestingTest extends FeatureTestCase
         });
 
         // Add a simple assertion to avoid risky test warning
-        $this->assertTrue(true);
-    }
+        expect(true)->toBeTrue();
+    });
 
-    public function test_single_permission_check_performance(): void
-    {
+    it('single permission check performance', function (): void {
         $fake = $this->getFakeOpenFga();
         $fake->grant('user:1', 'editor', 'document:1');
 
         // Measure a single check
         $metrics = $this->measure('single-check', fn () => $fake->check('user:1', 'editor', 'document:1'));
 
-        $this->assertIsArray($metrics);
-        $this->assertArrayHasKey('duration', $metrics);
-        $this->assertArrayHasKey('memory_used', $metrics);
+        expect($metrics)->toBeArray();
+        expect($metrics)->toHaveKey('duration');
+        expect($metrics)->toHaveKey('memory_used');
 
         // Assert it completes within reasonable time (5ms for fake implementation)
-        $this->assertLessThan(5, $metrics['duration']);
-    }
-}
+        expect($metrics['duration'])->toBeLessThan(5);
+    });
+});

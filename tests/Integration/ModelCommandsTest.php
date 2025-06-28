@@ -1,49 +1,39 @@
 <?php
 
 declare(strict_types=1);
-
-namespace OpenFGA\Laravel\Tests\Integration;
-
-use Illuminate\Support\Facades\File;
 use OpenFGA\Laravel\Tests\Support\FeatureTestCase;
 
-final class ModelCommandsTest extends FeatureTestCase
-{
-    protected string $modelsPath;
+uses(FeatureTestCase::class);
 
-    protected function setUp(): void
-    {
-        parent::setUp();
+use Illuminate\Support\Facades\File;
+
+describe('Model Commands', function (): void {
+    beforeEach(function (): void {
         $this->modelsPath = storage_path('openfga/models');
 
         // Ensure directory exists
         if (! is_dir($this->modelsPath)) {
             mkdir($this->modelsPath, 0o755, true);
         }
-    }
+    });
 
-    protected function tearDown(): void
-    {
+    afterEach(function (): void {
         // Clean up created files
         if (is_dir($this->modelsPath)) {
             File::deleteDirectory($this->modelsPath);
         }
+    });
 
-        parent::tearDown();
-    }
-
-    public function test_model_create_command_fails_without_force_when_file_exists(): void
-    {
+    it('model create command fails without force when file exists', function (): void {
         $filename = $this->modelsPath . '/existing_model.fga';
         file_put_contents($filename, 'existing content');
 
         $this->artisan('openfga:model:create', ['name' => 'existing'])
             ->expectsOutput("Model file already exists: {$filename}")
             ->assertFailed();
-    }
+    });
 
-    public function test_model_create_command_interactive(): void
-    {
+    it('model create command interactive', function (): void {
         $this->artisan('openfga:model:create', ['name' => 'InteractiveModel'])
             ->expectsQuestion('Enter type name (or press enter to finish)', 'user')
             ->expectsQuestion('Enter relation name (or press enter to finish)', '')
@@ -52,11 +42,10 @@ final class ModelCommandsTest extends FeatureTestCase
             ->assertSuccessful();
 
         $content = file_get_contents($this->modelsPath . '/interactive_model_model.fga');
-        $this->assertStringContainsString('type user', $content);
-    }
+        expect($content)->toContain('type user');
+    });
 
-    public function test_model_create_command_overwrites_with_force(): void
-    {
+    it('model create command overwrites with force', function (): void {
         $filename = $this->modelsPath . '/force_model_model.fga';
         file_put_contents($filename, 'old content');
 
@@ -69,12 +58,11 @@ final class ModelCommandsTest extends FeatureTestCase
             ->assertSuccessful();
 
         $content = file_get_contents($filename);
-        $this->assertStringNotContainsString('old content', $content);
-        $this->assertStringContainsString('type document', $content);
-    }
+        expect($content)->not->toContain('old content');
+        expect($content)->toContain('type document');
+    });
 
-    public function test_model_create_command_with_file(): void
-    {
+    it('model create command with file', function (): void {
         // Create a temporary DSL file
         $tempFile = tempnam(sys_get_temp_dir(), 'openfga_test');
         file_put_contents($tempFile, "model\n  schema 1.1\n\ntype test_user");
@@ -87,13 +75,12 @@ final class ModelCommandsTest extends FeatureTestCase
             ->assertSuccessful();
 
         $content = file_get_contents($this->modelsPath . '/file_model_model.fga');
-        $this->assertStringContainsString('type test_user', $content);
+        expect($content)->toContain('type test_user');
 
         unlink($tempFile);
-    }
+    });
 
-    public function test_model_create_command_with_organization_template(): void
-    {
+    it('model create command with organization template', function (): void {
         $this->artisan('openfga:model:create', [
             'name' => 'OrgModel',
             '--template' => 'organization',
@@ -102,13 +89,12 @@ final class ModelCommandsTest extends FeatureTestCase
             ->assertSuccessful();
 
         $content = file_get_contents($this->modelsPath . '/org_model_model.fga');
-        $this->assertStringContainsString('type organization', $content);
-        $this->assertStringContainsString('type department', $content);
-        $this->assertStringContainsString('type project', $content);
-    }
+        expect($content)->toContain('type organization');
+        expect($content)->toContain('type department');
+        expect($content)->toContain('type project');
+    });
 
-    public function test_model_create_command_with_template(): void
-    {
+    it('model create command with template', function (): void {
         $this->artisan('openfga:model:create', [
             'name' => 'TestModel',
             '--template' => 'basic',
@@ -117,17 +103,16 @@ final class ModelCommandsTest extends FeatureTestCase
             ->expectsOutput('Model DSL saved to: ' . $this->modelsPath . '/test_model_model.fga')
             ->assertSuccessful();
 
-        $this->assertFileExists($this->modelsPath . '/test_model_model.fga');
+        expect($this->modelsPath . '/test_model_model.fga')->toBeFile();
 
         $content = file_get_contents($this->modelsPath . '/test_model_model.fga');
-        $this->assertStringContainsString('model', $content);
-        $this->assertStringContainsString('schema 1.1', $content);
-        $this->assertStringContainsString('type user', $content);
-        $this->assertStringContainsString('type document', $content);
-    }
+        expect($content)->toContain('model');
+        expect($content)->toContain('schema 1.1');
+        expect($content)->toContain('type user');
+        expect($content)->toContain('type document');
+    });
 
-    public function test_model_validate_command_with_invalid_dsl(): void
-    {
+    it('model validate command with invalid dsl', function (): void {
         $invalidDsl = <<<'DSL'
               schema 1.1
 
@@ -145,10 +130,9 @@ final class ModelCommandsTest extends FeatureTestCase
             ->assertFailed();
 
         unlink($tempFile);
-    }
+    });
 
-    public function test_model_validate_command_with_json_output(): void
-    {
+    it('model validate command with json output', function (): void {
         $validDsl = "model\n  schema 1.1\n\ntype user";
         $tempFile = tempnam(sys_get_temp_dir(), 'json_dsl');
         file_put_contents($tempFile, $validDsl);
@@ -161,17 +145,15 @@ final class ModelCommandsTest extends FeatureTestCase
             ->assertSuccessful();
 
         unlink($tempFile);
-    }
+    });
 
-    public function test_model_validate_command_with_nonexistent_file(): void
-    {
+    it('model validate command with nonexistent file', function (): void {
         $this->artisan('openfga:model:validate', ['--file' => '/nonexistent/file.fga'])
             ->expectsOutput('File not found: /nonexistent/file.fga')
             ->assertFailed();
-    }
+    });
 
-    public function test_model_validate_command_with_valid_dsl(): void
-    {
+    it('model validate command with valid dsl', function (): void {
         $validDsl = <<<'DSL'
             model
               schema 1.1
@@ -192,12 +174,11 @@ final class ModelCommandsTest extends FeatureTestCase
             ->assertSuccessful();
 
         unlink($tempFile);
-    }
+    });
 
-    public function test_model_validate_command_without_file(): void
-    {
+    it('model validate command without file', function (): void {
         $this->artisan('openfga:model:validate')
             ->expectsOutput('Please specify a file to validate using --file option')
             ->assertFailed();
-    }
-}
+    });
+});

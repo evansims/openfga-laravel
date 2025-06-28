@@ -2,33 +2,22 @@
 
 declare(strict_types=1);
 
-namespace OpenFGA\Laravel\Tests\Integration;
-
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use OpenFGA\Laravel\Compatibility\SpatieCompatibility;
 use OpenFGA\Laravel\Testing\FakesOpenFga;
 use OpenFGA\Laravel\Tests\Support\{FeatureTestCase, User};
 
-final class SpatieCompatibilityTest extends FeatureTestCase
-{
-    use FakesOpenFga;
+uses(FeatureTestCase::class, FakesOpenFga::class);
 
-    private SpatieCompatibility $compatibility;
-
-    private User $user;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
-
+describe('Spatie Compatibility', function (): void {
+    beforeEach(function (): void {
         $this->fakeOpenFga();
         $this->compatibility = app(SpatieCompatibility::class);
         $this->user = User::factory()->create();
-    }
+    });
 
-    public function test_assign_role_works(): void
-    {
+    it('assign role works', function (): void {
         $this->compatibility->assignRole($this->user, 'admin');
 
         $this->assertPermissionGranted(
@@ -36,22 +25,20 @@ final class SpatieCompatibilityTest extends FeatureTestCase
             'admin',
             'organization:main',
         );
-    }
+    });
 
-    public function test_context_parameter_works(): void
-    {
+    it('context parameter works', function (): void {
         $fake = $this->getFakeOpenFga();
         $fake->grant($this->user->authorizationUser(), 'admin', 'organization:acme');
 
         $result = $this->compatibility->hasRole($this->user, 'admin', 'organization:acme');
-        $this->assertTrue($result);
+        expect($result)->toBeTrue();
 
         $result = $this->compatibility->hasRole($this->user, 'admin', 'organization:other');
-        $this->assertFalse($result);
-    }
+        expect($result)->toBeFalse();
+    });
 
-    public function test_get_all_permissions_works(): void
-    {
+    it('get all permissions works', function (): void {
         $fake = $this->getFakeOpenFga();
         $fake->grant($this->user->authorizationUser(), 'editor', 'post:*');
         $fake->grant($this->user->authorizationUser(), 'viewer', 'post:*');
@@ -60,11 +47,10 @@ final class SpatieCompatibilityTest extends FeatureTestCase
         // more complex logic to work with actual OpenFGA expand API
         $permissions = $this->compatibility->getAllPermissions($this->user);
 
-        $this->assertInstanceOf(Collection::class, $permissions);
-    }
+        expect($permissions)->toBeInstanceOf(Collection::class);
+    });
 
-    public function test_get_role_names_works(): void
-    {
+    it('get role names works', function (): void {
         $fake = $this->getFakeOpenFga();
         $fake->grant($this->user->authorizationUser(), 'admin', 'organization:main');
         $fake->grant($this->user->authorizationUser(), 'editor', 'organization:main');
@@ -72,11 +58,10 @@ final class SpatieCompatibilityTest extends FeatureTestCase
         // Note: This is a simplified test
         $roles = $this->compatibility->getRoleNames($this->user);
 
-        $this->assertInstanceOf(Collection::class, $roles);
-    }
+        expect($roles)->toBeInstanceOf(Collection::class);
+    });
 
-    public function test_give_permission_to_works(): void
-    {
+    it('give permission to works', function (): void {
         $this->compatibility->givePermissionTo($this->user, 'edit posts');
 
         $this->assertPermissionGranted(
@@ -84,10 +69,9 @@ final class SpatieCompatibilityTest extends FeatureTestCase
             'editor',
             'post:*',
         );
-    }
+    });
 
-    public function test_has_all_permissions_works(): void
-    {
+    it('has all permissions works', function (): void {
         $fake = $this->getFakeOpenFga();
         $fake->grant($this->user->authorizationUser(), 'editor', 'post:*');
         $fake->grant($this->user->authorizationUser(), 'viewer', 'post:*');
@@ -97,22 +81,20 @@ final class SpatieCompatibilityTest extends FeatureTestCase
             ['edit posts', 'view posts'],
         );
 
-        $this->assertTrue($result);
-    }
+        expect($result)->toBeTrue();
+    });
 
-    public function test_has_all_roles_works(): void
-    {
+    it('has all roles works', function (): void {
         $fake = $this->getFakeOpenFga();
         $fake->grant($this->user->authorizationUser(), 'admin', 'organization:main');
         $fake->grant($this->user->authorizationUser(), 'editor', 'organization:main');
 
         $result = $this->compatibility->hasAllRoles($this->user, ['admin', 'editor']);
 
-        $this->assertTrue($result);
-    }
+        expect($result)->toBeTrue();
+    });
 
-    public function test_has_any_permission_works(): void
-    {
+    it('has any permission works', function (): void {
         $fake = $this->getFakeOpenFga();
         $fake->grant($this->user->authorizationUser(), 'viewer', 'post:*');
 
@@ -121,41 +103,37 @@ final class SpatieCompatibilityTest extends FeatureTestCase
             ['edit posts', 'view posts'],
         );
 
-        $this->assertTrue($result);
-    }
+        expect($result)->toBeTrue();
+    });
 
-    public function test_has_any_role_works(): void
-    {
+    it('has any role works', function (): void {
         $fake = $this->getFakeOpenFga();
         $fake->grant($this->user->authorizationUser(), 'editor', 'organization:main');
 
         $result = $this->compatibility->hasAnyRole($this->user, ['admin', 'editor']);
 
-        $this->assertTrue($result);
-    }
+        expect($result)->toBeTrue();
+    });
 
-    public function test_has_permission_to_works(): void
-    {
+    it('has permission to works', function (): void {
         $fake = $this->getFakeOpenFga();
         $fake->grant($this->user->authorizationUser(), 'editor', 'post:*');
 
         $result = $this->compatibility->hasPermissionTo($this->user, 'edit posts');
 
-        $this->assertTrue($result);
-    }
+        expect($result)->toBeTrue();
+    });
 
-    public function test_has_role_works(): void
-    {
+    it('has role works', function (): void {
         $fake = $this->getFakeOpenFga();
         $fake->grant($this->user->authorizationUser(), 'admin', 'organization:main');
 
         $result = $this->compatibility->hasRole($this->user, 'admin');
 
-        $this->assertTrue($result);
-    }
+        expect($result)->toBeTrue();
+    });
 
-    public function test_model_context_works(): void
-    {
+    it('model context works', function (): void {
         $post = new class extends Model {
             public function authorizationObject(): string
             {
@@ -168,22 +146,20 @@ final class SpatieCompatibilityTest extends FeatureTestCase
 
         $result = $this->compatibility->hasPermissionTo($this->user, 'edit posts', $post);
 
-        $this->assertTrue($result);
-    }
+        expect($result)->toBeTrue();
+    });
 
-    public function test_permission_inference_works(): void
-    {
+    it('permission inference works', function (): void {
         $fake = $this->getFakeOpenFga();
         $fake->grant($this->user->authorizationUser(), 'owner', 'post:*');
 
         // Should infer 'delete' action as requiring 'owner' relation
         $result = $this->compatibility->hasPermissionTo($this->user, 'delete posts');
 
-        $this->assertTrue($result);
-    }
+        expect($result)->toBeTrue();
+    });
 
-    public function test_permission_mapping_works(): void
-    {
+    it('permission mapping works', function (): void {
         $this->compatibility->addPermissionMapping('custom permission', 'custom_relation');
 
         $fake = $this->getFakeOpenFga();
@@ -191,11 +167,10 @@ final class SpatieCompatibilityTest extends FeatureTestCase
 
         $result = $this->compatibility->hasPermissionTo($this->user, 'custom permission');
 
-        $this->assertTrue($result);
-    }
+        expect($result)->toBeTrue();
+    });
 
-    public function test_remove_role_works(): void
-    {
+    it('remove role works', function (): void {
         $fake = $this->getFakeOpenFga();
         $fake->grant($this->user->authorizationUser(), 'admin', 'organization:main');
 
@@ -206,10 +181,9 @@ final class SpatieCompatibilityTest extends FeatureTestCase
             'admin',
             'organization:main',
         );
-    }
+    });
 
-    public function test_revoke_permission_to_works(): void
-    {
+    it('revoke permission to works', function (): void {
         $fake = $this->getFakeOpenFga();
         $fake->grant($this->user->authorizationUser(), 'editor', 'post:*');
 
@@ -220,10 +194,9 @@ final class SpatieCompatibilityTest extends FeatureTestCase
             'editor',
             'post:*',
         );
-    }
+    });
 
-    public function test_role_mapping_works(): void
-    {
+    it('role mapping works', function (): void {
         $this->compatibility->addRoleMapping('custom role', 'custom_relation');
 
         $fake = $this->getFakeOpenFga();
@@ -231,11 +204,10 @@ final class SpatieCompatibilityTest extends FeatureTestCase
 
         $result = $this->compatibility->hasRole($this->user, 'custom role');
 
-        $this->assertTrue($result);
-    }
+        expect($result)->toBeTrue();
+    });
 
-    public function test_sync_roles_works(): void
-    {
+    it('sync roles works', function (): void {
         $fake = $this->getFakeOpenFga();
         $fake->grant($this->user->authorizationUser(), 'admin', 'organization:main');
         $fake->grant($this->user->authorizationUser(), 'editor', 'organization:main');
@@ -262,5 +234,5 @@ final class SpatieCompatibilityTest extends FeatureTestCase
             'admin',
             'organization:main',
         );
-    }
-}
+    });
+});

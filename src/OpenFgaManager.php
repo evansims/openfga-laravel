@@ -183,9 +183,12 @@ final class OpenFgaManager implements ManagerInterface
             );
 
             $batchResults = $this->handleResult($result, static function ($success): array {
-                if (method_exists($success, 'getResult')) {
+                /** @var mixed $response */
+                $response = $success->val();
+
+                if (is_object($response) && method_exists($response, 'getResult')) {
                     /** @var array<mixed> */
-                    $rawResult = $success->getResult();
+                    $rawResult = $response->getResult();
 
                     // Filter to ensure we only have objects
                     return array_filter($rawResult, static fn ($item): bool => is_object($item));
@@ -256,20 +259,34 @@ final class OpenFgaManager implements ManagerInterface
         // Auto-resolve user from auth if needed
         $user = $this->resolveUserId($user);
 
-        // Check cache first if enabled
-        if ($this->cacheEnabled()) {
+        // Get connection configuration first to include store ID in cache key
+        $connectionName = $connection ?? $this->getDefaultConnection();
+        $connectionConfig = $this->configuration($connectionName);
+
+        if (null === $connectionConfig) {
+            throw new InvalidArgumentException('Connection configuration not found');
+        }
+
+        $storeId = $connectionConfig['store_id'] ?? null;
+
+        if (! is_string($storeId)) {
+            throw new InvalidArgumentException('store_id not configured');
+        }
+
+        // Check cache first if enabled (skip cache if contextual tuples are provided)
+        if ($this->cacheEnabled() && [] === $contextualTuples) {
             // Try tagged cache first if available
             if ($this->taggedCacheEnabled()) {
-                $cached = $this->getTaggedCache()->getPermission($user, $relation, $object);
+                $cached = $this->getTaggedCache()->getPermission($user, $relation, $object, $storeId);
 
                 if (null !== $cached) {
-                    $this->logCacheHit('check', sprintf('tagged:%s:%s:%s', $user, $relation, $object));
+                    $this->logCacheHit('check', sprintf('tagged:%s:%s:%s:%s', $storeId, $user, $relation, $object));
 
                     return $cached;
                 }
             } else {
                 // Fallback to regular cache
-                $cacheKey = $this->getCacheKey('check', $user, $relation, $object);
+                $cacheKey = $this->getCacheKey('check', $storeId, $user, $relation, $object);
 
                 /** @var mixed $cached */
                 $cached = $this->getCache()->get($cacheKey);
@@ -282,12 +299,7 @@ final class OpenFgaManager implements ManagerInterface
             }
         }
 
-        // Get connection configuration for store/model IDs
-        $connectionConfig = $this->configuration($connection ?? $this->getDefaultConnection());
-
-        if (null === $connectionConfig) {
-            throw new InvalidArgumentException('Connection configuration not found');
-        }
+        // Already have connection config from cache check above
 
         // Build contextual tuples if provided
         $contextualTuplesCollection = null;
@@ -317,13 +329,8 @@ final class OpenFgaManager implements ManagerInterface
             object: $object,
         );
 
-        // Get store and model IDs
-        $storeId = $connectionConfig['store_id'] ?? null;
+        // Get model ID
         $modelId = $connectionConfig['model_id'] ?? null;
-
-        if (! is_string($storeId)) {
-            throw new InvalidArgumentException('store_id not configured');
-        }
 
         if (! is_string($modelId)) {
             throw new InvalidArgumentException('model_id not configured');
@@ -341,6 +348,7 @@ final class OpenFgaManager implements ManagerInterface
             store: $storeId,
             model: $modelId,
             tuple: $tupleKey,
+            trace: null,
             context: $contextObject,
             contextualTuples: $contextualTuplesCollection,
         );
@@ -348,19 +356,24 @@ final class OpenFgaManager implements ManagerInterface
         // Handle result
         /** @var bool|null $allowed */
         $allowed = $this->handleResult($result, static function ($success) {
-            if (method_exists($success, 'getAllowed')) {
-                return $success->getAllowed();
+            // The $success parameter is the Success result object
+            // We need to get the actual response value from it
+            /** @var mixed $response */
+            $response = $success->val();
+
+            if (is_object($response) && method_exists($response, 'getAllowed')) {
+                return $response->getAllowed();
             }
 
             return null;
         });
 
-        // Cache the result if enabled
-        if ($this->cacheEnabled() && null !== $allowed) {
+        // Cache the result if enabled (skip cache if contextual tuples are provided)
+        if ($this->cacheEnabled() && null !== $allowed && [] === $contextualTuples) {
             if ($this->taggedCacheEnabled()) {
-                $this->getTaggedCache()->putPermission($user, $relation, $object, $allowed, $this->getCacheTtl());
+                $this->getTaggedCache()->putPermission($user, $relation, $object, $allowed, $this->getCacheTtl(), $storeId);
             } else {
-                $cacheKey = $this->getCacheKey('check', $user, $relation, $object);
+                $cacheKey = $this->getCacheKey('check', $storeId, $user, $relation, $object);
                 $this->getCache()->put($cacheKey, $allowed, $this->getCacheTtl());
             }
         }
@@ -454,9 +467,12 @@ final class OpenFgaManager implements ManagerInterface
 
         /** @var array<string, mixed> */
         return $this->handleResult($result, static function ($success): array {
-            if (method_exists($success, 'getTree')) {
+            /** @var mixed $response */
+            $response = $success->val();
+
+            if (is_object($response) && method_exists($response, 'getTree')) {
                 /** @var array<string, mixed> */
-                $tree = $success->getTree();
+                $tree = $response->getTree();
 
                 return ['tree' => $tree];
             }
@@ -676,9 +692,12 @@ final class OpenFgaManager implements ManagerInterface
         );
 
         $objects = $this->handleResult($result, static function ($success) {
-            if (method_exists($success, 'getObjects')) {
+            /** @var mixed $response */
+            $response = $success->val();
+
+            if (is_object($response) && method_exists($response, 'getObjects')) {
                 /** @var array<string> */
-                return $success->getObjects();
+                return $response->getObjects();
             }
 
             return null;
@@ -815,9 +834,12 @@ final class OpenFgaManager implements ManagerInterface
         );
 
         $users = $this->handleResult($result, static function ($success) {
-            if (method_exists($success, 'getUsers')) {
+            /** @var mixed $response */
+            $response = $success->val();
+
+            if (is_object($response) && method_exists($response, 'getUsers')) {
                 /** @var array<mixed> */
-                return $success->getUsers();
+                return $response->getUsers();
             }
 
             return null;
@@ -892,6 +914,19 @@ final class OpenFgaManager implements ManagerInterface
         $this->throwExceptions = $throw;
 
         return $this;
+    }
+
+    /**
+     * Update the configuration for testing purposes.
+     *
+     * @param array{default?: string, connections?: array<string, array<string, mixed>>, cache?: array<string, mixed>, queue?: array<string, mixed>, logging?: array<string, mixed>} $config
+     *
+     * @internal This method is for testing only
+     */
+    public function updateConfig(array $config): void
+    {
+        $this->config = $config;
+        $this->disconnectAll();
     }
 
     /**
@@ -1361,15 +1396,11 @@ final class OpenFgaManager implements ManagerInterface
     {
         if ($result instanceof FailureInterface) {
             if ($this->throwExceptions) {
-                /** @var mixed $error */
-                $error = $result->val();
+                // Get the error from the failure using err() method
+                $error = $result->err();
 
-                // All errors from the Result pattern should be Throwable
-                if ($error instanceof Throwable) {
-                    throw new RuntimeException('OpenFGA operation failed: ' . $error->getMessage(), 0, $error);
-                }
-
-                throw new RuntimeException('OpenFGA operation failed: Unknown error');
+                // The error from err() is always a Throwable
+                throw new RuntimeException('OpenFGA operation failed: ' . $error->getMessage(), 0, $error);
             }
 
             $this->logError($result);

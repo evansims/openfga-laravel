@@ -14,6 +14,15 @@ use OpenFGA\Laravel\Contracts\{AuthorizableUser, AuthorizationObject, Authorizat
 
 use function expect;
 
+enum TestPermissionEnum
+{
+    case DELETE;
+
+    case READ;
+
+    case WRITE;
+}
+
 describe('OpenFgaGate', function (): void {
     beforeEach(function (): void {
         $this->container = $this->createMock(Container::class);
@@ -107,9 +116,12 @@ describe('OpenFgaGate', function (): void {
         });
 
         it('handles UnitEnum abilities', function (): void {
-            // Skip this test for now as creating enums dynamically is complex in PHP 8.3
-            // Laravel would handle actual enum values properly
-            $this->markTestSkipped('UnitEnum testing requires real enum definition');
+            // Create a test enum case for testing
+            $enumCase = TestPermissionEnum::READ;
+
+            // Should delegate to parent for enum values
+            $result = $this->gate->check($enumCase, []);
+            expect($result)->toBeBool();
         });
     });
 

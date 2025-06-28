@@ -2,187 +2,186 @@
 
 declare(strict_types=1);
 
-namespace OpenFGA\Laravel\Tests\Unit\Events;
-
 use OpenFGA\Laravel\Events\{BatchWriteCompleted, BatchWriteFailed, ObjectsListed, PermissionChecked, PermissionGranted, PermissionRevoked, RelationExpanded};
-use OpenFGA\Laravel\Tests\TestCase;
-use RuntimeException;
 
-use function count;
+describe('Events', function (): void {
+    describe('BatchWriteCompleted', function (): void {
+        it('tracks batch write completion', function (): void {
+            $writes = [
+                ['user' => 'user:1', 'relation' => 'reader', 'object' => 'document:1'],
+                ['user' => 'user:2', 'relation' => 'writer', 'object' => 'document:2'],
+            ];
 
-final class EventsTest extends TestCase
-{
-    public function test_batch_write_completed_event(): void
-    {
-        $writes = [
-            ['user' => 'user:1', 'relation' => 'reader', 'object' => 'document:1'],
-            ['user' => 'user:2', 'relation' => 'writer', 'object' => 'document:2'],
-        ];
+            $deletes = [
+                ['user' => 'user:3', 'relation' => 'reader', 'object' => 'document:3'],
+            ];
 
-        $deletes = [
-            ['user' => 'user:3', 'relation' => 'reader', 'object' => 'document:3'],
-        ];
+            $event = new BatchWriteCompleted($writes, $deletes, 'main', 0.150);
 
-        $event = new BatchWriteCompleted($writes, $deletes, 'main', 0.150);
+            expect(count($event->writes))->toBe(2);
+            expect(count($event->deletes))->toBe(1);
+            expect($event->getTotalOperations())->toBe(3);
 
-        $this->assertEquals(2, count($event->writes));
-        $this->assertEquals(1, count($event->deletes));
-        $this->assertEquals(3, $event->getTotalOperations());
+            $summary = $event->getSummary();
+            expect($summary['writes'])->toBe(2);
+            expect($summary['deletes'])->toBe(1);
+            expect($summary['total'])->toBe(3);
+            expect($summary['duration'])->toBe(0.150);
+            expect($summary['connection'])->toBe('main');
+        });
+    });
 
-        $summary = $event->getSummary();
-        $this->assertEquals(2, $summary['writes']);
-        $this->assertEquals(1, $summary['deletes']);
-        $this->assertEquals(3, $summary['total']);
-        $this->assertEquals(0.150, $summary['duration']);
-        $this->assertEquals('main', $summary['connection']);
-    }
+    describe('BatchWriteFailed', function (): void {
+        it('tracks batch write failure', function (): void {
+            $writes = [
+                ['user' => 'user:1', 'relation' => 'reader', 'object' => 'document:1'],
+            ];
 
-    public function test_batch_write_failed_event(): void
-    {
-        $writes = [
-            ['user' => 'user:1', 'relation' => 'reader', 'object' => 'document:1'],
-        ];
+            $exception = new RuntimeException('Connection failed');
 
-        $exception = new RuntimeException('Connection failed');
+            $event = new BatchWriteFailed($writes, [], 'main', $exception);
 
-        $event = new BatchWriteFailed($writes, [], 'main', $exception);
+            expect($event->getTotalOperations())->toBe(1);
+            expect($event->exception)->toBe($exception);
 
-        $this->assertEquals(1, $event->getTotalOperations());
-        $this->assertSame($exception, $event->exception);
+            $summary = $event->getSummary();
+            expect($summary['writes'])->toBe(1);
+            expect($summary['deletes'])->toBe(0);
+            expect($summary['error'])->toBe('Connection failed');
+            expect($summary['exception_class'])->toBe('RuntimeException');
+        });
+    });
 
-        $summary = $event->getSummary();
-        $this->assertEquals(1, $summary['writes']);
-        $this->assertEquals(0, $summary['deletes']);
-        $this->assertEquals('Connection failed', $summary['error']);
-        $this->assertEquals('RuntimeException', $summary['exception_class']);
-    }
+    describe('ObjectsListed', function (): void {
+        it('tracks object listing', function (): void {
+            $objects = ['document:1', 'document:2', 'document:3'];
 
-    public function test_objects_listed_event(): void
-    {
-        $objects = ['document:1', 'document:2', 'document:3'];
+            $event = new ObjectsListed(
+                'user:123',
+                'reader',
+                'document',
+                $objects,
+                'main',
+                0.045,
+            );
 
-        $event = new ObjectsListed(
-            'user:123',
-            'reader',
-            'document',
-            $objects,
-            'main',
-            0.045,
-        );
+            expect($event->user)->toBe('user:123');
+            expect($event->relation)->toBe('reader');
+            expect($event->type)->toBe('document');
+            expect($event->objects)->toBe($objects);
+            expect($event->getObjectCount())->toBe(3);
+        });
+    });
 
-        $this->assertEquals('user:123', $event->user);
-        $this->assertEquals('reader', $event->relation);
-        $this->assertEquals('document', $event->type);
-        $this->assertEquals($objects, $event->objects);
-        $this->assertEquals(3, $event->getObjectCount());
-    }
+    describe('PermissionChecked', function (): void {
+        it('tracks permission check', function (): void {
+            $event = new PermissionChecked(
+                'user:123',
+                'reader',
+                'document:456',
+                true,
+                'main',
+                0.025,
+                false,
+                ['ip' => '127.0.0.1'],
+            );
 
-    public function test_permission_checked_event(): void
-    {
-        $event = new PermissionChecked(
-            'user:123',
-            'reader',
-            'document:456',
-            true,
-            'main',
-            0.025,
-            false,
-            ['ip' => '127.0.0.1'],
-        );
+            expect($event->user)->toBe('user:123');
+            expect($event->relation)->toBe('reader');
+            expect($event->object)->toBe('document:456');
+            expect($event->allowed)->toBeTrue();
+            expect($event->connection)->toBe('main');
+            expect($event->duration)->toBe(0.025);
+            expect($event->cached)->toBeFalse();
+            expect($event->context)->toBe(['ip' => '127.0.0.1']);
+            expect($event->toString())->toBe('user:123#reader@document:456 = allowed');
+        });
+    });
 
-        $this->assertEquals('user:123', $event->user);
-        $this->assertEquals('reader', $event->relation);
-        $this->assertEquals('document:456', $event->object);
-        $this->assertTrue($event->allowed);
-        $this->assertEquals('main', $event->connection);
-        $this->assertEquals(0.025, $event->duration);
-        $this->assertFalse($event->cached);
-        $this->assertEquals(['ip' => '127.0.0.1'], $event->context);
-        $this->assertEquals('user:123#reader@document:456 = allowed', $event->toString());
-    }
+    describe('PermissionGranted', function (): void {
+        it('tracks permission grant', function (): void {
+            $event = new PermissionGranted(
+                'user:123',
+                'editor',
+                'document:456',
+                'main',
+                0.030,
+            );
 
-    public function test_permission_granted_event(): void
-    {
-        $event = new PermissionGranted(
-            'user:123',
-            'editor',
-            'document:456',
-            'main',
-            0.030,
-        );
+            expect($event->user)->toBe('user:123');
+            expect($event->relation)->toBe('editor');
+            expect($event->object)->toBe('document:456');
+            expect($event->toString())->toBe('Granted: user:123#editor@document:456');
+        });
+    });
 
-        $this->assertEquals('user:123', $event->user);
-        $this->assertEquals('editor', $event->relation);
-        $this->assertEquals('document:456', $event->object);
-        $this->assertEquals('Granted: user:123#editor@document:456', $event->toString());
-    }
+    describe('PermissionRevoked', function (): void {
+        it('tracks permission revocation', function (): void {
+            $event = new PermissionRevoked(
+                'user:123',
+                'editor',
+                'document:456',
+                'main',
+                0.035,
+            );
 
-    public function test_permission_revoked_event(): void
-    {
-        $event = new PermissionRevoked(
-            'user:123',
-            'editor',
-            'document:456',
-            'main',
-            0.035,
-        );
+            expect($event->user)->toBe('user:123');
+            expect($event->relation)->toBe('editor');
+            expect($event->object)->toBe('document:456');
+            expect($event->toString())->toBe('Revoked: user:123#editor@document:456');
+        });
+    });
 
-        $this->assertEquals('user:123', $event->user);
-        $this->assertEquals('editor', $event->relation);
-        $this->assertEquals('document:456', $event->object);
-        $this->assertEquals('Revoked: user:123#editor@document:456', $event->toString());
-    }
-
-    public function test_relation_expanded_event(): void
-    {
-        $result = [
-            'tree' => [
-                'root' => [
-                    'name' => 'document:1#reader',
-                    'leaf' => [
-                        'users' => ['user:123', 'user:456'],
+    describe('RelationExpanded', function (): void {
+        it('tracks relation expansion', function (): void {
+            $result = [
+                'tree' => [
+                    'root' => [
+                        'name' => 'document:1#reader',
+                        'leaf' => [
+                            'users' => ['user:123', 'user:456'],
+                        ],
                     ],
                 ],
-            ],
-        ];
+            ];
 
-        $event = new RelationExpanded(
-            'document:1',
-            'reader',
-            $result,
-            'main',
-            0.055,
-        );
+            $event = new RelationExpanded(
+                'document:1',
+                'reader',
+                $result,
+                'main',
+                0.055,
+            );
 
-        $this->assertEquals('document:1', $event->object);
-        $this->assertEquals('reader', $event->relation);
-        $this->assertEquals($result, $event->result);
+            expect($event->object)->toBe('document:1');
+            expect($event->relation)->toBe('reader');
+            expect($event->result)->toBe($result);
 
-        $users = $event->getUsers();
-        $this->assertCount(2, $users);
-        $this->assertContains('user:123', $users);
-        $this->assertContains('user:456', $users);
-    }
+            $users = $event->getUsers();
+            expect($users)->toHaveCount(2);
+            expect($users)->toContain('user:123');
+            expect($users)->toContain('user:456');
+        });
 
-    public function test_relation_expanded_event_with_complex_structure(): void
-    {
-        $result = [
-            'tree' => [
-                'root' => [
-                    'name' => 'document:1#viewer',
-                    'union' => [
-                        'nodes' => [
-                            [
-                                'leaf' => [
-                                    'users' => ['user:1', 'user:2'],
+        it('handles complex structure expansion', function (): void {
+            $result = [
+                'tree' => [
+                    'root' => [
+                        'name' => 'document:1#viewer',
+                        'union' => [
+                            'nodes' => [
+                                [
+                                    'leaf' => [
+                                        'users' => ['user:1', 'user:2'],
+                                    ],
                                 ],
-                            ],
-                            [
-                                'intersection' => [
-                                    'nodes' => [
-                                        [
-                                            'leaf' => [
-                                                'users' => ['user:3', 'user:4'],
+                                [
+                                    'intersection' => [
+                                        'nodes' => [
+                                            [
+                                                'leaf' => [
+                                                    'users' => ['user:3', 'user:4'],
+                                                ],
                                             ],
                                         ],
                                     ],
@@ -191,16 +190,16 @@ final class EventsTest extends TestCase
                         ],
                     ],
                 ],
-            ],
-        ];
+            ];
 
-        $event = new RelationExpanded('document:1', 'viewer', $result);
+            $event = new RelationExpanded('document:1', 'viewer', $result);
 
-        $users = $event->getUsers();
-        $this->assertCount(4, $users);
-        $this->assertContains('user:1', $users);
-        $this->assertContains('user:2', $users);
-        $this->assertContains('user:3', $users);
-        $this->assertContains('user:4', $users);
-    }
-}
+            $users = $event->getUsers();
+            expect($users)->toHaveCount(4);
+            expect($users)->toContain('user:1');
+            expect($users)->toContain('user:2');
+            expect($users)->toContain('user:3');
+            expect($users)->toContain('user:4');
+        });
+    });
+});

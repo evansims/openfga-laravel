@@ -2,51 +2,36 @@
 
 declare(strict_types=1);
 
-namespace OpenFGA\Laravel\Tests\Unit\Cache;
-
-use Illuminate\Support\Facades\{Cache, Event};
+use Illuminate\Support\Facades\{Event};
 use OpenFGA\Laravel\Cache\CacheWarmer;
 use OpenFGA\Laravel\Contracts\ManagerInterface;
 use OpenFGA\Laravel\Events\CacheWarmed;
-use OpenFGA\Laravel\Tests\TestCase;
-use PHPUnit\Framework\MockObject\MockObject;
 
-final class CacheWarmerTest extends TestCase
-{
-    private ManagerInterface & MockObject $manager;
-
-    private CacheWarmer $warmer;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->manager = $this->createMock(ManagerInterface::class);
+describe('CacheWarmer', function (): void {
+    beforeEach(function (): void {
+        $this->manager = mock(ManagerInterface::class);
         $this->warmer = new CacheWarmer($this->manager, [
             'batch_size' => 2,
             'ttl' => 300,
             'prefix' => 'test',
         ]);
+    });
 
-        // Skip event and cache mocking as they're not available in test environment
-    }
-
-    public function test_invalidate_returns_zero_without_pattern_support(): void
-    {
+    it('returns zero when invalidating without pattern support', function (): void {
         $invalidated = $this->warmer->invalidate('user:123', 'viewer', null);
 
-        $this->assertEquals(0, $invalidated);
-    }
+        expect($invalidated)->toBe(0);
+    });
 
-    public function test_warm_batch(): void
-    {
-        $this->manager->expects($this->once())
-            ->method('batchCheck')
+    it('warms batch', function (): void {
+        $this->manager
+            ->shouldReceive('batchCheck')
+            ->once()
             ->with([
                 ['user' => 'user:1', 'relation' => 'viewer', 'object' => 'document:1'],
                 ['user' => 'user:2', 'relation' => 'viewer', 'object' => 'document:1'],
             ])
-            ->willReturn([true, false]);
+            ->andReturn([true, false]);
 
         $warmed = $this->warmer->warmBatch(
             ['user:1', 'user:2'],
@@ -54,18 +39,18 @@ final class CacheWarmerTest extends TestCase
             ['document:1'],
         );
 
-        $this->assertEquals(2, $warmed);
-    }
+        expect($warmed)->toBe(2);
+    });
 
-    public function test_warm_for_user(): void
-    {
-        $this->manager->expects($this->once())
-            ->method('batchCheck')
+    it('warms for user', function (): void {
+        $this->manager
+            ->shouldReceive('batchCheck')
+            ->once()
             ->with([
                 ['user' => 'user:123', 'relation' => 'viewer', 'object' => 'document:1'],
                 ['user' => 'user:123', 'relation' => 'editor', 'object' => 'document:1'],
             ])
-            ->willReturn([true, false]);
+            ->andReturn([true, false]);
 
         Event::fake();
 
@@ -75,25 +60,24 @@ final class CacheWarmerTest extends TestCase
             ['document:1'],
         );
 
-        $this->assertEquals(2, $warmed);
+        expect($warmed)->toBe(2);
 
         Event::assertDispatched(CacheWarmed::class, fn ($event) => 'user:123' === $event->identifier && 2 === $event->entriesWarmed);
-    }
+    });
 
-    public function test_warm_from_activity_with_empty_activity(): void
-    {
+    it('warms from activity with empty activity', function (): void {
         $warmed = $this->warmer->warmFromActivity(100);
 
-        $this->assertEquals(0, $warmed);
-    }
+        expect($warmed)->toBe(0);
+    });
 
-    public function test_warm_hierarchy(): void
-    {
+    it('warms hierarchy', function (): void {
         // When checking from highest to lowest: owner (returns true) -> skip editor and viewer checks
-        $this->manager->expects($this->once())
-            ->method('check')
+        $this->manager
+            ->shouldReceive('check')
+            ->once()
             ->with('user:123', 'owner', 'document:456')
-            ->willReturn(true);
+            ->andReturn(true);
 
         $warmed = $this->warmer->warmHierarchy(
             'user:123',
@@ -101,14 +85,14 @@ final class CacheWarmerTest extends TestCase
             ['viewer', 'editor', 'owner'],
         );
 
-        $this->assertEquals(3, $warmed);
-    }
+        expect($warmed)->toBe(3);
+    });
 
-    public function test_warm_hierarchy_stops_at_first_false(): void
-    {
-        $this->manager->expects($this->exactly(3))
-            ->method('check')
-            ->willReturnOnConsecutiveCalls(false, false, true);
+    it('warms hierarchy stops at first false', function (): void {
+        $this->manager
+            ->shouldReceive('check')
+            ->times(3)
+            ->andReturnValues([false, false, true]);
 
         $warmed = $this->warmer->warmHierarchy(
             'user:123',
@@ -116,24 +100,28 @@ final class CacheWarmerTest extends TestCase
             ['viewer', 'editor', 'owner'],
         );
 
-        $this->assertEquals(3, $warmed);
-    }
+        expect($warmed)->toBe(3);
+    });
 
-    public function test_warm_related(): void
-    {
+    it('warms related', function (): void {
         // listObjects is called for each relation
-        $this->manager->expects($this->exactly(2))
-            ->method('listObjects')
-            ->willReturnMap([
-                ['user:123', 'viewer', 'document', [], [], null, ['document:1', 'document:2']],
-                ['user:123', 'editor', 'document', [], [], null, ['document:1', 'document:2']],
-            ]);
+        $this->manager
+            ->shouldReceive('listObjects')
+            ->times(2)
+            ->andReturnUsing(function ($user, $relation, $type) {
+                if ('user:123' === $user && in_array($relation, ['viewer', 'editor'], true) && 'document' === $type) {
+                    return ['document:1', 'document:2'];
+                }
+
+                return [];
+            });
 
         // 2 objects * 2 relations = 4 checks per listObjects call
         // 2 listObjects calls * 4 checks = 8 total checks
-        $this->manager->expects($this->exactly(8))
-            ->method('check')
-            ->willReturn(true);
+        $this->manager
+            ->shouldReceive('check')
+            ->times(8)
+            ->andReturn(true);
 
         $warmed = $this->warmer->warmRelated(
             'user:123',
@@ -141,6 +129,6 @@ final class CacheWarmerTest extends TestCase
             ['viewer', 'editor'],
         );
 
-        $this->assertEquals(8, $warmed);
-    }
-}
+        expect($warmed)->toBe(8);
+    });
+});

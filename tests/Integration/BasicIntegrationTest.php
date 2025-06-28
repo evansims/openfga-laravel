@@ -1,49 +1,37 @@
 <?php
 
 declare(strict_types=1);
+use OpenFGA\Laravel\Testing\IntegrationTestCase;
 
-namespace OpenFGA\Laravel\Tests\Integration;
+uses(IntegrationTestCase::class);
 
-use OpenFGA\Laravel\OpenFgaManager;
-use Orchestra\Testbench\TestCase;
-use OpenFGA\Laravel\OpenFgaServiceProvider;
+use OpenFGA\Laravel\{OpenFgaManager, OpenFgaServiceProvider};
 
-/**
- * Basic integration test to verify Docker setup works.
- */
-final class BasicIntegrationTest extends TestCase
-{
-    protected function getPackageProviders($app): array
-    {
-        return [
-            OpenFgaServiceProvider::class,
-        ];
-    }
+describe('Basic Integration', function (): void {
+    beforeEach(function (): void {
+        $this->setUpIntegrationTest();
+    });
 
-    protected function defineEnvironment($app): void
-    {
-        // Set default connection to integration_test for tests
-        $app['config']->set('openfga.default', 'integration_test');
-        
-        // Configure test connection
-        $app['config']->set('openfga.connections.integration_test', [
-            'url' => env('OPENFGA_TEST_URL', 'http://localhost:8080'),
-            'store_id' => 'test-store-id',
-            'model_id' => 'test-model-id',
-            'credentials' => [
-                'method' => 'none',
-            ],
-        ]);
-    }
+    afterEach(function (): void {
+        $this->tearDownIntegrationTest();
+    });
 
-    public function test_can_connect_to_openfga(): void
-    {
+    /*
+     * Basic integration test to verify Docker setup works.
+     */
+    it('can connect to openfga', function (): void {
         // Get the manager
-        $manager = app(OpenFgaManager::class);
+        $manager = $this->getManager();
         
         // Try to get a connection - this should work if OpenFGA is running
-        $client = $manager->connection('integration_test');
+        $client = $this->getClient();
+
+        expect($client)->not->toBeNull();
+        expect($manager)->not->toBeNull();
         
-        $this->assertNotNull($client);
-    }
-}
+        // Verify we can make a basic API call
+        $currentModel = $this->getCurrentModel();
+        expect($currentModel)->toBeArray();
+        expect($currentModel)->toHaveKey('schema_version');
+    });
+});

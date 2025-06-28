@@ -2,45 +2,41 @@
 
 declare(strict_types=1);
 
-namespace OpenFGA\Laravel\Tests\Integration;
+use Illuminate\Config\Repository;
+use Illuminate\Support\Facades\Config;
+use OpenFGA\Laravel\Testing\IntegrationTestCase;
 
-use OpenFGA\Laravel\Testing\{IntegrationTestCase, IntegrationTestHelpers};
+uses(IntegrationTestCase::class);
 
-use function array_slice;
-use function sprintf;
-
-/**
+/*
  * Integration tests for OpenFGA Laravel.
  *
  * These tests run against a real OpenFGA instance.
- * Set OPENFGA_RUN_INTEGRATION_TESTS=true to run.
  */
-final class OpenFgaIntegrationTest extends IntegrationTestCase
-{
-    use IntegrationTestHelpers;
+describe('OpenFGA Integration', function (): void {
+    beforeEach(function (): void {
+        if (! $this->isOpenFgaAvailable()) {
+            $this->markTestSkipped('OpenFGA server is not available at ' . env('OPENFGA_TEST_URL', 'http://localhost:8080'));
+        }
 
-    protected function setUp(): void
-    {
-        parent::setUp();
         $this->setUpIntegrationTest();
-    }
+    });
 
-    protected function tearDown(): void
-    {
-        $this->tearDownIntegrationTest();
-        parent::tearDown();
-    }
+    afterEach(function (): void {
+        if ($this->isOpenFgaAvailable()) {
+            $this->tearDownIntegrationTest();
+        }
+    });
 
-    public function test_basic_permission_check(): void
-    {
+    it('tests basic permission check', function (): void {
         $this->runWithCleanStore(function (): void {
             $user = $this->createTestUser('alice');
             $document = $this->createTestDocument('report');
 
             // Initially, user should not have access
-            $this->assertFalse(
-                $this->getClient()->check($user, 'viewer', $document),
-            );
+            expect(
+                $this->getManager()->check($user, 'viewer', $document, [], [], 'integration_test'),
+            )->toBeFalse();
 
             // Grant permission
             $this->grantPermission($user, 'viewer', $document);
@@ -48,10 +44,9 @@ final class OpenFgaIntegrationTest extends IntegrationTestCase
             // Now user should have access
             $this->assertEventuallyAllowed($user, 'viewer', $document);
         });
-    }
+    });
 
-    public function test_batch_write_performance(): void
-    {
+    it('tests batch write performance', function (): void {
         $this->runWithCleanStore(function (): void {
             $permissions = [];
 
@@ -64,21 +59,25 @@ final class OpenFgaIntegrationTest extends IntegrationTestCase
                 ];
             }
 
-            $this->testBatchPermissions($permissions, function () use ($permissions): void {
-                // Verify a sample of permissions
-                foreach (array_slice($permissions, 0, 10) as $perm) {
-                    $this->assertEventuallyAllowed(
-                        $perm['user'],
-                        $perm['relation'],
-                        $perm['object'],
-                    );
-                }
-            });
-        });
-    }
+            // Test batch permissions implementation
+            $startTime = microtime(true);
+            $this->grantPermissions($permissions);
+            $batchTime = (microtime(true) - $startTime) * 1000;
 
-    public function test_complex_hierarchy(): void
-    {
+            expect($batchTime)->toBeLessThan(1000, 'Batch write of 100 permissions should complete under 1 second');
+
+            // Verify a sample of permissions
+            foreach (array_slice($permissions, 0, 10) as $perm) {
+                $this->assertEventuallyAllowed(
+                    $perm['user'],
+                    $perm['relation'],
+                    $perm['object'],
+                );
+            }
+        });
+    });
+
+    it('tests complex hierarchy', function (): void {
         $this->runWithCleanStore(function (): void {
             $hierarchy = [
                 [
@@ -99,7 +98,24 @@ final class OpenFgaIntegrationTest extends IntegrationTestCase
                 ],
             ];
 
-            $this->createPermissionHierarchy($hierarchy);
+            // Create permission hierarchy implementation
+            foreach ($hierarchy as $entry) {
+                // Grant user permissions to the object
+                if (isset($entry['users'])) {
+                    foreach ($entry['users'] as $user => $relations) {
+                        foreach ($relations as $relation) {
+                            $this->grantPermission($user, $relation, $entry['object']);
+                        }
+                    }
+                }
+
+                // Set up parent relationships
+                if (isset($entry['parents'])) {
+                    foreach ($entry['parents'] as $parentRelation => $parentObject) {
+                        $this->grantPermission($parentObject, $parentRelation, $entry['object']);
+                    }
+                }
+            }
 
             $assertions = [
                 [
@@ -128,12 +144,26 @@ final class OpenFgaIntegrationTest extends IntegrationTestCase
                 ],
             ];
 
-            $this->assertPermissionHierarchy($assertions);
+            // Assert permission hierarchy implementation
+            foreach ($assertions as $assertion) {
+                if ($assertion['expected']) {
+                    $this->assertEventuallyAllowed(
+                        $assertion['user'],
+                        $assertion['relation'],
+                        $assertion['object'],
+                    );
+                } else {
+                    $this->assertEventuallyDenied(
+                        $assertion['user'],
+                        $assertion['relation'],
+                        $assertion['object'],
+                    );
+                }
+            }
         });
-    }
+    });
 
-    public function test_concurrent_operations(): void
-    {
+    it('tests concurrent operations', function (): void {
         $this->runWithCleanStore(function (): void {
             $operations = [];
 
@@ -148,38 +178,70 @@ final class OpenFgaIntegrationTest extends IntegrationTestCase
                 ];
             }
 
-            $this->testConcurrentOperations($operations);
-        });
-    }
+            // Test concurrent operations implementation
+            // Execute all operations
+            foreach ($operations as $operation) {
+                if ('grant' === $operation['type']) {
+                    $this->grantPermission(
+                        $operation['user'],
+                        $operation['relation'],
+                        $operation['object'],
+                    );
+                }
+            }
 
-    public function test_contextual_tuples(): void
-    {
+            // Wait for consistency
+            $this->waitForConsistency();
+
+            // Verify final states
+            foreach ($operations as $operation) {
+                if ($operation['finalState']) {
+                    $this->assertEventuallyAllowed(
+                        $operation['user'],
+                        $operation['relation'],
+                        $operation['object'],
+                    );
+                } else {
+                    $this->assertEventuallyDenied(
+                        $operation['user'],
+                        $operation['relation'],
+                        $operation['object'],
+                    );
+                }
+            }
+        });
+    });
+
+    it('tests contextual tuples', function (): void {
         $this->runWithCleanStore(function (): void {
             $user = $this->createTestUser('emma');
             $document = $this->createTestDocument('draft');
             $team = $this->createTestOrganization('engineering');
 
             // User doesn't have direct access
-            $this->assertFalse(
-                $this->getClient()->check($user, 'editor', $document),
-            );
+            expect(
+                $this->getManager()->check($user, 'viewer', $document, [], [], 'integration_test'),
+            )->toBeFalse();
 
-            // But with contextual tuple providing team membership, they should have access
-            $this->assertContextualCheck(
+            // But with contextual tuple providing team membership, they should have viewer access
+            // Assert contextual check implementation
+            $result = $this->getManager()->check(
                 $user,
-                'editor',
+                'viewer',
                 $document,
                 [
                     ['user' => $user, 'relation' => 'member', 'object' => $team],
                     ['user' => $team, 'relation' => 'organization', 'object' => $document],
                 ],
-                true,
+                [],
+                'integration_test',
             );
-        });
-    }
 
-    public function test_list_operations(): void
-    {
+            expect($result)->toBeTrue('User should have viewer access through contextual tuples');
+        });
+    });
+
+    it('tests list operations', function (): void {
         $this->runWithCleanStore(function (): void {
             $user = $this->createTestUser('frank');
             $docs = [];
@@ -193,13 +255,21 @@ final class OpenFgaIntegrationTest extends IntegrationTestCase
 
             $this->waitForConsistency();
 
-            // Test listing objects
-            $this->assertUserCanAccessObjects($user, 'viewer', 'document', $docs);
-        });
-    }
+            // Test listing objects - verify user can access all documents
+            $manager = $this->getManager();
+            $objects = $manager->listObjects($user, 'viewer', 'document', connection: 'integration_test');
 
-    public function test_organization_membership(): void
-    {
+            expect($objects)->toBeArray();
+            expect(count($objects))->toBeGreaterThanOrEqual(count($docs));
+
+            // Verify all our documents are in the list
+            foreach ($docs as $doc) {
+                expect($objects)->toContain($doc);
+            }
+        });
+    });
+
+    it('tests organization membership', function (): void {
         $this->runWithCleanStore(function (): void {
             $user = $this->createTestUser('charlie');
             $org = $this->createTestOrganization('acme');
@@ -212,10 +282,9 @@ final class OpenFgaIntegrationTest extends IntegrationTestCase
             // User should have viewer access through organization membership
             $this->assertEventuallyAllowed($user, 'viewer', $document);
         });
-    }
+    });
 
-    public function test_performance_benchmarks(): void
-    {
+    it('tests performance benchmarks', function (): void {
         $this->runWithCleanStore(function (): void {
             $user = $this->createTestUser('benchmark');
             $document = $this->createTestDocument('perf-test');
@@ -225,113 +294,137 @@ final class OpenFgaIntegrationTest extends IntegrationTestCase
             $this->waitForConsistency();
 
             // Benchmark permission check
-            $checkBenchmark = $this->benchmarkOperation(
-                'Permission Check',
-                fn () => $this->getClient()->check($user, 'viewer', $document),
-                50,
-            );
+            $times = [];
 
-            $this->assertLessThan(
-                50,
-                $checkBenchmark['average_ms'],
-                'Average permission check should be under 50ms',
-            );
+            for ($i = 0; 50 > $i; $i++) {
+                $result = $this->measureTime(
+                    fn () => $this->getManager()->check($user, 'viewer', $document, [], [], 'integration_test'),
+                );
+                $times[] = $result['duration_ms'];
+            }
+
+            $avgCheckTime = array_sum($times) / count($times);
+            expect($avgCheckTime)->toBeLessThan(50, 'Average permission check should be under 50ms');
 
             // Benchmark write operation
-            $writeBenchmark = $this->benchmarkOperation(
-                'Write Operation',
-                fn () => $this->grantPermission(
-                    $this->createTestUser(uniqid()),
-                    'viewer',
-                    $this->createTestDocument(uniqid()),
-                ),
-                20,
-            );
+            $writeTimes = [];
 
-            $this->assertLessThan(
-                100,
-                $writeBenchmark['average_ms'],
-                'Average write operation should be under 100ms',
-            );
+            for ($i = 0; 20 > $i; $i++) {
+                $result = $this->measureTime(
+                    fn () => $this->grantPermission(
+                        $this->createTestUser(uniqid()),
+                        'viewer',
+                        $this->createTestDocument(uniqid()),
+                    ),
+                );
+                $writeTimes[] = $result['duration_ms'];
+            }
 
-            // Output results for debugging
-            $this->addToAssertionCount(1);
-            echo "\nPerformance Benchmarks:\n";
-            echo sprintf(
-                "- %s: avg=%.2fms, min=%.2fms, max=%.2fms\n",
-                $checkBenchmark['name'],
-                $checkBenchmark['average_ms'],
-                $checkBenchmark['min_ms'],
-                $checkBenchmark['max_ms'],
-            );
-            echo sprintf(
-                "- %s: avg=%.2fms, min=%.2fms, max=%.2fms\n",
-                $writeBenchmark['name'],
-                $writeBenchmark['average_ms'],
-                $writeBenchmark['min_ms'],
-                $writeBenchmark['max_ms'],
-            );
+            $avgWriteTime = array_sum($writeTimes) / count($writeTimes);
+            expect($avgWriteTime)->toBeLessThan(100, 'Average write operation should be under 100ms');
         });
-    }
+    });
 
-    public function test_permission_inheritance(): void
-    {
+    it('tests permission inheritance', function (): void {
         $this->runWithCleanStore(function (): void {
             $user = $this->createTestUser('bob');
             $document = $this->createTestDocument('contract');
 
-            // Test that owner permission implies editor and viewer
-            $this->assertInheritedPermission($user, 'owner', 'editor', $document);
-            $this->assertInheritedPermission($user, 'owner', 'viewer', $document);
-        });
-    }
+            // Grant owner permission
+            $this->grantPermission($user, 'owner', $document);
 
-    public function test_permission_lifecycle(): void
-    {
+            // Test that owner permission implies editor and viewer
+            $this->assertEventuallyAllowed($user, 'editor', $document);
+            $this->assertEventuallyAllowed($user, 'viewer', $document);
+
+            // User should have owner permission
+            $this->assertEventuallyAllowed($user, 'owner', $document);
+        });
+    });
+
+    it('tests permission lifecycle', function (): void {
         $this->runWithCleanStore(function (): void {
             $user = $this->createTestUser('diana');
             $document = $this->createTestDocument('memo');
 
-            $lifecycle = [
-                ['action' => 'grant', 'expected' => true],
-                ['action' => 'revoke', 'expected' => false],
-                ['action' => 'grant', 'expected' => true],
-            ];
+            // Test permission lifecycle: grant -> revoke -> grant
+            // Initial state - no permission
+            $this->assertEventuallyDenied($user, 'editor', $document);
 
-            $this->testPermissionLifecycle($user, 'editor', $document, $lifecycle);
+            // Grant permission
+            $this->grantPermission($user, 'editor', $document);
+            $this->assertEventuallyAllowed($user, 'editor', $document);
+
+            // Revoke permission
+            $this->revokePermission($user, 'editor', $document);
+            $this->assertEventuallyDenied($user, 'editor', $document);
+
+            // Grant again
+            $this->grantPermission($user, 'editor', $document);
+            $this->assertEventuallyAllowed($user, 'editor', $document);
         });
-    }
+    });
 
-    public function test_store_isolation(): void
-    {
+    it('tests store isolation', function (): void {
         $user = $this->createTestUser('isolated');
         $document = $this->createTestDocument('secret');
 
-        $this->testStoreIsolation(
-            // Store A setup
-            function () use ($user, $document): void {
-                $this->grantPermission($user, 'viewer', $document);
-            },
-            // Store B setup
-            function (): void {
-                // Don't grant permission in store B
-            },
-            // Assertions
-            function ($storeAId, $storeBId) use ($user, $document): void {
-                // Check store A - should have access
-                Config::set('openfga.connections.integration_test.store_id', $storeAId);
-                $this->openFgaManager->purge('integration_test');
-                $this->assertTrue(
-                    $this->getManager()->connection('integration_test')->check($user, 'viewer', $document),
-                );
+        // Save current store and model
+        $originalStoreId = $this->testStoreId;
+        $originalModelId = $this->testModelId;
 
-                // Check store B - should not have access
-                Config::set('openfga.connections.integration_test.store_id', $storeBId);
-                $this->openFgaManager->purge('integration_test');
-                $this->assertFalse(
-                    $this->getManager()->connection('integration_test')->check($user, 'viewer', $document),
-                );
-            },
-        );
-    }
-}
+        // Grant permission in current store
+        $this->grantPermission($user, 'viewer', $document);
+        $this->waitForConsistency();
+
+        // Verify permission exists in current store
+        $this->assertEventuallyAllowed($user, 'viewer', $document);
+
+        // Create a new store for isolation testing
+        $newStore = $this->createStore('test_isolation_' . uniqid());
+        $newStoreId = $newStore['id'];
+        $this->createdStores[] = $newStoreId;
+        
+        // Update test properties to the new store temporarily
+        $this->testStoreId = $newStoreId;
+
+        // Create model in new store
+        Config::set('openfga.connections.integration_test.store_id', $newStoreId);
+        $newModel = $this->createAuthorizationModel($this->getTestAuthorizationModel());
+        $newModelId = $newModel['authorization_model_id'];
+        
+        // Update test model ID
+        $this->testModelId = $newModelId;
+
+        // Update connection with new store/model
+        Config::set('openfga.connections.integration_test.model_id', $newModelId);
+
+        // Update manager config
+        /** @var Repository $configRepository */
+        $configRepository = app('config');
+
+        /** @var array<string, mixed> $updatedConfig */
+        $updatedConfig = $configRepository->get('openfga', []);
+        $this->openFgaManager->updateConfig($updatedConfig);
+
+        // Reinitialize client for new store
+        $this->openFgaClient = $this->openFgaManager->connection('integration_test');
+
+        // Check permission in new store - should not exist
+        $result = $this->getManager()->check($user, 'viewer', $document, [], [], 'integration_test');
+        expect($result)->toBeFalse('Permission should not exist in new store');
+
+        // Switch back to original store
+        Config::set('openfga.connections.integration_test.store_id', $originalStoreId);
+        Config::set('openfga.connections.integration_test.model_id', $originalModelId);
+        $this->openFgaManager->updateConfig($configRepository->get('openfga', []));
+        $this->openFgaClient = $this->openFgaManager->connection('integration_test');
+
+        // Verify permission still exists in original store
+        $this->assertEventuallyAllowed($user, 'viewer', $document);
+
+        // Clean up the test isolation store
+        $this->testStoreId = $originalStoreId;
+        $this->testModelId = $originalModelId;
+    });
+});

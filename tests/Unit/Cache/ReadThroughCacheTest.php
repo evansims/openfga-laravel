@@ -8,24 +8,13 @@ use Exception;
 use Illuminate\Cache\{ArrayStore, Repository};
 use OpenFGA\Laravel\Cache\ReadThroughCache;
 use OpenFGA\Laravel\Contracts\ManagerInterface;
-use OpenFGA\Laravel\Tests\TestCase;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 
-final class ReadThroughCacheTest extends TestCase
-{
-    private ReadThroughCache $cache;
+use function expect;
 
-    private TestCacheRepository $cacheRepository;
-
-    private array $defaultConfig;
-
-    private TestableOpenFgaManager $manager;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
-
+describe('ReadThroughCache', function (): void {
+    beforeEach(function (): void {
         $this->defaultConfig = [
             'enabled' => true,
             'store' => 'array',
@@ -59,211 +48,201 @@ final class ReadThroughCacheTest extends TestCase
         });
 
         $this->manager = new TestableOpenFgaManager;
-    }
+    });
 
-    public function test_check_bypasses_cache_when_disabled(): void
-    {
-        $this->cache = new ReadThroughCache($this->manager, array_merge($this->defaultConfig, [
-            'enabled' => false,
-        ]));
+    describe('Check Operations', function (): void {
+        it('bypasses cache when disabled', function (): void {
+            $this->cache = new ReadThroughCache($this->manager, array_merge($this->defaultConfig, [
+                'enabled' => false,
+            ]));
 
-        $this->manager->setCheckResult('user:123', 'viewer', 'document:456', true);
+            $this->manager->setCheckResult('user:123', 'viewer', 'document:456', true);
 
-        $result = $this->cache->check('user:123', 'viewer', 'document:456');
+            $result = $this->cache->check('user:123', 'viewer', 'document:456');
 
-        $this->assertTrue($result);
-        $this->assertEquals(1, $this->manager->getCheckCount());
-        $this->assertEquals(0, $this->cacheRepository->getPutCount());
-    }
+            expect($result)->toBeTrue();
+            expect($this->manager->getCheckCount())->toBe(1);
+            expect($this->cacheRepository->getPutCount())->toBe(0);
+        });
 
-    public function test_check_bypasses_cache_with_context(): void
-    {
-        $this->cache = new ReadThroughCache($this->manager, $this->defaultConfig);
+        it('bypasses cache with context', function (): void {
+            $this->cache = new ReadThroughCache($this->manager, $this->defaultConfig);
 
-        $this->manager->setCheckResult('user:123', 'viewer', 'document:456', true);
+            $this->manager->setCheckResult('user:123', 'viewer', 'document:456', true);
 
-        $result = $this->cache->check('user:123', 'viewer', 'document:456', [], ['key' => 'value']);
+            $result = $this->cache->check('user:123', 'viewer', 'document:456', [], ['key' => 'value']);
 
-        $this->assertTrue($result);
-        $this->assertEquals(1, $this->manager->getCheckCount());
+            expect($result)->toBeTrue();
+            expect($this->manager->getCheckCount())->toBe(1);
 
-        // Verify nothing was cached
-        $this->assertEquals(0, $this->cacheRepository->getPutCount());
-    }
+            // Verify nothing was cached
+            expect($this->cacheRepository->getPutCount())->toBe(0);
+        });
 
-    public function test_check_bypasses_cache_with_contextual_tuples(): void
-    {
-        $this->cache = new ReadThroughCache($this->manager, $this->defaultConfig);
+        it('bypasses cache with contextual tuples', function (): void {
+            $this->cache = new ReadThroughCache($this->manager, $this->defaultConfig);
 
-        $this->manager->setCheckResult('user:123', 'viewer', 'document:456', true);
+            $this->manager->setCheckResult('user:123', 'viewer', 'document:456', true);
 
-        $result = $this->cache->check('user:123', 'viewer', 'document:456', ['tuple1']);
+            $result = $this->cache->check('user:123', 'viewer', 'document:456', ['tuple1']);
 
-        $this->assertTrue($result);
-        $this->assertEquals(1, $this->manager->getCheckCount());
+            expect($result)->toBeTrue();
+            expect($this->manager->getCheckCount())->toBe(1);
 
-        // Verify nothing was cached
-        $this->assertEquals(0, $this->cacheRepository->getPutCount());
-    }
+            // Verify nothing was cached
+            expect($this->cacheRepository->getPutCount())->toBe(0);
+        });
 
-    public function test_check_caches_errors_briefly(): void
-    {
-        $this->cache = new ReadThroughCache($this->manager, $this->defaultConfig);
+        it('caches errors briefly', function (): void {
+            $this->cache = new ReadThroughCache($this->manager, $this->defaultConfig);
 
-        $this->manager->setShouldThrow(new RuntimeException('OpenFGA error'));
+            $this->manager->setShouldThrow(new RuntimeException('OpenFGA error'));
 
-        try {
+            expect(fn () => $this->cache->check('user:123', 'viewer', 'document:456'))
+                ->toThrow(RuntimeException::class, 'OpenFGA error');
+
+            // Verify error was cached with short TTL
+            $lastPut = $this->cacheRepository->getLastPut();
+            expect($lastPut['ttl'])->toBe(10); // error_ttl
+            expect($lastPut['value']['error'])->toBeTrue();
+        });
+
+        it('fetches from source on miss', function (): void {
+            $this->cache = new ReadThroughCache($this->manager, $this->defaultConfig);
+
+            $this->manager->setCheckResult('user:123', 'viewer', 'document:456', true);
+
+            $result = $this->cache->check('user:123', 'viewer', 'document:456');
+
+            expect($result)->toBeTrue();
+            expect($this->manager->getCheckCount())->toBe(1);
+
+            // Verify it was cached
+            $cached = $this->cacheRepository->get('test:check:user:123:viewer:document:456');
+            expect($cached)->not->toBeNull();
+            expect($cached['value'])->toBeTrue();
+        });
+
+        it('logs misses when enabled', function (): void {
+            $logger = new TestLogger;
+            $this->app->singleton(LoggerInterface::class, fn () => $logger);
+
+            $this->cache = new ReadThroughCache($this->manager, array_merge($this->defaultConfig, [
+                'log_misses' => true,
+            ]));
+
+            $this->manager->setCheckResult('user:123', 'viewer', 'document:456', true);
+
             $this->cache->check('user:123', 'viewer', 'document:456');
-            $this->fail('Expected exception was not thrown');
-        } catch (RuntimeException $e) {
-            $this->assertEquals('OpenFGA error', $e->getMessage());
-        }
 
-        // Verify error was cached with short TTL
-        $lastPut = $this->cacheRepository->getLastPut();
-        $this->assertEquals(10, $lastPut['ttl']); // error_ttl
-        $this->assertTrue($lastPut['value']['error']);
-    }
+            expect($logger->logs)->toHaveCount(1);
+            expect($logger->logs[0]['level'])->toBe('debug');
+            expect($logger->logs[0]['message'])->toBe('OpenFGA cache miss');
+        });
 
-    public function test_check_fetches_from_source_on_miss(): void
-    {
-        $this->cache = new ReadThroughCache($this->manager, $this->defaultConfig);
+        it('returns from cache on hit', function (): void {
+            $this->cache = new ReadThroughCache($this->manager, $this->defaultConfig);
 
-        $this->manager->setCheckResult('user:123', 'viewer', 'document:456', true);
+            // Pre-populate cache
+            $this->cacheRepository->put('test:check:user:123:viewer:document:456', ['value' => true, 'cached_at' => time()]);
 
-        $result = $this->cache->check('user:123', 'viewer', 'document:456');
+            $result = $this->cache->check('user:123', 'viewer', 'document:456');
 
-        $this->assertTrue($result);
-        $this->assertEquals(1, $this->manager->getCheckCount());
+            expect($result)->toBeTrue();
+            expect($this->manager->getCheckCount())->toBe(0);
+        });
 
-        // Verify it was cached
-        $cached = $this->cacheRepository->get('test:check:user:123:viewer:document:456');
-        $this->assertNotNull($cached);
-        $this->assertTrue($cached['value']);
-    }
+        it('uses negative ttl for false results', function (): void {
+            $this->cache = new ReadThroughCache($this->manager, $this->defaultConfig);
 
-    public function test_check_logs_misses_when_enabled(): void
-    {
-        $logger = new TestLogger;
-        $this->app->singleton(LoggerInterface::class, fn () => $logger);
+            $this->manager->setCheckResult('user:123', 'viewer', 'document:456', false);
 
-        $this->cache = new ReadThroughCache($this->manager, array_merge($this->defaultConfig, [
-            'log_misses' => true,
-        ]));
+            $result = $this->cache->check('user:123', 'viewer', 'document:456');
 
-        $this->manager->setCheckResult('user:123', 'viewer', 'document:456', true);
+            expect($result)->toBeFalse();
 
-        $this->cache->check('user:123', 'viewer', 'document:456');
+            // Verify TTL was set correctly (we'll check the last put call)
+            $lastPut = $this->cacheRepository->getLastPut();
+            expect($lastPut['ttl'])->toBe(60); // negative_ttl
+        });
+    });
 
-        $this->assertCount(1, $logger->logs);
-        $this->assertEquals('debug', $logger->logs[0]['level']);
-        $this->assertEquals('OpenFGA cache miss', $logger->logs[0]['message']);
-    }
+    describe('List Objects Operations', function (): void {
+        it('fetches on miss', function (): void {
+            $this->cache = new ReadThroughCache($this->manager, $this->defaultConfig);
 
-    public function test_check_returns_from_cache_on_hit(): void
-    {
-        $this->cache = new ReadThroughCache($this->manager, $this->defaultConfig);
+            $this->manager->setListObjectsResult('user:123', 'viewer', 'document', ['document:1', 'document:2']);
 
-        // Pre-populate cache
-        $this->cacheRepository->put('test:check:user:123:viewer:document:456', ['value' => true, 'cached_at' => time()]);
+            $result = $this->cache->listObjects('user:123', 'viewer', 'document');
 
-        $result = $this->cache->check('user:123', 'viewer', 'document:456');
+            expect($result)->toBe(['document:1', 'document:2']);
+            expect($this->manager->getListObjectsCount())->toBe(1);
+        });
 
-        $this->assertTrue($result);
-        $this->assertEquals(0, $this->manager->getCheckCount());
-    }
+        it('uses cache', function (): void {
+            $this->cache = new ReadThroughCache($this->manager, $this->defaultConfig);
 
-    public function test_check_uses_negative_ttl_for_false_results(): void
-    {
-        $this->cache = new ReadThroughCache($this->manager, $this->defaultConfig);
+            // Pre-populate cache
+            $this->cacheRepository->put('test:list:user:123:viewer:document', ['value' => ['document:1', 'document:2'], 'cached_at' => time()]);
 
-        $this->manager->setCheckResult('user:123', 'viewer', 'document:456', false);
+            $result = $this->cache->listObjects('user:123', 'viewer', 'document');
 
-        $result = $this->cache->check('user:123', 'viewer', 'document:456');
+            expect($result)->toBe(['document:1', 'document:2']);
+            expect($this->manager->getListObjectsCount())->toBe(0);
+        });
+    });
 
-        $this->assertFalse($result);
+    describe('Statistics Operations', function (): void {
+        it('gets stats', function (): void {
+            $this->cache = new ReadThroughCache($this->manager, $this->defaultConfig);
 
-        // Verify TTL was set correctly (we'll check the last put call)
-        $lastPut = $this->cacheRepository->getLastPut();
-        $this->assertEquals(60, $lastPut['ttl']); // negative_ttl
-    }
+            $this->cacheRepository->put('test:stats:hits', 75);
+            $this->cacheRepository->put('test:stats:misses', 25);
 
-    public function test_get_stats(): void
-    {
-        $this->cache = new ReadThroughCache($this->manager, $this->defaultConfig);
+            $stats = $this->cache->getStats();
 
-        $this->cacheRepository->put('test:stats:hits', 75);
-        $this->cacheRepository->put('test:stats:misses', 25);
+            expect($stats)->toBe([
+                'hits' => 75,
+                'misses' => 25,
+                'hit_rate' => 75.0,
+            ]);
+        });
 
-        $stats = $this->cache->getStats();
+        it('handles zero total in stats', function (): void {
+            $this->cache = new ReadThroughCache($this->manager, $this->defaultConfig);
 
-        $this->assertEquals([
-            'hits' => 75,
-            'misses' => 25,
-            'hit_rate' => 75.0,
-        ], $stats);
-    }
+            $stats = $this->cache->getStats();
 
-    public function test_get_stats_handles_zero_total(): void
-    {
-        $this->cache = new ReadThroughCache($this->manager, $this->defaultConfig);
+            expect($stats)->toBe([
+                'hits' => 0,
+                'misses' => 0,
+                'hit_rate' => 0.0,
+            ]);
+        });
 
-        $stats = $this->cache->getStats();
+        it('resets stats', function (): void {
+            $this->cache = new ReadThroughCache($this->manager, $this->defaultConfig);
 
-        $this->assertEquals([
-            'hits' => 0,
-            'misses' => 0,
-            'hit_rate' => 0.0,
-        ], $stats);
-    }
+            $this->cacheRepository->put('test:stats:hits', 100);
+            $this->cacheRepository->put('test:stats:misses', 50);
 
-    public function test_invalidate_without_tags_returns_zero(): void
-    {
-        $this->cache = new ReadThroughCache($this->manager, $this->defaultConfig);
+            $this->cache->resetStats();
 
-        $invalidated = $this->cache->invalidate('user:123');
+            expect($this->cacheRepository->get('test:stats:hits'))->toBeNull();
+            expect($this->cacheRepository->get('test:stats:misses'))->toBeNull();
+        });
+    });
 
-        $this->assertEquals(0, $invalidated);
-    }
+    describe('Invalidation Operations', function (): void {
+        it('returns zero when tags not enabled', function (): void {
+            $this->cache = new ReadThroughCache($this->manager, $this->defaultConfig);
 
-    public function test_list_objects_fetches_on_miss(): void
-    {
-        $this->cache = new ReadThroughCache($this->manager, $this->defaultConfig);
+            $invalidated = $this->cache->invalidate('user:123');
 
-        $this->manager->setListObjectsResult('user:123', 'viewer', 'document', ['document:1', 'document:2']);
-
-        $result = $this->cache->listObjects('user:123', 'viewer', 'document');
-
-        $this->assertEquals(['document:1', 'document:2'], $result);
-        $this->assertEquals(1, $this->manager->getListObjectsCount());
-    }
-
-    public function test_list_objects_uses_cache(): void
-    {
-        $this->cache = new ReadThroughCache($this->manager, $this->defaultConfig);
-
-        // Pre-populate cache
-        $this->cacheRepository->put('test:list:user:123:viewer:document', ['value' => ['document:1', 'document:2'], 'cached_at' => time()]);
-
-        $result = $this->cache->listObjects('user:123', 'viewer', 'document');
-
-        $this->assertEquals(['document:1', 'document:2'], $result);
-        $this->assertEquals(0, $this->manager->getListObjectsCount());
-    }
-
-    public function test_reset_stats(): void
-    {
-        $this->cache = new ReadThroughCache($this->manager, $this->defaultConfig);
-
-        $this->cacheRepository->put('test:stats:hits', 100);
-        $this->cacheRepository->put('test:stats:misses', 50);
-
-        $this->cache->resetStats();
-
-        $this->assertNull($this->cacheRepository->get('test:stats:hits'));
-        $this->assertNull($this->cacheRepository->get('test:stats:misses'));
-    }
-}
+            expect($invalidated)->toBe(0);
+        });
+    });
+});
 
 /**
  * Testable version of manager interface.

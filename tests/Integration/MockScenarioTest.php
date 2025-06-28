@@ -2,25 +2,17 @@
 
 declare(strict_types=1);
 
-namespace OpenFGA\Laravel\Tests\Integration;
-
 use OpenFGA\Laravel\Testing\{FakesOpenFga, UsesMockScenarios};
 use OpenFGA\Laravel\Tests\Support\FeatureTestCase;
 
-final class MockScenarioTest extends FeatureTestCase
-{
-    use FakesOpenFga;
+uses(FeatureTestCase::class, FakesOpenFga::class, UsesMockScenarios::class);
 
-    use UsesMockScenarios;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
+describe('Mock Scenario', function (): void {
+    beforeEach(function (): void {
         $this->fakeOpenFga();
-    }
+    });
 
-    public function test_api_access_control_scenario(): void
-    {
+    it('api access control scenario', function (): void {
         $this->withApiAccessControlScenario();
 
         // Mobile app permissions
@@ -40,10 +32,9 @@ final class MockScenarioTest extends FeatureTestCase
         // Rate limiting
         $this->assertScenarioPermission('client:mobile-app', 'standard_limit', 'api:rate-limiter');
         $this->assertScenarioPermission('client:admin-dashboard', 'premium_limit', 'api:rate-limiter');
-    }
+    });
 
-    public function test_basic_user_document_scenario(): void
-    {
+    it('basic user document scenario', function (): void {
         $this->withBasicUserDocumentScenario();
 
         // Owner has all permissions
@@ -66,10 +57,9 @@ final class MockScenarioTest extends FeatureTestCase
             ['user' => 'user:3', 'relation' => 'editor', 'object' => 'document:1', 'expected' => false],
             ['user' => 'user:3', 'relation' => 'viewer', 'object' => 'document:1', 'expected' => true],
         ]);
-    }
+    });
 
-    public function test_collaborative_editing_scenario(): void
-    {
+    it('collaborative editing scenario', function (): void {
         $this->withCollaborativeEditingScenario();
 
         // Project lead has owner access
@@ -85,19 +75,17 @@ final class MockScenarioTest extends FeatureTestCase
 
         // Documents belong to project
         $this->assertScenarioPermission('project:website', 'project', 'document:spec');
-    }
+    });
 
-    public function test_combining_scenarios(): void
-    {
+    it('combining scenarios', function (): void {
         $this->scenarios(['basicUserDocument', 'organizationHierarchy']);
 
         // Both scenarios should be active
         $this->assertScenarioPermission('user:1', 'owner', 'document:1');
         $this->assertScenarioPermission('user:ceo', 'admin', 'organization:acme');
-    }
+    });
 
-    public function test_content_moderation_scenario(): void
-    {
+    it('content moderation scenario', function (): void {
         $this->withContentModerationScenario();
 
         // Forum moderators
@@ -114,10 +102,9 @@ final class MockScenarioTest extends FeatureTestCase
         // Mod1 can moderate general forum posts but not tech forum
         $this->assertScenarioPermission('user:mod1', 'moderator', 'forum:general', true);
         $this->assertScenarioPermission('user:mod1', 'moderator', 'forum:tech', false);
-    }
+    });
 
-    public function test_custom_scenario(): void
-    {
+    it('custom scenario', function (): void {
         $this->customScenario(function ($fake): void {
             // Set up a custom blog scenario
             $fake->grant('user:author', 'author', 'blog:tech');
@@ -136,10 +123,9 @@ final class MockScenarioTest extends FeatureTestCase
         $this->assertScenarioPermission('user:author', 'author', 'blog:tech');
         $this->assertScenarioPermission('user:author', 'owner', 'article:1');
         $this->assertScenarioPermission('user:editor', 'editor', 'blog:tech');
-    }
+    });
 
-    public function test_extending_scenario_dynamically(): void
-    {
+    it('extending scenario dynamically', function (): void {
         $this->withBasicUserDocumentScenario();
 
         // Add more permissions dynamically
@@ -157,10 +143,9 @@ final class MockScenarioTest extends FeatureTestCase
         $this->assertScenarioPermission('user:5', 'reviewer', 'document:1');
         $this->assertScenarioPermission('user:6', 'subscriber', 'document:1');
         $this->assertScenarioPermission('user:7', 'admin', 'document:1', false);
-    }
+    });
 
-    public function test_file_system_scenario(): void
-    {
+    it('file system scenario', function (): void {
         $this->withFileSystemScenario();
 
         // Owner has access to root folder
@@ -177,10 +162,9 @@ final class MockScenarioTest extends FeatureTestCase
         // Shared access
         $this->assertScenarioPermission('user:collaborator', 'viewer', 'file:report.pdf');
         $this->assertScenarioPermission('user:designer', 'editor', 'folder:images');
-    }
+    });
 
-    public function test_multi_tenant_scenario(): void
-    {
+    it('multi tenant scenario', function (): void {
         $this->withMultiTenantScenario();
 
         // Tenant isolation
@@ -197,10 +181,9 @@ final class MockScenarioTest extends FeatureTestCase
             // But not tenant A
             ['user' => 'user:charlie', 'relation' => 'admin', 'object' => 'tenant:a', 'expected' => false],
         ]);
-    }
+    });
 
-    public function test_organization_hierarchy_scenario(): void
-    {
+    it('organization hierarchy scenario', function (): void {
         $this->withOrganizationHierarchy();
 
         // CEO has admin access
@@ -216,10 +199,9 @@ final class MockScenarioTest extends FeatureTestCase
 
         // Sales people can't access engineering
         $this->assertScenarioPermission('user:sales1', 'member', 'department:engineering', false);
-    }
+    });
 
-    public function test_scenario_with_additional_permissions(): void
-    {
+    it('scenario with additional permissions', function (): void {
         $this->scenario('basicUserDocument')
             ->withPermissions([
                 ['user' => 'user:4', 'relation' => 'commenter', 'object' => 'document:1'],
@@ -232,10 +214,9 @@ final class MockScenarioTest extends FeatureTestCase
         // Additional permissions
         $this->assertScenarioPermission('user:4', 'commenter', 'document:1');
         $this->assertScenarioPermission('user:5', 'reviewer', 'document:1');
-    }
+    });
 
-    public function test_scenario_with_failures(): void
-    {
+    it('scenario with failures', function (): void {
         $this->scenario('basicUserDocument')
             ->withFailures();
 
@@ -245,10 +226,9 @@ final class MockScenarioTest extends FeatureTestCase
         // But specific failures are mocked
         $this->assertScenarioPermission('user:unauthorized', 'admin', 'system:main', false);
         $this->assertScenarioPermission('user:banned', 'viewer', 'document:any', false);
-    }
+    });
 
-    public function test_workflow_approval_scenario(): void
-    {
+    it('workflow approval scenario', function (): void {
         $this->withWorkflowApprovalScenario();
 
         // Employee submitted the request
@@ -261,5 +241,5 @@ final class MockScenarioTest extends FeatureTestCase
 
         // Employee is member of sales department
         $this->assertScenarioPermission('user:employee', 'member', 'department:sales');
-    }
-}
+    });
+});

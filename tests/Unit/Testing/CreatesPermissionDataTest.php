@@ -4,11 +4,7 @@ declare(strict_types=1);
 
 use OpenFGA\Laravel\Testing\{CreatesPermissionData, FakeOpenFga};
 
-use function count;
-
-covers(CreatesPermissionData::class);
-
-describe('CreatesPermissionData', function () {
+describe('CreatesPermissionData', function (): void {
     $createInstance = function () {
         return new class {
             use CreatesPermissionData {
@@ -24,12 +20,12 @@ describe('CreatesPermissionData', function () {
         };
     };
 
-    beforeEach(function () use ($createInstance) {
+    beforeEach(function () use ($createInstance): void {
         $this->fake = new FakeOpenFga;
         $this->instance = $createInstance();
     });
 
-    it('factories can be combined', function () {
+    it('factories can be combined', function (): void {
         // Create multiple systems in the same fake
         $doc_data = $this->instance->createDocumentHierarchy($this->fake);
         $blog_data = $this->instance->createBlogSystem($this->fake);
@@ -43,7 +39,7 @@ describe('CreatesPermissionData', function () {
         expect($this->fake->check($blog_data['users']['admin'], 'owner', $doc_data['documents']['doc1']))->toBeFalse();
     });
 
-    it('factories produce different data', function () {
+    it('factories produce different data', function (): void {
         $fake1 = new FakeOpenFga;
         $fake2 = new FakeOpenFga;
 
@@ -61,7 +57,7 @@ describe('CreatesPermissionData', function () {
         expect($fake1->getTuples())->not->toEqual($fake2->getTuples());
     });
 
-    it('creates blog system', function () {
+    it('creates blog system', function (): void {
         $data = $this->instance->createBlogSystem($this->fake);
 
         // Test structure
@@ -78,7 +74,7 @@ describe('CreatesPermissionData', function () {
         expect($this->fake->check($data['users']['guest'], 'reader', $data['posts']['post2']))->toBeFalse(); // private post
     });
 
-    it('creates document hierarchy', function () {
+    it('creates document hierarchy', function (): void {
         $data = $this->instance->createDocumentHierarchy($this->fake);
 
         // Test structure
@@ -93,7 +89,7 @@ describe('CreatesPermissionData', function () {
         expect($this->fake->check($data['users']['viewer'], 'editor', $data['documents']['doc1']))->toBeFalse();
     });
 
-    it('creates ecommerce system', function () {
+    it('creates ecommerce system', function (): void {
         $data = $this->instance->createEcommerceSystem($this->fake);
 
         // Test structure
@@ -110,7 +106,7 @@ describe('CreatesPermissionData', function () {
         expect($this->fake->check($data['users']['customer1'], 'view', $data['orders']['order3']))->toBeFalse();
     });
 
-    it('creates file system', function () {
+    it('creates file system', function (): void {
         $data = $this->instance->createFileSystem($this->fake);
 
         // Test structure
@@ -126,7 +122,7 @@ describe('CreatesPermissionData', function () {
         expect($this->fake->check($data['users']['user2'], 'read', $data['files']['user1_doc']))->toBeFalse();
     });
 
-    it('creates nested hierarchy', function () {
+    it('creates nested hierarchy', function (): void {
         $data = $this->instance->createNestedHierarchy($this->fake);
 
         // Test structure
@@ -141,7 +137,7 @@ describe('CreatesPermissionData', function () {
         expect($this->fake->check($data['users']['employee'], 'contributor', $data['hierarchy']['project']))->toBeTrue();
     });
 
-    it('creates organization structure', function () {
+    it('creates organization structure', function (): void {
         $data = $this->instance->createOrganizationStructure($this->fake);
 
         // Test structure
@@ -157,7 +153,7 @@ describe('CreatesPermissionData', function () {
         expect($this->fake->check($data['users']['intern'], 'observer', $data['projects']['project1']))->toBeTrue();
     });
 
-    it('creates project management system', function () {
+    it('creates project management system', function (): void {
         $data = $this->instance->createProjectManagementSystem($this->fake);
 
         // Test structure
@@ -175,7 +171,7 @@ describe('CreatesPermissionData', function () {
         expect($this->fake->check($data['users']['client'], 'contributor', $data['projects']['project_alpha']))->toBeFalse();
     });
 
-    it('creates random permissions', function () {
+    it('creates random permissions', function (): void {
         $data = $this->instance->createRandomPermissions($this->fake, 5, 10, 3, 20);
 
         // Test structure

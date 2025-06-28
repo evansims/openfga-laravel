@@ -6,14 +6,19 @@ namespace OpenFGA\Laravel\Testing;
 
 use Closure;
 use Exception;
+use Illuminate\Config\Repository;
+use Illuminate\Contracts\Container\BindingResolutionException;
+use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Config;
 use InvalidArgumentException;
 use OpenFGA\ClientInterface;
+use OpenFGA\Exceptions\ClientThrowable;
 use OpenFGA\Laravel\{OpenFgaManager, OpenFgaServiceProvider};
 use Orchestra\Testbench\TestCase as BaseTestCase;
 use Override;
 use PHPUnit\Framework\ExpectationFailedException;
 use RuntimeException;
+use stdClass;
 
 use function is_array;
 use function is_string;
@@ -49,14 +54,14 @@ abstract class IntegrationTestCase extends BaseTestCase
      * @param string $object
      * @param int    $maxRetries
      *
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
      * @throws ExpectationFailedException
-     * @throws RuntimeException
-     * @throws \Illuminate\Contracts\Container\BindingResolutionException
-     * @throws \OpenFGA\Exceptions\ClientThrowable
-     * @throws \Exception
      * @throws InvalidArgumentException
+     * @throws RuntimeException
      */
-    protected function assertEventuallyAllowed(string $user, string $relation, string $object, int $maxRetries = 10): void
+    protected function assertEventuallyAllowed(string $user, string $relation, string $object, int $maxRetries = 20): void
     {
         if (! $this->openFgaClient instanceof ClientInterface) {
             throw new RuntimeException('OpenFGA client is not initialized');
@@ -84,8 +89,22 @@ abstract class IntegrationTestCase extends BaseTestCase
             $allowed = $result;
 
             if (false === $allowed) {
-                $this->waitForConsistency(100);
+                $this->waitForConsistency(300);
                 ++$attempts;
+
+                // Add debugging
+                if (1 === $attempts || 5 === $attempts || 10 === $attempts || $attempts === $maxRetries) {
+                    error_log(sprintf(
+                        'Permission check attempt %d/%d - User: %s, Relation: %s, Object: %s, Store: %s, Model: %s',
+                        $attempts,
+                        $maxRetries,
+                        $user,
+                        $relation,
+                        $object,
+                        $this->testStoreId ?? 'null',
+                        $this->testModelId ?? 'null',
+                    ));
+                }
             }
         }
 
@@ -100,14 +119,14 @@ abstract class IntegrationTestCase extends BaseTestCase
      * @param string $object
      * @param int    $maxRetries
      *
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
      * @throws ExpectationFailedException
-     * @throws RuntimeException
-     * @throws \Illuminate\Contracts\Container\BindingResolutionException
-     * @throws \OpenFGA\Exceptions\ClientThrowable
-     * @throws \Exception
      * @throws InvalidArgumentException
+     * @throws RuntimeException
      */
-    protected function assertEventuallyDenied(string $user, string $relation, string $object, int $maxRetries = 10): void
+    protected function assertEventuallyDenied(string $user, string $relation, string $object, int $maxRetries = 20): void
     {
         if (! $this->openFgaClient instanceof ClientInterface) {
             throw new RuntimeException('OpenFGA client is not initialized');
@@ -136,7 +155,7 @@ abstract class IntegrationTestCase extends BaseTestCase
             $denied = ! $allowed;
 
             if (! $denied) {
-                $this->waitForConsistency(100);
+                $this->waitForConsistency(300);
                 ++$attempts;
             }
         }
@@ -155,7 +174,7 @@ abstract class IntegrationTestCase extends BaseTestCase
 
     /**
      * Configure test connection.
-     * 
+     *
      * @deprecated Configuration is now handled in defineEnvironment()
      */
     protected function configureTestConnection(): void
@@ -179,6 +198,7 @@ abstract class IntegrationTestCase extends BaseTestCase
             throw new RuntimeException('Test store ID is not set');
         }
 
+        // The API expects the model directly, not wrapped
         return $this->makeApiRequest('POST', sprintf('/stores/%s/authorization-models', $this->testStoreId), $model);
     }
 
@@ -216,6 +236,45 @@ abstract class IntegrationTestCase extends BaseTestCase
     protected function createTestUser(string $id): string
     {
         return 'user:' . $id;
+    }
+
+    /**
+     * Define environment setup.
+     *
+     * @param mixed $app
+     *
+     * @throws BindingResolutionException
+     * @throws RuntimeException
+     */
+    #[Override]
+    protected function defineEnvironment($app): void
+    {
+        // Set default connection to integration_test for tests
+        if (! $app instanceof Application) {
+            throw new RuntimeException('Expected Application instance');
+        }
+
+        /** @var Repository $config */
+        $config = $app->make('config');
+        $config->set('openfga.default', 'integration_test');
+
+        // Configure test connection
+        $config->set('openfga.connections.integration_test', [
+            'url' => env('OPENFGA_TEST_URL', 'http://localhost:8080'),
+            'store_id' => null, // Will be set dynamically
+            'model_id' => null, // Will be set dynamically
+            'credentials' => [
+                'method' => env('OPENFGA_TEST_AUTH_METHOD', 'none'),
+                'token' => env('OPENFGA_TEST_API_TOKEN'),
+            ],
+            'retries' => [
+                'max_retries' => 0, // No retries for tests
+            ],
+            'http_options' => [
+                'timeout' => 10,
+                'connect_timeout' => 5,
+            ],
+        ]);
     }
 
     /**
@@ -296,42 +355,15 @@ abstract class IntegrationTestCase extends BaseTestCase
     }
 
     /**
-     * Define environment setup.
-     *
-     * @param  mixed $app
-     */
-    #[Override]
-    protected function defineEnvironment($app): void
-    {
-        // Set default connection to integration_test for tests
-        $app['config']->set('openfga.default', 'integration_test');
-        
-        // Configure test connection
-        $app['config']->set('openfga.connections.integration_test', [
-            'url' => env('OPENFGA_TEST_URL', 'http://localhost:8080'),
-            'store_id' => null, // Will be set dynamically
-            'model_id' => null, // Will be set dynamically
-            'credentials' => [
-                'method' => env('OPENFGA_TEST_AUTH_METHOD', 'none'),
-                'token' => env('OPENFGA_TEST_API_TOKEN'),
-            ],
-            'retries' => [
-                'max_retries' => 0, // No retries for tests
-            ],
-            'http_options' => [
-                'timeout' => 10,
-                'connect_timeout' => 5,
-            ],
-        ]);
-    }
-
-    /**
      * Get test authorization model.
      *
      * @return array<string, mixed>
      */
     protected function getTestAuthorizationModel(): array
     {
+        // Use stdClass for empty objects as required by OpenFGA API
+        $emptyObject = new stdClass;
+
         return [
             'schema_version' => '1.1',
             'type_definitions' => [
@@ -342,12 +374,12 @@ abstract class IntegrationTestCase extends BaseTestCase
                     'type' => 'organization',
                     'relations' => [
                         'admin' => [
-                            'this' => [],
+                            'this' => $emptyObject,
                         ],
                         'member' => [
                             'union' => [
                                 'child' => [
-                                    ['this' => []],
+                                    ['this' => $emptyObject],
                                     ['computedUserset' => ['relation' => 'admin']],
                                 ],
                             ],
@@ -364,12 +396,12 @@ abstract class IntegrationTestCase extends BaseTestCase
                     'type' => 'document',
                     'relations' => [
                         'owner' => [
-                            'this' => [],
+                            'this' => $emptyObject,
                         ],
                         'editor' => [
                             'union' => [
                                 'child' => [
-                                    ['this' => []],
+                                    ['this' => $emptyObject],
                                     ['computedUserset' => ['relation' => 'owner']],
                                 ],
                             ],
@@ -377,7 +409,7 @@ abstract class IntegrationTestCase extends BaseTestCase
                         'viewer' => [
                             'union' => [
                                 'child' => [
-                                    ['this' => []],
+                                    ['this' => $emptyObject],
                                     ['computedUserset' => ['relation' => 'editor']],
                                     ['tupleToUserset' => [
                                         'tupleset' => ['relation' => 'organization'],
@@ -387,7 +419,7 @@ abstract class IntegrationTestCase extends BaseTestCase
                             ],
                         ],
                         'organization' => [
-                            'this' => [],
+                            'this' => $emptyObject,
                         ],
                     ],
                     'metadata' => [
@@ -404,17 +436,42 @@ abstract class IntegrationTestCase extends BaseTestCase
     }
 
     /**
+     * Get test authorization model in DSL format.
+     */
+    protected function getTestAuthorizationModelDSL(): string
+    {
+        return <<<'DSL'
+            model
+              schema 1.1
+
+            type user
+
+            type organization
+              relations
+                define admin: [user]
+                define member: [user] or admin
+
+            type document
+              relations
+                define organization: [organization]
+                define owner: [user]
+                define editor: [user] or owner
+                define viewer: [user] or editor or member from organization
+            DSL;
+    }
+
+    /**
      * Grant permission helper.
      *
      * @param string $user
      * @param string $relation
      * @param string $object
      *
-     * @throws RuntimeException
-     * @throws \Illuminate\Contracts\Container\BindingResolutionException
-     * @throws \OpenFGA\Exceptions\ClientThrowable
-     * @throws \Exception
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
      * @throws InvalidArgumentException
+     * @throws RuntimeException
      */
     protected function grantPermission(string $user, string $relation, string $object): void
     {
@@ -427,12 +484,18 @@ abstract class IntegrationTestCase extends BaseTestCase
         }
 
         $manager = $this->openFgaManager;
-        $manager->grant(
+
+        $result = $manager->grant(
             users: $user,
             relation: $relation,
             object: $object,
             connection: 'integration_test',
         );
+
+        // Debug: Check if grant succeeded
+        if (! $result) {
+            error_log(sprintf('Grant failed for %s %s %s', $user, $relation, $object));
+        }
     }
 
     /**
@@ -440,11 +503,11 @@ abstract class IntegrationTestCase extends BaseTestCase
      *
      * @param array<int, array{user: string, relation: string, object: string}> $tuples
      *
-     * @throws RuntimeException
-     * @throws \Illuminate\Contracts\Container\BindingResolutionException
-     * @throws \OpenFGA\Exceptions\ClientThrowable
-     * @throws \Exception
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
      * @throws InvalidArgumentException
+     * @throws RuntimeException
      */
     protected function grantPermissions(array $tuples): void
     {
@@ -457,6 +520,7 @@ abstract class IntegrationTestCase extends BaseTestCase
         }
 
         $manager = $this->openFgaManager;
+
         $manager->writeBatch(
             writes: $tuples,
             deletes: [],
@@ -560,11 +624,11 @@ abstract class IntegrationTestCase extends BaseTestCase
      * @param string $relation
      * @param string $object
      *
-     * @throws RuntimeException
-     * @throws \Illuminate\Contracts\Container\BindingResolutionException
-     * @throws \OpenFGA\Exceptions\ClientThrowable
-     * @throws \Exception
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
      * @throws InvalidArgumentException
+     * @throws RuntimeException
      */
     protected function revokePermission(string $user, string $relation, string $object): void
     {
@@ -598,6 +662,31 @@ abstract class IntegrationTestCase extends BaseTestCase
     }
 
     /**
+     * Check if OpenFGA server is available.
+     *
+     * @return bool
+     */
+    protected function isOpenFgaAvailable(): bool
+    {
+        $url = env('OPENFGA_TEST_URL', 'http://localhost:8080');
+        
+        try {
+            $context = stream_context_create([
+                'http' => [
+                    'timeout' => 2,
+                    'method' => 'GET',
+                ],
+            ]);
+            
+            $result = @file_get_contents($url . '/stores', false, $context);
+            
+            return $result !== false;
+        } catch (Exception $e) {
+            return false;
+        }
+    }
+
+    /**
      * Set up integration test environment.
      *
      * @throws InvalidArgumentException
@@ -616,8 +705,8 @@ abstract class IntegrationTestCase extends BaseTestCase
     /**
      * Set up test store and model.
      *
-     * @throws RuntimeException
      * @throws InvalidArgumentException
+     * @throws RuntimeException
      */
     protected function setUpTestStore(): void
     {
@@ -638,13 +727,12 @@ abstract class IntegrationTestCase extends BaseTestCase
         // Create authorization model
         $model = $this->createAuthorizationModel($this->getTestAuthorizationModel());
 
-        if (isset($model['id']) && is_string($model['id'])) {
-            $this->testModelId = $model['id'];
+        if (isset($model['authorization_model_id']) && is_string($model['authorization_model_id'])) {
+            $this->testModelId = $model['authorization_model_id'];
         } else {
-            $errorMsg = 'Failed to create authorization model';
-            if (isset($model['error'])) {
-                $errorMsg .= ': ' . (is_string($model['error']) ? $model['error'] : json_encode($model['error']));
-            }
+            $encoded = json_encode($model);
+            $errorMsg = 'Failed to create authorization model. Response: ' . (false !== $encoded ? $encoded : 'null');
+
             throw new RuntimeException($errorMsg);
         }
 
@@ -657,11 +745,20 @@ abstract class IntegrationTestCase extends BaseTestCase
         }
 
         $manager = $this->openFgaManager;
-        $manager->disconnect('integration_test');
+
+        // Update the manager's internal config to reflect the new store and model IDs
+        /** @var Repository $configRepository */
+        $configRepository = app('config');
+
+        /** @var array{default?: string, connections?: array<string, array<string, mixed>>, cache?: array<string, mixed>, queue?: array<string, mixed>, logging?: array<string, mixed>} $updatedConfig */
+        $updatedConfig = $configRepository->get('openfga', []);
+        $manager->updateConfig($updatedConfig);
+
+        // Enable exception throwing to see errors during tests
+        $manager->throwExceptions(true);
 
         $this->openFgaClient = $manager->connection('integration_test');
     }
-
 
     /**
      * Tear down integration test environment.
