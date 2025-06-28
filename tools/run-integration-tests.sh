@@ -42,6 +42,7 @@ echo ""
 
 # Build the test container
 echo "🔨 Building test container..."
+# BuildKit is now used by default in our Dockerfile
 $DOCKER_COMPOSE -f "$COMPOSE_FILE" build test
 
 # Start services first

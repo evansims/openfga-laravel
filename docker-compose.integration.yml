@@ -36,6 +36,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.integration
+      cache_from:
+        - evansims/openfga-laravel-integration-tests:latest
     volumes:
       - .:/app
       - ${COMPOSER_HOME:-$HOME/.composer}:/tmp/composer

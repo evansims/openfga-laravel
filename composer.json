@@ -119,6 +119,7 @@
     "lint:rector": "@php vendor/bin/rector process src --dry-run",
     "lint:rector:fix": "@php vendor/bin/rector process src",
     "test": [
+      "@test:lint",
       "@test:unit",
       "@test:integration"
     ],
@@ -146,6 +147,16 @@
     ],
     "test:integration:run:ci": [
       "@php -d memory_limit=2G vendor/bin/pest --colors=always --testsuite integration --fail-on-risky --fail-on-warning --coverage --coverage-cobertura coverage/cobertura.xml --log-junit junit.xml"
+    ],
+    "test:integration:cached": [
+      "docker-compose -f docker-compose.integration.yml run --rm test"
+    ],
+    "docker:build": [
+      "docker build -f Dockerfile.integration -t evansims/openfga-laravel-integration-tests:latest ."
+    ],
+    "docker:push": [
+      "@composer docker:build",
+      "docker push evansims/openfga-laravel-integration-tests:latest"
     ]
   }
 }

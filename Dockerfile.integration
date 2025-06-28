@@ -1,11 +1,16 @@
+# syntax=docker/dockerfile:1
+# This Dockerfile uses BuildKit features for better caching
+# BuildKit is now default in Docker 23.0+, or use DOCKER_BUILDKIT=1 for older versions
+
 # Use the official PHP image with XML extensions pre-installed
 FROM php:8.3.16-cli-alpine3.20@sha256:f23cfcc1769efd8fd6731def171edf5ee2cd880617b356147033ddd20f5cf02d AS builder
 
 # Install Composer
 COPY --from=composer:2.7 /usr/bin/composer /usr/bin/composer
 
-# Install system dependencies
-RUN set -eux; \
+# Install system dependencies with cache mount for APK
+RUN --mount=type=cache,target=/var/cache/apk \
+    set -eux; \
     apk add --no-cache \
     # System tools
     git \
@@ -44,8 +49,9 @@ RUN set -eux; \
     # For XML extensions
     libxslt-dev;
 
-# Enable and configure extensions
-RUN set -eux; \
+# Enable and configure extensions with cache mount
+RUN --mount=type=cache,target=/usr/src/php/ext \
+    set -eux; \
     # Install core extensions one by one to avoid issues
     docker-php-ext-configure gd \
         --with-freetype \
@@ -85,14 +91,23 @@ RUN set -eux; \
 
 WORKDIR /app
 
+# Stage 1: Dependencies
 # Copy composer files first for better caching
 COPY composer.json composer.lock ./
 
-# Install dependencies
-RUN composer install --no-interaction --no-scripts --no-autoloader --no-progress --prefer-dist
+# Install dependencies with cache mount for Composer
+RUN --mount=type=cache,target=/root/.composer/cache \
+    composer install --no-interaction --no-scripts --no-autoloader --no-progress --prefer-dist
 
-# Copy application code
-COPY . .
+# Stage 2: Source code
+# Copy only the necessary directories for testing
+COPY src/ src/
+COPY config/ config/
+COPY tests/ tests/
+COPY phpunit.xml ./
+
+# Copy any other essential files
+COPY .env.example .env.testing* ./
 
 # Generate optimized autoloader
 RUN composer dump-autoload --optimize
@@ -100,47 +115,50 @@ RUN composer dump-autoload --optimize
 # Ensure vendor directory is preserved when volume is mounted
 RUN mkdir -p /app-vendor && cp -r vendor /app-vendor/
 
-# Add a script to wait for services and run tests
-RUN echo '#!/bin/sh' > /wait-and-test.sh && \
-    echo 'set -e' >> /wait-and-test.sh && \
-    echo '' >> /wait-and-test.sh && \
-    echo '# Restore vendor directory if it was overridden by volume mount' >> /wait-and-test.sh && \
-    echo 'if [ ! -d "/app/vendor" ] || [ -z "$(ls -A /app/vendor)" ]; then' >> /wait-and-test.sh && \
-    echo '  echo "Restoring vendor directory..."' >> /wait-and-test.sh && \
-    echo '  cp -r /app-vendor/vendor /app/' >> /wait-and-test.sh && \
-    echo 'fi' >> /wait-and-test.sh && \
-    echo '' >> /wait-and-test.sh && \
-    echo '# Wait for OpenFGA to be ready' >> /wait-and-test.sh && \
-    echo 'echo "Waiting for OpenFGA to be ready..."' >> /wait-and-test.sh && \
-    echo 'TIMEOUT=60' >> /wait-and-test.sh && \
-    echo 'COUNTER=0' >> /wait-and-test.sh && \
-    echo 'until curl -f http://openfga:8080/healthz > /dev/null 2>&1; do' >> /wait-and-test.sh && \
-    echo '  if [ $COUNTER -ge $TIMEOUT ]; then' >> /wait-and-test.sh && \
-    echo '    echo "OpenFGA failed to start within $TIMEOUT seconds"' >> /wait-and-test.sh && \
-    echo '    exit 1' >> /wait-and-test.sh && \
-    echo '  fi' >> /wait-and-test.sh && \
-    echo '  echo "OpenFGA is unavailable - sleeping ($COUNTER/$TIMEOUT)"' >> /wait-and-test.sh && \
-    echo '  sleep 2' >> /wait-and-test.sh && \
-    echo '  COUNTER=$((COUNTER + 2))' >> /wait-and-test.sh && \
-    echo 'done' >> /wait-and-test.sh && \
-    echo '' >> /wait-and-test.sh && \
-    echo '# Wait for OTEL Collector to be ready' >> /wait-and-test.sh && \
-    echo 'echo "Waiting for OTEL Collector to be ready..."' >> /wait-and-test.sh && \
-    echo 'TIMEOUT=60' >> /wait-and-test.sh && \
-    echo 'COUNTER=0' >> /wait-and-test.sh && \
-    echo 'until curl -f http://otel-collector:13133/ > /dev/null 2>&1; do' >> /wait-and-test.sh && \
-    echo '  if [ $COUNTER -ge $TIMEOUT ]; then' >> /wait-and-test.sh && \
-    echo '    echo "OTEL Collector failed to start within $TIMEOUT seconds"' >> /wait-and-test.sh && \
-    echo '    echo "Proceeding with tests anyway..."' >> /wait-and-test.sh && \
-    echo '    break' >> /wait-and-test.sh && \
-    echo '  fi' >> /wait-and-test.sh && \
-    echo '  echo "OTEL Collector is unavailable - sleeping ($COUNTER/$TIMEOUT)"' >> /wait-and-test.sh && \
-    echo '  sleep 2' >> /wait-and-test.sh && \
-    echo '  COUNTER=$((COUNTER + 2))' >> /wait-and-test.sh && \
-    echo 'done' >> /wait-and-test.sh && \
-    echo '' >> /wait-and-test.sh && \
-    echo 'echo "All services are ready! Starting tests..."' >> /wait-and-test.sh && \
-    echo 'exec composer test:integration:run:ci' >> /wait-and-test.sh && \
-    chmod +x /wait-and-test.sh
+# Add a script to wait for services and run tests (using heredoc for cleaner syntax)
+COPY <<'EOF' /wait-and-test.sh
+#!/bin/sh
+set -e
+
+# Restore vendor directory if it was overridden by volume mount
+if [ ! -d "/app/vendor" ] || [ -z "$(ls -A /app/vendor)" ]; then
+  echo "Restoring vendor directory..."
+  cp -r /app-vendor/vendor /app/
+fi
+
+# Wait for OpenFGA to be ready
+echo "Waiting for OpenFGA to be ready..."
+TIMEOUT=60
+COUNTER=0
+until curl -f http://openfga:8080/healthz > /dev/null 2>&1; do
+  if [ $COUNTER -ge $TIMEOUT ]; then
+    echo "OpenFGA failed to start within $TIMEOUT seconds"
+    exit 1
+  fi
+  echo "OpenFGA is unavailable - sleeping ($COUNTER/$TIMEOUT)"
+  sleep 2
+  COUNTER=$((COUNTER + 2))
+done
+
+# Wait for OTEL Collector to be ready
+echo "Waiting for OTEL Collector to be ready..."
+TIMEOUT=60
+COUNTER=0
+until curl -f http://otel-collector:13133/ > /dev/null 2>&1; do
+  if [ $COUNTER -ge $TIMEOUT ]; then
+    echo "OTEL Collector failed to start within $TIMEOUT seconds"
+    echo "Proceeding with tests anyway..."
+    break
+  fi
+  echo "OTEL Collector is unavailable - sleeping ($COUNTER/$TIMEOUT)"
+  sleep 2
+  COUNTER=$((COUNTER + 2))
+done
+
+echo "All services are ready! Starting tests..."
+exec composer test:integration:run:ci
+EOF
+
+RUN chmod +x /wait-and-test.sh
 
 CMD ["/wait-and-test.sh"]

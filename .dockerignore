@@ -1,0 +1,69 @@
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+docs/
+README.md
+CHANGELOG.md
+LICENSE
+
+# Development files
+.env*
+.editorconfig
+.php-cs-fixer.cache
+.php-cs-fixer.dist.php
+.phpunit.cache/
+.phpunit.result.cache
+phpunit.xml.dist
+phpstan.neon
+psalm.xml
+rector.php
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+build/
+coverage/
+junit.xml
+*.log
+
+# Vendor directory (we'll install fresh in Docker)
+vendor/
+
+# Node modules (if any)
+node_modules/
+
+# Temporary files
+tmp/
+temp/
+cache/
+
+# Docker files themselves
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Tools
+tools/
+
+# Test artifacts (except the tests themselves)
+tests/**/*.cache
+tests/**/*.log
+tests/**/coverage/
