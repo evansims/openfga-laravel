@@ -52,6 +52,7 @@ This is the OpenFGA Laravel SDK - a Laravel package that provides complete integ
 - Comprehensive Rector rules for code modernization
 - PHPStan level 1 and Psalm level 1 for type safety
 - Pest for testing with Laravel plugin
+- For clarity, always use named parameters whenever possible (rather than positional parameters)
 
 ### Testing Approach
 
