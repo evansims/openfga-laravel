@@ -45,10 +45,6 @@ parameters:
         - 
             message: '#Offset \d+ on array\{.+\} in isset\(\) always exists and is not nullable#'
             path: src/Console/Commands/ModelValidateCommand.php
-        # Psalm requires instanceof checks that PHPStan considers redundant
-        - 
-            message: '#Instanceof between OpenFGA\\ClientInterface and OpenFGA\\ClientInterface will always evaluate to true#'
-            path: src/Testing/IntegrationTestCase.php
         # PHPDoc type annotations for Psalm compatibility
         - 
             message: '#PHPDoc tag @var with type .+ is not subtype of native type#'

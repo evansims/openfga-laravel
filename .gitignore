@@ -14,3 +14,4 @@ coverage/
 psalm.xml
 phpstan.neon
 PLAN.md
+composer.local.json

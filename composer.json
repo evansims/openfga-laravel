@@ -47,7 +47,8 @@
     "phpstan/phpstan": "^2",
     "phpstan/phpstan-strict-rules": "^2",
     "rector/rector": "^2",
-    "vimeo/psalm": "^6"
+    "vimeo/psalm": "^6",
+    "wikimedia/composer-merge-plugin": "^2"
   },
   "minimum-stability": "stable",
   "prefer-stable": true,
@@ -64,7 +65,8 @@
   "config": {
     "allow-plugins": {
       "ergebnis/composer-normalize": true,
-      "pestphp/pest-plugin": true
+      "pestphp/pest-plugin": true,
+      "wikimedia/composer-merge-plugin": true
     },
     "optimize-autoloader": true,
     "preferred-install": "dist",
@@ -72,6 +74,18 @@
     "sort-packages": true
   },
   "extra": {
+    "merge-plugin": {
+      "ignore-duplicates": false,
+      "include": [
+        "composer.local.json"
+      ],
+      "merge-dev": true,
+      "merge-extra": false,
+      "merge-extra-deep": false,
+      "merge-scripts": true,
+      "recurse": true,
+      "replace": true
+    },
     "laravel": {
       "aliases": {
         "OpenFga": "OpenFGA\\Laravel\\Facades\\OpenFga"
@@ -104,6 +118,34 @@
     "lint:psalm": "@php vendor/bin/psalm",
     "lint:rector": "@php vendor/bin/rector process src --dry-run",
     "lint:rector:fix": "@php vendor/bin/rector process src",
-    "test": "vendor/bin/pest"
+    "test": [
+      "@test:unit",
+      "@test:integration"
+    ],
+    "test:unit": [
+      "@php -d memory_limit=2G vendor/bin/pest --colors=always --testsuite unit --strict-global-state --fail-on-risky --fail-on-warning --coverage --strict-coverage --compact --coverage-cobertura coverage/cobertura.xml --log-junit junit.xml"
+    ],
+    "test:integration": "./tools/run-integration-tests.sh",
+    "test:integration:ci": "./tools/run-integration-tests-ci.sh",
+    "test:integration:clean": "./tools/integration-cleanup.sh",
+    "test:integration:clean:force": [
+      "./tools/integration-cleanup.sh",
+      "docker ps -a --filter label=com.openfga.test=integration -q | xargs -r docker rm -f",
+      "docker network prune -f --filter label=com.openfga.test"
+    ],
+    "test:integration:start": [
+      "docker compose -f docker-compose.integration.yml up -d openfga otel-collector"
+    ],
+    "test:integration:stop": [
+      "docker compose -f docker-compose.integration.yml stop"
+    ],
+    "test:integration:debug": "./tools/debug-integration-tests.sh",
+    "test:integration:shell": "docker compose -f docker-compose.integration.yml run --rm test sh",
+    "test:integration:run": [
+      "@php -d memory_limit=2G vendor/bin/pest --colors=always --testsuite integration --strict-global-state --fail-on-risky --fail-on-warning --coverage --strict-coverage --compact --coverage-cobertura coverage/cobertura.xml --log-junit junit.xml"
+    ],
+    "test:integration:run:ci": [
+      "@php -d memory_limit=2G vendor/bin/pest --colors=always --testsuite integration --fail-on-risky --fail-on-warning --coverage --coverage-cobertura coverage/cobertura.xml --log-junit junit.xml"
+    ]
   }
 }
