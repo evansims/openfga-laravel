@@ -334,6 +334,54 @@ final class TestableOpenFgaManager implements ManagerInterface
     {
         $this->shouldThrow = $exception;
     }
+
+    public function grant(
+        string | array $users,
+        string $relation,
+        string $object,
+        ?string $connection = null,
+    ): bool {
+        return true;
+    }
+
+    public function listRelations(
+        string $user,
+        string $object,
+        array $relations = [],
+        array $contextualTuples = [],
+        array $context = [],
+        ?string $connection = null,
+    ): array {
+        return [];
+    }
+
+    public function listUsers(
+        string $object,
+        string $relation,
+        array $userTypes = [],
+        array $contextualTuples = [],
+        array $context = [],
+        ?string $connection = null,
+    ): array {
+        return [];
+    }
+
+    public function revoke(
+        string | array $users,
+        string $relation,
+        string $object,
+        ?string $connection = null,
+    ): bool {
+        return true;
+    }
+
+    public function write(
+        ?\OpenFGA\Models\Collections\TupleKeysInterface $writes = null,
+        ?\OpenFGA\Models\Collections\TupleKeysInterface $deletes = null,
+        ?string $connection = null,
+    ): bool {
+        return true;
+    }
 }
 
 /**

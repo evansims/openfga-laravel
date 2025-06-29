@@ -174,12 +174,12 @@ final class PooledOpenFgaManager implements ManagerInterface
     /**
      * List objects that a user has a specific relation to.
      *
-     * @param string               $user
-     * @param string               $relation
-     * @param string               $type
-     * @param array<TupleKey>      $contextualTuples
-     * @param array<string, mixed> $context
-     * @param ?string              $connection
+     * @param string                                                                $user
+     * @param string                                                                $relation
+     * @param string                                                                $type
+     * @param array<array{user: string, relation: string, object: string}|TupleKey> $contextualTuples
+     * @param array<string, mixed>                                                  $context
+     * @param ?string                                                               $connection
      *
      * @throws BindingResolutionException|ClientThrowable|Exception|InvalidArgumentException
      *
@@ -211,46 +211,18 @@ final class PooledOpenFgaManager implements ManagerInterface
     /**
      * Write tuples to OpenFGA.
      *
-     * @param array<int, array{user: string, relation: string, object: string}> $writes
-     * @param array<int, array{user: string, relation: string, object: string}> $deletes
-     * @param ?string                                                           $connection
+     * @param TupleKeysInterface|null $writes
+     * @param TupleKeysInterface|null $deletes
+     * @param string|null             $connection
      *
      * @throws BindingResolutionException|ClientThrowable|Exception|InvalidArgumentException|ReflectionException
      */
-    public function write(array $writes = [], array $deletes = [], ?string $connection = null): bool
+    public function write(?TupleKeysInterface $writes = null, ?TupleKeysInterface $deletes = null, ?string $connection = null): bool
     {
         $poolEnabled = config('openfga.pool.enabled', false);
 
         if (! is_bool($poolEnabled) || ! $poolEnabled) {
-            // Convert arrays to TupleKeysInterface
-            $writeTuples = null;
-            $deleteTuples = null;
-
-            if ([] !== $writes) {
-                $writeTuples = new TupleKeys;
-
-                foreach ($writes as $write) {
-                    $writeTuples->add(new TupleKey(
-                        user: $write['user'],
-                        relation: $write['relation'],
-                        object: $write['object'],
-                    ));
-                }
-            }
-
-            if ([] !== $deletes) {
-                $deleteTuples = new TupleKeys;
-
-                foreach ($deletes as $delete) {
-                    $deleteTuples->add(new TupleKey(
-                        user: $delete['user'],
-                        relation: $delete['relation'],
-                        object: $delete['object'],
-                    ));
-                }
-            }
-
-            return $this->manager->write($writeTuples, $deleteTuples, $connection);
+            return $this->manager->write($writes, $deletes, $connection);
         }
 
         return $this->getPool()->execute(function (ClientInterface $client) use ($writes, $deletes): bool {
@@ -262,40 +234,11 @@ final class PooledOpenFgaManager implements ManagerInterface
             /** @var mixed $modelId */
             $modelId = config('openfga.connections.' . $connectionName . '.authorization_model_id');
 
-            // Convert arrays to TupleKeys for the client
-            $writeTuples = null;
-
-            if ([] !== $writes) {
-                $writeTuples = new TupleKeys;
-
-                foreach ($writes as $write) {
-                    $writeTuples->add(new TupleKey(
-                        user: $write['user'],
-                        relation: $write['relation'],
-                        object: $write['object'],
-                    ));
-                }
-            }
-
-            $deleteTuples = null;
-
-            if ([] !== $deletes) {
-                $deleteTuples = new TupleKeys;
-
-                foreach ($deletes as $delete) {
-                    $deleteTuples->add(new TupleKey(
-                        user: $delete['user'],
-                        relation: $delete['relation'],
-                        object: $delete['object'],
-                    ));
-                }
-            }
-
             $result = $client->writeTuples(
                 store: is_string($storeId) ? $storeId : '',
                 model: is_string($modelId) ? $modelId : '',
-                writes: $writeTuples,
-                deletes: $deleteTuples,
+                writes: $writes,
+                deletes: $deletes,
             );
 
             /** @var mixed $throwExceptions */
@@ -348,5 +291,85 @@ final class PooledOpenFgaManager implements ManagerInterface
         }
 
         return $this->pool;
+    }
+
+    /**
+     * Grant permission(s) to user(s).
+     *
+     * @param array<string>|string $users
+     * @param string               $relation
+     * @param string               $object
+     * @param string|null          $connection
+     */
+    public function grant(
+        string | array $users,
+        string $relation,
+        string $object,
+        ?string $connection = null,
+    ): bool {
+        return $this->manager->grant($users, $relation, $object, $connection);
+    }
+
+    /**
+     * List all relations a user has with an object.
+     *
+     * @param string                                                                $user
+     * @param string                                                                $object
+     * @param array<string>                                                         $relations
+     * @param array<array{user: string, relation: string, object: string}|TupleKey> $contextualTuples
+     * @param array<string, mixed>                                                  $context
+     * @param string|null                                                           $connection
+     *
+     * @return array<string, bool>
+     */
+    public function listRelations(
+        string $user,
+        string $object,
+        array $relations = [],
+        array $contextualTuples = [],
+        array $context = [],
+        ?string $connection = null,
+    ): array {
+        return $this->manager->listRelations($user, $object, $relations, $contextualTuples, $context, $connection);
+    }
+
+    /**
+     * List all users who have a specific relation with an object.
+     *
+     * @param string                                                                $object
+     * @param string                                                                $relation
+     * @param array<string>                                                         $userTypes
+     * @param array<array{user: string, relation: string, object: string}|TupleKey> $contextualTuples
+     * @param array<string, mixed>                                                  $context
+     * @param string|null                                                           $connection
+     *
+     * @return array<mixed>
+     */
+    public function listUsers(
+        string $object,
+        string $relation,
+        array $userTypes = [],
+        array $contextualTuples = [],
+        array $context = [],
+        ?string $connection = null,
+    ): array {
+        return $this->manager->listUsers($object, $relation, $userTypes, $contextualTuples, $context, $connection);
+    }
+
+    /**
+     * Revoke permission(s) from user(s).
+     *
+     * @param array<string>|string $users
+     * @param string               $relation
+     * @param string               $object
+     * @param string|null          $connection
+     */
+    public function revoke(
+        string | array $users,
+        string $relation,
+        string $object,
+        ?string $connection = null,
+    ): bool {
+        return $this->manager->revoke($users, $relation, $object, $connection);
     }
 }
