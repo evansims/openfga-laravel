@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Contracts;
 
-use OpenFGA\Models\Collections\{TupleKeysInterface};
-use OpenFGA\Models\{TupleKey};
+use OpenFGA\Models\Collections\TupleKeysInterface;
+use OpenFGA\Models\TupleKey;
 
 /**
  * Core interface defining OpenFGA manager operations.

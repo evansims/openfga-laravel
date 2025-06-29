@@ -9,8 +9,8 @@ use Illuminate\Contracts\Container\BindingResolutionException;
 use InvalidArgumentException;
 use OpenFGA\Exceptions\ClientThrowable;
 use OpenFGA\Laravel\Contracts\ManagerInterface;
-use OpenFGA\Models\Collections\{TupleKeys};
-use OpenFGA\Models\{TupleKey};
+use OpenFGA\Models\Collections\TupleKeys;
+use OpenFGA\Models\TupleKey;
 use ReflectionException;
 
 use function assert;
