@@ -30,6 +30,7 @@ final class BatchWriteFailed
      * @param string|null                                                  $connection The connection used
      * @param Throwable                                                    $exception  The exception that caused the failure
      * @param array<string, mixed>                                         $options    Additional options
+     * @param float                                                        $duration   Duration of the operation before failure
      */
     public function __construct(
         public readonly array $writes,
@@ -37,6 +38,7 @@ final class BatchWriteFailed
         public readonly ?string $connection,
         public readonly Throwable $exception,
         public readonly array $options = [],
+        public readonly float $duration = 0.0,
     ) {
     }
 

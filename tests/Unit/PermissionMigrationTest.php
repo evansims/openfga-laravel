@@ -8,6 +8,9 @@ use Illuminate\Container\Container;
 use Illuminate\Support\Facades\App;
 use OpenFGA\Laravel\Database\PermissionMigration;
 use OpenFGA\Laravel\OpenFgaManager;
+use OpenFGA\Laravel\Tests\TestCase;
+
+uses(TestCase::class);
 
 // Test implementation of PermissionMigration
 final class PermissionMigrationTest extends PermissionMigration
@@ -70,14 +73,17 @@ describe('PermissionMigration', function (): void {
             ],
         ];
 
-        $this->manager = new OpenFgaManager($this->container, $this->config);
+        $this->manager = new OpenFgaManager(
+            container: $this->container,
+            config: $this->config,
+        );
         $this->container->instance(OpenFgaManager::class, $this->manager);
 
         $this->migration = new PermissionMigrationTest($this->manager);
     });
 
     describe('Permission Definition', function (): void {
-        it('can define single permissions', function (): void {
+        it('defines single permissions', function (): void {
             $migration = new class($this->manager) extends PermissionMigration {
                 public array $testPermissions = [];
 
@@ -102,7 +108,7 @@ describe('PermissionMigration', function (): void {
             ]);
         });
 
-        it('can define multiple permissions', function (): void {
+        it('defines multiple permissions', function (): void {
             $migration = new class($this->manager) extends PermissionMigration {
                 public array $testPermissions = [];
 
@@ -125,7 +131,7 @@ describe('PermissionMigration', function (): void {
             expect($migration->testPermissions)->toHaveCount(2);
         });
 
-        it('can grant permissions to multiple users', function (): void {
+        it('grants permissions to multiple users', function (): void {
             $migration = new class($this->manager) extends PermissionMigration {
                 public array $testPermissions = [];
 
@@ -168,7 +174,7 @@ describe('PermissionMigration', function (): void {
             expect($this->migration->appliedRollback)->toBe($this->migration->appliedPermissions);
         });
 
-        it('can define custom rollback permissions', function (): void {
+        it('defines custom rollback permissions', function (): void {
             $migration = new class($this->manager) extends PermissionMigration {
                 public array $testRollback = [];
 
@@ -201,7 +207,7 @@ describe('PermissionMigration', function (): void {
     });
 
     describe('Connection Support', function (): void {
-        it('can use specific connections', function (): void {
+        it('uses specific connections', function (): void {
             $usedConnection = null;
 
             $migration = new class($this->manager) extends PermissionMigration {

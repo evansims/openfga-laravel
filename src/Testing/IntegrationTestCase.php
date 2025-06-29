@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Config;
 use InvalidArgumentException;
 use OpenFGA\ClientInterface;
 use OpenFGA\Exceptions\ClientThrowable;
+use OpenFGA\Laravel\Abstracts\AbstractOpenFgaManager;
 use OpenFGA\Laravel\{OpenFgaManager, OpenFgaServiceProvider};
 use Orchestra\Testbench\TestCase as BaseTestCase;
 use Override;
@@ -40,7 +41,7 @@ abstract class IntegrationTestCase extends BaseTestCase
 
     protected ClientInterface | null $openFgaClient = null;
 
-    protected ?OpenFgaManager $openFgaManager = null;
+    protected ?AbstractOpenFgaManager $openFgaManager = null;
 
     protected ?string $testModelId = null;
 
@@ -75,7 +76,7 @@ abstract class IntegrationTestCase extends BaseTestCase
                 throw new RuntimeException('Store ID or Model ID is not set');
             }
 
-            if (! $this->openFgaManager instanceof OpenFgaManager) {
+            if (! $this->openFgaManager instanceof AbstractOpenFgaManager) {
                 throw new RuntimeException('OpenFGA manager is not initialized');
             }
 
@@ -89,15 +90,18 @@ abstract class IntegrationTestCase extends BaseTestCase
             $allowed = $result;
 
             if (false === $allowed) {
-                $this->waitForConsistency(300);
+                // Use exponential backoff to reduce flakiness
+                $waitTime = min(100 + ($attempts * 50), 500); // 100ms, 150ms, 200ms, ... up to 500ms
+                $this->waitForConsistency($waitTime);
                 ++$attempts;
 
-                // Add debugging
+                // Add debugging for failed attempts
                 if (1 === $attempts || 5 === $attempts || 10 === $attempts || $attempts === $maxRetries) {
                     error_log(sprintf(
-                        'Permission check attempt %d/%d - User: %s, Relation: %s, Object: %s, Store: %s, Model: %s',
+                        'Permission check attempt %d/%d (waited %dms) - User: %s, Relation: %s, Object: %s, Store: %s, Model: %s',
                         $attempts,
                         $maxRetries,
+                        $waitTime,
                         $user,
                         $relation,
                         $object,
@@ -140,7 +144,7 @@ abstract class IntegrationTestCase extends BaseTestCase
                 throw new RuntimeException('Store ID or Model ID is not set');
             }
 
-            if (! $this->openFgaManager instanceof OpenFgaManager) {
+            if (! $this->openFgaManager instanceof AbstractOpenFgaManager) {
                 throw new RuntimeException('OpenFGA manager is not initialized');
             }
 
@@ -155,8 +159,25 @@ abstract class IntegrationTestCase extends BaseTestCase
             $denied = ! $allowed;
 
             if (! $denied) {
-                $this->waitForConsistency(300);
+                // Use exponential backoff to reduce flakiness
+                $waitTime = min(100 + ($attempts * 50), 500); // 100ms, 150ms, 200ms, ... up to 500ms
+                $this->waitForConsistency($waitTime);
                 ++$attempts;
+
+                // Add debugging for failed attempts
+                if (1 === $attempts || 5 === $attempts || 10 === $attempts || $attempts === $maxRetries) {
+                    error_log(sprintf(
+                        'Permission denial check attempt %d/%d (waited %dms) - User: %s, Relation: %s, Object: %s, Store: %s, Model: %s',
+                        $attempts,
+                        $maxRetries,
+                        $waitTime,
+                        $user,
+                        $relation,
+                        $object,
+                        $this->testStoreId ?? 'null',
+                        $this->testModelId ?? 'null',
+                    ));
+                }
             }
         }
 
@@ -331,9 +352,9 @@ abstract class IntegrationTestCase extends BaseTestCase
      *
      * @throws RuntimeException
      */
-    protected function getManager(): OpenFgaManager
+    protected function getManager(): AbstractOpenFgaManager
     {
-        if (! $this->openFgaManager instanceof OpenFgaManager) {
+        if (! $this->openFgaManager instanceof AbstractOpenFgaManager) {
             throw new RuntimeException('OpenFGA manager is not initialized');
         }
 
@@ -475,7 +496,7 @@ abstract class IntegrationTestCase extends BaseTestCase
      */
     protected function grantPermission(string $user, string $relation, string $object): void
     {
-        if (! $this->openFgaManager instanceof OpenFgaManager) {
+        if (! $this->openFgaManager instanceof AbstractOpenFgaManager) {
             throw new RuntimeException('OpenFGA manager is not initialized');
         }
 
@@ -511,7 +532,7 @@ abstract class IntegrationTestCase extends BaseTestCase
      */
     protected function grantPermissions(array $tuples): void
     {
-        if (! $this->openFgaManager instanceof OpenFgaManager) {
+        if (! $this->openFgaManager instanceof AbstractOpenFgaManager) {
             throw new RuntimeException('OpenFGA manager is not initialized');
         }
 
@@ -537,20 +558,68 @@ abstract class IntegrationTestCase extends BaseTestCase
         $envUrl = env('OPENFGA_TEST_URL', 'http://localhost:8080');
         $url = is_string($envUrl) ? $envUrl : 'http://localhost:8080';
 
-        try {
-            $context = stream_context_create([
-                'http' => [
-                    'timeout' => 2,
-                    'method' => 'GET',
-                ],
-            ]);
+        // In Docker environment, retry multiple times as services may still be starting
+        /** @var mixed $maxRetriesEnv */
+        $maxRetriesEnv = env('OPENFGA_AVAILABILITY_RETRIES', 10);
+        $maxRetries = is_numeric($maxRetriesEnv) ? (int) $maxRetriesEnv : 10;
 
-            $result = @file_get_contents($url . '/stores', false, $context);
+        /** @var mixed $retryDelayEnv */
+        $retryDelayEnv = env('OPENFGA_AVAILABILITY_DELAY', 3);
+        $retryDelay = is_numeric($retryDelayEnv) ? (int) $retryDelayEnv : 3;
 
-            return false !== $result;
-        } catch (Exception) {
-            return false;
+        for ($i = 0; $i < $maxRetries; ++$i) {
+            try {
+                // First check health endpoint
+                $healthContext = stream_context_create([
+                    'http' => [
+                        'timeout' => 2,
+                        'method' => 'GET',
+                    ],
+                ]);
+
+                $healthCheck = @file_get_contents($url . '/healthz', false, $healthContext);
+
+                if (false === $healthCheck) {
+                    error_log(sprintf('OpenFGA health check failed at: %s/healthz', $url));
+
+                    throw new Exception('Health check failed');
+                }
+
+                // Parse the health check response to check for SERVING status
+                $healthData = json_decode($healthCheck, true);
+
+                if (! is_array($healthData) || ! isset($healthData['status']) || 'SERVING' !== $healthData['status']) {
+                    error_log('OpenFGA health check not SERVING. Response: ' . $healthCheck);
+
+                    throw new Exception('Health check not SERVING');
+                }
+
+                // Then check stores endpoint
+                $context = stream_context_create([
+                    'http' => [
+                        'timeout' => 2,
+                        'method' => 'GET',
+                    ],
+                ]);
+
+                $result = @file_get_contents($url . '/stores', false, $context);
+
+                if (false !== $result) {
+                    return true;
+                }
+
+                error_log(sprintf('OpenFGA not ready at: %s/stores (attempt %d/%d)', $url, $i + 1, $maxRetries));
+            } catch (Exception) {
+                // Continue to next retry
+            }
+
+            // Sleep before next retry (except on last attempt)
+            if ($i < $maxRetries - 1) {
+                sleep($retryDelay);
+            }
         }
+
+        return false;
     }
 
     /**
@@ -657,7 +726,7 @@ abstract class IntegrationTestCase extends BaseTestCase
      */
     protected function revokePermission(string $user, string $relation, string $object): void
     {
-        if (! $this->openFgaManager instanceof OpenFgaManager) {
+        if (! $this->openFgaManager instanceof AbstractOpenFgaManager) {
             throw new RuntimeException('OpenFGA manager is not initialized');
         }
 
@@ -740,7 +809,7 @@ abstract class IntegrationTestCase extends BaseTestCase
         Config::set('openfga.connections.integration_test.model_id', $this->testModelId);
 
         // Reinitialize client with updated config
-        if (! $this->openFgaManager instanceof OpenFgaManager) {
+        if (! $this->openFgaManager instanceof AbstractOpenFgaManager) {
             throw new RuntimeException('OpenFGA manager is not initialized');
         }
 
@@ -788,6 +857,8 @@ abstract class IntegrationTestCase extends BaseTestCase
      */
     protected function waitForConsistency(int $milliseconds = 100): void
     {
-        usleep($milliseconds * 1000);
+        // Ensure minimum wait time to avoid timing issues
+        $minWait = max($milliseconds, 50);
+        usleep($minWait * 1000);
     }
 }

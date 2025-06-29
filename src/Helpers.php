@@ -2,14 +2,13 @@
 
 declare(strict_types=1);
 
-namespace OpenFGA\Laravel;
+// Global helper functions for OpenFGA Laravel
+// These are loaded via composer autoload-dev
 
-use Exception;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Container\BindingResolutionException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
-use InvalidArgumentException;
 use OpenFGA\Exceptions\ClientThrowable;
 use OpenFGA\Laravel\Contracts\{
     AuthorizationObject,
@@ -17,13 +16,8 @@ use OpenFGA\Laravel\Contracts\{
     AuthorizationUser,
     AuthorizationUserId
 };
-use OpenFGA\Laravel\Helpers\ModelKeyHelper;
+use OpenFGA\Laravel\OpenFgaManager;
 use OpenFGA\Laravel\Query\AuthorizationQuery;
-
-use function function_exists;
-use function gettype;
-use function is_object;
-use function is_string;
 
 if (! function_exists('openfga_can')) {
     /**
@@ -37,7 +31,7 @@ if (! function_exists('openfga_can')) {
      * @throws ClientThrowable
      * @throws Exception
      * @throws InvalidArgumentException
-     * @throws \Psr\SimpleCache\InvalidArgumentException
+     * @throws Psr\SimpleCache\InvalidArgumentException
      */
     function openfga_can(
         string $relation,
@@ -81,7 +75,7 @@ if (! function_exists('openfga_cannot')) {
      * @throws ClientThrowable
      * @throws Exception
      * @throws InvalidArgumentException
-     * @throws \Psr\SimpleCache\InvalidArgumentException
+     * @throws Psr\SimpleCache\InvalidArgumentException
      */
     function openfga_cannot(
         string $relation,
@@ -104,7 +98,7 @@ if (! function_exists('openfga_can_any')) {
      * @throws ClientThrowable
      * @throws Exception
      * @throws InvalidArgumentException
-     * @throws \Psr\SimpleCache\InvalidArgumentException
+     * @throws Psr\SimpleCache\InvalidArgumentException
      */
     function openfga_can_any(
         array $relations,
@@ -133,7 +127,7 @@ if (! function_exists('openfga_can_all')) {
      * @throws ClientThrowable
      * @throws Exception
      * @throws InvalidArgumentException
-     * @throws \Psr\SimpleCache\InvalidArgumentException
+     * @throws Psr\SimpleCache\InvalidArgumentException
      */
     function openfga_can_all(
         array $relations,
@@ -307,10 +301,14 @@ if (! function_exists('openfga_resolve_object')) {
             && method_exists($object, 'getKey')
         ) {
             /** @var AuthorizationType&Model&object $object */
-            $key = ModelKeyHelper::stringId($object);
+            $key = $object->getKey();
+
+            if (! is_int($key) && ! is_string($key)) {
+                throw new InvalidArgumentException('Model key must be int or string, got: ' . gettype($key));
+            }
             $type = $object->authorizationType();
 
-            return $type . ':' . $key;
+            return $type . ':' . (string) $key;
         }
 
         // Eloquent model fallback
@@ -322,10 +320,17 @@ if (! function_exists('openfga_resolve_object')) {
                 && method_exists($object, 'getKey')
             ) {
                 /** @var Model $object */
-                $key = ModelKeyHelper::stringId($object);
+                /** @var mixed $key */
+                $key = $object->getKey();
+
+                if (! is_int($key) && ! is_string($key)) {
+                    throw new InvalidArgumentException('Model key must be int or string, got: ' . gettype($key));
+                }
+
+                /** @var string $table */
                 $table = $object->getTable();
 
-                return $table . ':' . $key;
+                return $table . ':' . (string) $key;
             }
         }
 

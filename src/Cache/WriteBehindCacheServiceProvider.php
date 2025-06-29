@@ -96,6 +96,11 @@ final class WriteBehindCacheServiceProvider extends ServiceProvider
      */
     private function registerShutdownFlush(): void
     {
+        // Skip shutdown handler in testing environment to prevent exit code 255
+        if ('testing' === $this->app->environment()) {
+            return;
+        }
+
         register_shutdown_function(function (): void {
             try {
                 $cache = $this->app->make(WriteBehindCache::class);

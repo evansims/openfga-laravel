@@ -8,6 +8,9 @@ use InvalidArgumentException;
 use OpenFGA\Laravel\Contracts\ManagerInterface;
 use OpenFGA\Laravel\OpenFgaManager;
 use OpenFGA\Laravel\Query\AuthorizationQuery;
+use OpenFGA\Laravel\Tests\TestCase;
+
+uses(TestCase::class);
 
 describe('AuthorizationQuery', function (): void {
     beforeEach(function (): void {
@@ -35,7 +38,7 @@ describe('AuthorizationQuery', function (): void {
             ],
         ];
 
-        $this->manager = new OpenFgaManager($this->container, $this->config);
+        $this->manager = new OpenFgaManager(container: $this->container, config: $this->config);
     });
 
     describe('Query Building', function (): void {

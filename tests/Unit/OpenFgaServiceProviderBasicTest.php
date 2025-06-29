@@ -7,6 +7,9 @@ namespace OpenFGA\Laravel\Tests\Unit;
 use OpenFGA\{Client, ClientInterface};
 use OpenFGA\Laravel\Facades\OpenFga;
 use OpenFGA\Laravel\{OpenFgaManager, OpenFgaServiceProvider};
+use OpenFGA\Laravel\Tests\TestCase;
+
+uses(TestCase::class);
 
 describe('OpenFgaServiceProvider', function (): void {
     it('registers the OpenFGA client as a singleton', function (): void {

@@ -13,7 +13,7 @@ describe('Model Commands', function (): void {
 
         // Ensure directory exists
         if (! is_dir($this->modelsPath)) {
-            mkdir($this->modelsPath, 0o755, true);
+            mkdir(directory: $this->modelsPath, permissions: 0o755, recursive: true);
         }
     });
 
@@ -64,7 +64,7 @@ describe('Model Commands', function (): void {
 
     it('model create command with file', function (): void {
         // Create a temporary DSL file
-        $tempFile = tempnam(sys_get_temp_dir(), 'openfga_test');
+        $tempFile = tempnam(directory: sys_get_temp_dir(), prefix: 'openfga_test');
         file_put_contents($tempFile, "model\n  schema 1.1\n\ntype test_user");
 
         $this->artisan('openfga:model:create', [
@@ -77,7 +77,7 @@ describe('Model Commands', function (): void {
         $content = file_get_contents($this->modelsPath . '/file_model_model.fga');
         expect($content)->toContain('type test_user');
 
-        unlink($tempFile);
+        unlink(filename: $tempFile);
     });
 
     it('model create command with organization template', function (): void {
@@ -123,18 +123,18 @@ describe('Model Commands', function (): void {
                 define owner: [unknown_type]
             DSL;
 
-        $tempFile = tempnam(sys_get_temp_dir(), 'invalid_dsl');
+        $tempFile = tempnam(directory: sys_get_temp_dir(), prefix: 'invalid_dsl');
         file_put_contents($tempFile, $invalidDsl);
 
         $this->artisan('openfga:model:validate', ['--file' => $tempFile])
             ->assertFailed();
 
-        unlink($tempFile);
+        unlink(filename: $tempFile);
     });
 
     it('model validate command with json output', function (): void {
         $validDsl = "model\n  schema 1.1\n\ntype user";
-        $tempFile = tempnam(sys_get_temp_dir(), 'json_dsl');
+        $tempFile = tempnam(directory: sys_get_temp_dir(), prefix: 'json_dsl');
         file_put_contents($tempFile, $validDsl);
 
         $this->artisan('openfga:model:validate', [
@@ -144,7 +144,7 @@ describe('Model Commands', function (): void {
             ->expectsOutputToContain('"valid": true')
             ->assertSuccessful();
 
-        unlink($tempFile);
+        unlink(filename: $tempFile);
     });
 
     it('model validate command with nonexistent file', function (): void {
@@ -166,14 +166,14 @@ describe('Model Commands', function (): void {
                 define viewer: [user] or owner
             DSL;
 
-        $tempFile = tempnam(sys_get_temp_dir(), 'valid_dsl');
+        $tempFile = tempnam(directory: sys_get_temp_dir(), prefix: 'valid_dsl');
         file_put_contents($tempFile, $validDsl);
 
         $this->artisan('openfga:model:validate', ['--file' => $tempFile])
             ->expectsOutput('✅ Model validation passed!')
             ->assertSuccessful();
 
-        unlink($tempFile);
+        unlink(filename: $tempFile);
     });
 
     it('model validate command without file', function (): void {

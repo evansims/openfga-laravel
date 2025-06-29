@@ -124,17 +124,37 @@ fi
 
 # Wait for OpenFGA to be ready
 echo "Waiting for OpenFGA to be ready..."
-TIMEOUT=60
+TIMEOUT=120
 COUNTER=0
-until curl -f http://openfga:8080/healthz > /dev/null 2>&1; do
+while true; do
+  # Get the health check response
+  HEALTH_RESPONSE=$(curl -s http://openfga:8080/healthz 2>/dev/null || echo "")
+
+  # Check if the response contains SERVING status
+  if echo "$HEALTH_RESPONSE" | grep -q '"status":"SERVING"'; then
+    echo "OpenFGA is ready! Response: $HEALTH_RESPONSE"
+    break
+  fi
+
   if [ $COUNTER -ge $TIMEOUT ]; then
     echo "OpenFGA failed to start within $TIMEOUT seconds"
+    echo "Last health check response: $HEALTH_RESPONSE"
+    echo "Attempting to get more information..."
+    curl -v http://openfga:8080/healthz || true
     exit 1
   fi
-  echo "OpenFGA is unavailable - sleeping ($COUNTER/$TIMEOUT)"
+
+  echo "OpenFGA is not ready yet (attempt $COUNTER/$TIMEOUT) - Response: $HEALTH_RESPONSE"
   sleep 2
   COUNTER=$((COUNTER + 2))
 done
+
+# Verify stores endpoint is also accessible
+echo "Verifying OpenFGA stores endpoint..."
+if ! curl -f http://openfga:8080/stores > /dev/null 2>&1; then
+  echo "WARNING: OpenFGA stores endpoint not accessible"
+  curl -v http://openfga:8080/stores || true
+fi
 
 # Wait for OTEL Collector to be ready
 echo "Waiting for OTEL Collector to be ready..."
@@ -152,7 +172,7 @@ until curl -f http://otel-collector:13133/ > /dev/null 2>&1; do
 done
 
 echo "All services are ready! Starting tests..."
-exec composer test:integration:run:ci
+exec composer test:integration:run
 EOF
 
 RUN chmod +x /wait-and-test.sh

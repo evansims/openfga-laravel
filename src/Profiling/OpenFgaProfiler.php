@@ -72,7 +72,7 @@ final class OpenFgaProfiler
      */
     public function getSummary(): array
     {
-        $operations = $this->profiles->groupBy('operation');
+        $operations = $this->profiles->groupBy(static fn (ProfileEntry $entry): string => $entry->getOperation());
 
         $summary = [];
 

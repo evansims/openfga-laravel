@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Tests\Unit\Traits;
 
+use OpenFGA\Laravel\Tests\TestCase;
 use OpenFGA\Laravel\Traits\ManagerOperations;
 use OpenFGA\Models\TupleKey;
+
+uses(TestCase::class);
 
 describe('ManagerOperations Trait', function (): void {
     beforeEach(function (): void {
@@ -30,7 +33,11 @@ describe('ManagerOperations Trait', function (): void {
 
         it('handles existing TupleKey instances', function (): void {
             $tuples = [
-                new TupleKey('user:123', 'read', 'doc:456'),
+                new TupleKey(
+                    user: 'user:123',
+                    relation: 'read',
+                    object: 'doc:456',
+                ),
                 ['user' => 'user:789', 'relation' => 'write', 'object' => 'doc:111'],
             ];
 

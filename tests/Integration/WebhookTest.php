@@ -1,18 +1,26 @@
 <?php
 
 declare(strict_types=1);
-use OpenFGA\Laravel\Tests\Support\FeatureTestCase;
-
-uses(FeatureTestCase::class);
 
 use Illuminate\Http\Client\{Factory as Http, Response};
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Event;
-use Mockery;
 use OpenFGA\Laravel\Events\{PermissionChanged, PermissionGranted};
+use OpenFGA\Laravel\Tests\Support\{ConfigRestoration, FeatureTestCase};
 use OpenFGA\Laravel\Webhooks\{WebhookManager, WebhookServiceProvider};
 
+uses(FeatureTestCase::class);
+uses(ConfigRestoration::class);
+
 describe('Webhook', function (): void {
+    beforeEach(function (): void {
+        $this->setUpConfigRestoration();
+    });
+
+    afterEach(function (): void {
+        $this->tearDownConfigRestoration();
+    });
+
     it('webhook command list', function (): void {
         // Create webhook manager with HTTP mock for this test
         $httpMock = Mockery::mock(Http::class);
@@ -140,11 +148,11 @@ describe('Webhook', function (): void {
 
     it('webhook listener integration', function (): void {
         // Configure webhook in config
-        config(['openfga.webhooks.enabled' => true]);
-        config(['openfga.webhooks.endpoints.test' => [
+        $this->setConfigWithRestore('openfga.webhooks.enabled', true);
+        $this->setConfigWithRestore('openfga.webhooks.endpoints.test', [
             'url' => 'https://example.com/webhook',
             'events' => ['permission.granted'],
-        ]]);
+        ]);
 
         // Register the webhook service provider manually since config is set after app boot
         $this->app->register(WebhookServiceProvider::class);

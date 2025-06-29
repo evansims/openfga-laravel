@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\View;
 
-use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Support\Facades\Auth;
 use InvalidArgumentException;
-use OpenFGA\Laravel\OpenFgaManager;
+use OpenFGA\Laravel\Contracts\ManagerInterface;
 use OpenFGA\Laravel\Traits\ResolvesAuthorizationUser;
 
 /**
@@ -24,12 +23,17 @@ final readonly class JavaScriptHelper
     use ResolvesAuthorizationUser;
 
     /**
+     * Default JavaScript for empty/unauthenticated state.
+     */
+    private const string EMPTY_STATE_JS = 'window.OpenFGA = { permissions: {}, user: null };';
+
+    /**
      * Create a new JavaScript helper instance.
      *
-     * @param OpenFgaManager $manager
+     * @param ManagerInterface $manager
      */
     public function __construct(
-        private OpenFgaManager $manager,
+        private ManagerInterface $manager,
     ) {
     }
 
@@ -178,16 +182,16 @@ final readonly class JavaScriptHelper
     public function generatePermissionsScript(array $objects, array $relations, ?string $connection = null): string
     {
         if (! Auth::check()) {
-            return 'window.OpenFGA = { permissions: {}, user: null };';
+            return self::EMPTY_STATE_JS;
         }
 
         $user = Auth::user();
 
         if (null === $user) {
-            return 'window.OpenFGA = { permissions: {}, user: null };';
+            return self::EMPTY_STATE_JS;
         }
 
-        $userId = $this->resolveUserId($user);
+        $userId = $this->resolveUserIdentifier($user);
         $permissions = [];
 
         foreach ($objects as $object) {
@@ -214,19 +218,5 @@ final readonly class JavaScriptHelper
         }
 
         return 'window.OpenFGA = ' . $json . ';';
-    }
-
-    /**
-     * Resolve the user ID for OpenFGA.
-     *
-     * @param Authenticatable $user The authenticated user
-     *
-     * @throws InvalidArgumentException
-     *
-     * @return string The user identifier for OpenFGA
-     */
-    private function resolveUserId(Authenticatable $user): string
-    {
-        return $this->resolveUserIdentifier($user);
     }
 }

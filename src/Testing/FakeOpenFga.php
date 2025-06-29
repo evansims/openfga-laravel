@@ -245,7 +245,7 @@ final class FakeOpenFga
      * Batch check multiple permissions.
      *
      * @param  array<int, array{0: string, 1: string, 2: string}|array{user: string, relation: string, object: string}> $checks
-     * @return array<int, array{allowed: bool, user: string, relation: string, object: string}>
+     * @return array<string, bool>
      */
     public function batchCheck(array $checks): array
     {
@@ -256,12 +256,8 @@ final class FakeOpenFga
             $relation = $check['relation'] ?? $check[1] ?? '';
             $object = $check['object'] ?? $check[2] ?? '';
 
-            $results[] = [
-                'allowed' => $this->check($user, $relation, $object),
-                'user' => $user,
-                'relation' => $relation,
-                'object' => $object,
-            ];
+            $key = sprintf('%s:%s:%s', $user, $relation, $object);
+            $results[$key] = $this->check($user, $relation, $object);
         }
 
         return $results;

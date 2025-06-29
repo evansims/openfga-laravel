@@ -60,7 +60,10 @@
   "autoload-dev": {
     "psr-4": {
       "OpenFGA\\Laravel\\Tests\\": "tests/"
-    }
+    },
+    "files": [
+      "src/Helpers.php"
+    ]
   },
   "config": {
     "allow-plugins": {
@@ -74,6 +77,14 @@
     "sort-packages": true
   },
   "extra": {
+    "laravel": {
+      "aliases": {
+        "OpenFga": "OpenFGA\\Laravel\\Facades\\OpenFga"
+      },
+      "providers": [
+        "OpenFGA\\Laravel\\OpenFgaServiceProvider"
+      ]
+    },
     "merge-plugin": {
       "ignore-duplicates": false,
       "include": [
@@ -85,17 +96,16 @@
       "merge-scripts": true,
       "recurse": true,
       "replace": true
-    },
-    "laravel": {
-      "aliases": {
-        "OpenFga": "OpenFGA\\Laravel\\Facades\\OpenFga"
-      },
-      "providers": [
-        "OpenFGA\\Laravel\\OpenFgaServiceProvider"
-      ]
     }
   },
   "scripts": {
+    "docker:build": [
+      "docker build -f Dockerfile.integration -t evansims/openfga-laravel-integration-tests:latest ."
+    ],
+    "docker:push": [
+      "@composer docker:build",
+      "docker push evansims/openfga-laravel-integration-tests:latest"
+    ],
     "lint": [
       "@lint:phpstan",
       "@lint:psalm",
@@ -123,10 +133,10 @@
       "@test:unit",
       "@test:integration"
     ],
-    "test:unit": [
-      "@php -d memory_limit=2G vendor/bin/pest --colors=always --testsuite unit --strict-global-state --fail-on-risky --fail-on-warning --coverage --strict-coverage --compact --coverage-cobertura coverage/cobertura.xml --log-junit junit.xml"
-    ],
     "test:integration": "./tools/run-integration-tests.sh",
+    "test:integration:cached": [
+      "docker-compose -f docker-compose.integration.yml run --rm test"
+    ],
     "test:integration:ci": "./tools/run-integration-tests-ci.sh",
     "test:integration:clean": "./tools/integration-cleanup.sh",
     "test:integration:clean:force": [
@@ -134,29 +144,27 @@
       "docker ps -a --filter label=com.openfga.test=integration -q | xargs -r docker rm -f",
       "docker network prune -f --filter label=com.openfga.test"
     ],
+    "test:integration:debug": "./tools/debug-integration-tests.sh",
+    "test:integration:run": [
+      "@putenv XDEBUG_MODE=coverage",
+      "@php -d memory_limit=2G vendor/bin/pest --colors=always --testsuite integration --strict-global-state --fail-on-risky --fail-on-warning --coverage --strict-coverage --compact --coverage-cobertura coverage/cobertura.xml --log-junit junit.xml"
+    ],
+    "test:integration:shell": "docker compose -f docker-compose.integration.yml run --rm test sh",
     "test:integration:start": [
       "docker compose -f docker-compose.integration.yml up -d openfga otel-collector"
     ],
     "test:integration:stop": [
       "docker compose -f docker-compose.integration.yml stop"
     ],
-    "test:integration:debug": "./tools/debug-integration-tests.sh",
-    "test:integration:shell": "docker compose -f docker-compose.integration.yml run --rm test sh",
-    "test:integration:run": [
-      "@php -d memory_limit=2G vendor/bin/pest --colors=always --testsuite integration --strict-global-state --fail-on-risky --fail-on-warning --coverage --strict-coverage --compact --coverage-cobertura coverage/cobertura.xml --log-junit junit.xml"
+    "test:unit": [
+      "@php -d memory_limit=2G vendor/bin/pest --colors=always --testsuite unit --strict-global-state --fail-on-risky --fail-on-warning --compact"
     ],
-    "test:integration:run:ci": [
-      "@php -d memory_limit=2G vendor/bin/pest --colors=always --testsuite integration --fail-on-risky --fail-on-warning --coverage --coverage-cobertura coverage/cobertura.xml --log-junit junit.xml"
+    "test:unit:profile": [
+      "@php -d memory_limit=2G vendor/bin/pest --colors=always --testsuite unit --profile --strict-global-state --fail-on-risky --fail-on-warning --compact"
     ],
-    "test:integration:cached": [
-      "docker-compose -f docker-compose.integration.yml run --rm test"
-    ],
-    "docker:build": [
-      "docker build -f Dockerfile.integration -t evansims/openfga-laravel-integration-tests:latest ."
-    ],
-    "docker:push": [
-      "@composer docker:build",
-      "docker push evansims/openfga-laravel-integration-tests:latest"
+    "test:unit:coverage": [
+      "@putenv XDEBUG_MODE=coverage",
+      "@php -d memory_limit=2G vendor/bin/pest --colors=always --testsuite unit --strict-global-state --fail-on-risky --fail-on-warning --coverage --strict-coverage --compact --coverage-cobertura coverage/cobertura.xml --log-junit junit.xml"
     ]
   }
 }

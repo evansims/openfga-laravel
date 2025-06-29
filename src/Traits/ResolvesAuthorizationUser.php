@@ -33,6 +33,8 @@ trait ResolvesAuthorizationUser
             if (is_string($result) || is_numeric($result)) {
                 return (string) $result;
             }
+
+            throw new InvalidArgumentException('authorizationUser() must return a string or numeric value');
         }
 
         if (method_exists($user, 'getAuthorizationUserId')) {
@@ -42,6 +44,8 @@ trait ResolvesAuthorizationUser
             if (is_string($result) || is_numeric($result)) {
                 return (string) $result;
             }
+
+            throw new InvalidArgumentException('getAuthorizationUserId() must return a string or numeric value');
         }
 
         // Default to user:{id}
@@ -52,6 +56,6 @@ trait ResolvesAuthorizationUser
             return 'user:' . (string) $identifier;
         }
 
-        throw new InvalidArgumentException('User identifier must be string or numeric');
+        throw new InvalidArgumentException('User identifier must be scalar');
     }
 }

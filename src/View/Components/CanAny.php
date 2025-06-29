@@ -16,7 +16,6 @@ use OpenFGA\Exceptions\ClientThrowable;
 use OpenFGA\Laravel\Contracts\AuthorizationType;
 use OpenFGA\Laravel\Helpers\ModelKeyHelper;
 use OpenFGA\Laravel\OpenFgaManager;
-use OpenFGA\Results\SuccessInterface;
 use Override;
 
 use function gettype;
@@ -70,9 +69,7 @@ final class CanAny extends Component
         $objectId = $this->resolveObject($this->object);
 
         foreach ($this->relations as $relation) {
-            $result = $manager->check($userId, $relation, $objectId, [], [], $this->connection);
-
-            if ($result instanceof SuccessInterface) {
+            if ($manager->check($userId, $relation, $objectId, [], [], $this->connection)) {
                 return true;
             }
         }

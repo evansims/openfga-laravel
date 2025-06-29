@@ -6,10 +6,7 @@ namespace OpenFGA\Laravel\Helpers;
 
 use Illuminate\Database\Eloquent\Model;
 use InvalidArgumentException;
-
-use function gettype;
-use function is_int;
-use function is_string;
+use OpenFGA\Laravel\Support\TypeValidator;
 
 /**
  * Helper utility for handling Eloquent model keys with strict type checking.
@@ -29,12 +26,11 @@ final class ModelKeyHelper
      */
     public static function stringId(Model $model): string
     {
+        /** @var mixed $key */
         $key = $model->getKey();
 
-        if (! is_int($key) && ! is_string($key)) {
-            throw new InvalidArgumentException('Model key must be int or string, got: ' . gettype($key));
-        }
+        $validatedKey = TypeValidator::ensureIntOrString($key, 'model key');
 
-        return (string) $key;
+        return (string) $validatedKey;
     }
 }

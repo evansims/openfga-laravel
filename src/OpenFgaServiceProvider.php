@@ -14,6 +14,7 @@ use Illuminate\Support\ServiceProvider;
 use InvalidArgumentException;
 use LogicException;
 use OpenFGA\{Client, ClientInterface};
+use OpenFGA\Laravel\Contracts\ManagerInterface;
 use OpenFGA\Laravel\Profiling\OpenFgaProfiler;
 use OpenFGA\Laravel\View\{JavaScriptHelper, MenuBuilder};
 use Override;
@@ -89,7 +90,7 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
         $this->registerDebugbarIntegration();
         $this->registerWebhooks();
         $this->registerProfiling();
-        $this->loadHelpers();
+        // Helper functions are autoloaded via composer.json
         $this->validateConfiguration();
     }
 
@@ -152,15 +153,7 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
         }
     }
 
-    /**
-     * Load helper functions.
-     */
-    private function loadHelpers(): void
-    {
-        if (file_exists(__DIR__ . '/Helpers.php')) {
-            require_once __DIR__ . '/Helpers.php';
-        }
-    }
+    // loadHelpers method removed - helpers are autoloaded via composer.json
 
     /**
      * Register OpenFGA authorization integration.
@@ -255,6 +248,7 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
         });
 
         $this->app->alias(OpenFgaManager::class, 'openfga.manager');
+        $this->app->bind(ManagerInterface::class, OpenFgaManager::class);
     }
 
     /**

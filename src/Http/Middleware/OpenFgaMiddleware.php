@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Auth;
 use InvalidArgumentException;
 use LogicException;
 use OpenFGA\Exceptions\ClientThrowable;
-use OpenFGA\Laravel\OpenFgaManager;
+use OpenFGA\Laravel\Contracts\ManagerInterface;
 use OpenFGA\Laravel\Traits\{ResolvesAuthorizationObject, ResolvesAuthorizationUser};
 use Symfony\Component\HttpFoundation\Response;
 
@@ -38,10 +38,10 @@ final class OpenFgaMiddleware
     /**
      * Create a new middleware instance.
      *
-     * @param OpenFgaManager $manager
+     * @param ManagerInterface $manager
      */
     public function __construct(
-        private OpenFgaManager $manager,
+        private ManagerInterface $manager,
     ) {
     }
 

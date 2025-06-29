@@ -3,6 +3,9 @@
 declare(strict_types=1);
 
 use OpenFGA\Laravel\Exceptions\ConnectionPoolException;
+use OpenFGA\Laravel\Tests\TestCase;
+
+uses(TestCase::class);
 
 describe('ConnectionPoolException', function (): void {
     it('extends RuntimeException', function (): void {
@@ -59,7 +62,7 @@ describe('ConnectionPoolException', function (): void {
     });
 
     it('can be constructed directly', function (): void {
-        $exception = new ConnectionPoolException('Custom error message', 500);
+        $exception = new ConnectionPoolException(message: 'Custom error message', code: 500);
 
         expect($exception->getMessage())->toBe('Custom error message');
         expect($exception->getCode())->toBe(500);
@@ -67,7 +70,11 @@ describe('ConnectionPoolException', function (): void {
 
     it('can be constructed with previous exception', function (): void {
         $previous = new RuntimeException('Previous error');
-        $exception = new ConnectionPoolException('Current error', 0, $previous);
+        $exception = new ConnectionPoolException(
+            message: 'Current error',
+            code: 0,
+            previous: $previous,
+        );
 
         expect($exception->getMessage())->toBe('Current error');
         expect($exception->getPrevious())->toBe($previous);

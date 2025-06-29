@@ -7,7 +7,10 @@ namespace OpenFGA\Laravel\Tests\Unit\Traits;
 use Illuminate\Database\Eloquent\Model;
 use InvalidArgumentException;
 use OpenFGA\Laravel\Tests\Support\{TestDocument, TestUser};
+use OpenFGA\Laravel\Tests\TestCase;
 use ReflectionClass;
+
+uses(TestCase::class);
 
 describe('HasAuthorization Trait Simple Tests', function (): void {
     beforeEach(function (): void {

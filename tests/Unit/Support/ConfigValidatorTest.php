@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace OpenFGA\Laravel\Tests\Unit\Support;
 
 use OpenFGA\Laravel\Support\ConfigValidator;
+use OpenFGA\Laravel\Tests\TestCase;
+
+uses(TestCase::class);
 
 describe('ConfigValidator', function (): void {
     beforeEach(function (): void {

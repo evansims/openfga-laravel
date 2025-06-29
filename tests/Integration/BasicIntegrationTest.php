@@ -1,12 +1,24 @@
 <?php
 
 declare(strict_types=1);
+
 use OpenFGA\Laravel\Testing\IntegrationTestCase;
 
 uses(IntegrationTestCase::class);
 
 describe('Basic Integration', function (): void {
     beforeEach(function (): void {
+        // Check if we're running in Docker environment
+        $isDocker = file_exists('/.dockerenv') || (is_string(env('OPENFGA_TEST_URL')) && str_contains(env('OPENFGA_TEST_URL'), 'openfga:'));
+
+        if (! $this->isOpenFgaAvailable()) {
+            if ($isDocker) {
+                // In Docker, OpenFGA should always be available
+                throw new RuntimeException('OpenFGA server is not available in Docker environment. URL: ' . env('OPENFGA_TEST_URL'));
+            }
+            $this->markTestSkipped('OpenFGA server is not available');
+        }
+
         $this->setUpIntegrationTest();
     });
 
@@ -17,7 +29,7 @@ describe('Basic Integration', function (): void {
     /*
      * Basic integration test to verify Docker setup works.
      */
-    it('can connect to openfga', function (): void {
+    it('connects to OpenFGA', function (): void {
         // Get the manager
         $manager = $this->getManager();
 

@@ -6,6 +6,9 @@ namespace OpenFGA\Laravel\Tests\Unit;
 
 use InvalidArgumentException;
 use OpenFGA\Laravel\OpenFgaServiceProvider;
+use OpenFGA\Laravel\Tests\TestCase;
+
+uses(TestCase::class);
 
 describe('Configuration Validation', function (): void {
     it('validates default connection exists', function (): void {

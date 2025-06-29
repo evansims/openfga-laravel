@@ -12,7 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use InvalidArgumentException;
 use LogicException;
-use OpenFGA\Laravel\OpenFgaManager;
+use OpenFGA\Laravel\Contracts\ManagerInterface;
 use OpenFGA\Laravel\Traits\{ResolvesAuthorizationObject, ResolvesAuthorizationUser};
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\{HttpException, NotFoundHttpException};
@@ -33,7 +33,7 @@ final readonly class RequiresAnyPermission
     use ResolvesAuthorizationUser;
 
     public function __construct(
-        private OpenFgaManager $manager,
+        private ManagerInterface $manager,
     ) {
     }
 

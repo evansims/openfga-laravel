@@ -35,10 +35,8 @@ final class ClearCacheCommand extends Command
 
     /**
      * Execute the console command.
-     *
-     * @param CacheWarmer $warmer
      */
-    public function handle(CacheWarmer $warmer): int
+    public function handle(): int
     {
         if (true !== config('openfga.cache.enabled')) {
             $this->error('Cache is not enabled. Enable it in config/openfga.php');
@@ -73,6 +71,8 @@ final class ClearCacheCommand extends Command
         }
 
         $this->info('Clearing OpenFGA cache...');
+
+        $warmer = app(CacheWarmer::class);
 
         $cleared = $warmer->invalidate($user, $relation, $object);
 

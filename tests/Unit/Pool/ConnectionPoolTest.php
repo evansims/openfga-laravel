@@ -5,6 +5,9 @@ declare(strict_types=1);
 use OpenFGA\ClientInterface;
 use OpenFGA\Laravel\Exceptions\ConnectionPoolException;
 use OpenFGA\Laravel\Pool\{ConnectionPool, PooledConnection};
+use OpenFGA\Laravel\Tests\TestCase;
+
+uses(TestCase::class);
 
 describe('ConnectionPool', function (): void {
     beforeEach(function (): void {
@@ -77,7 +80,7 @@ describe('ConnectionPool', function (): void {
         $config = array_merge($this->config, [
             'max_connections' => 2,
             'min_connections' => 2,
-            'connection_timeout' => 0, // Very short timeout
+            'connection_timeout' => 1, // Very short timeout (1 second) - more reliable than 0
         ]);
 
         $pool = new ConnectionPool($config);
@@ -85,6 +88,11 @@ describe('ConnectionPool', function (): void {
         // Acquire all connections
         $conn1 = $pool->acquire();
         $conn2 = $pool->acquire();
+
+        // Verify pool is at capacity
+        $stats = $pool->getStats();
+        expect($stats['in_use'])->toBe(2);
+        expect($stats['available'])->toBe(0);
 
         // Try to acquire another connection - should timeout
         expect(fn () => $pool->acquire())

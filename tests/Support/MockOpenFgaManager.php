@@ -130,7 +130,7 @@ final class MockOpenFgaManager
 
     public function shouldReceive(string $method): MockExpectation
     {
-        $expectation = new MockExpectation($method, $this);
+        $expectation = new MockExpectation(method: $method, mock: $this);
         $this->expectations[] = $expectation;
 
         return $expectation;
@@ -197,7 +197,7 @@ final class MockExpectation
         }
 
         // Simple argument matching - just check the important args
-        $importantArgs = array_slice($args, 0, count($this->withArgs));
+        $importantArgs = array_slice(array: $args, offset: 0, length: count($this->withArgs));
 
         return $importantArgs === $this->withArgs;
     }

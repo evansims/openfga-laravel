@@ -6,6 +6,9 @@ use Illuminate\Support\Facades\{Event};
 use OpenFGA\Laravel\Cache\CacheWarmer;
 use OpenFGA\Laravel\Contracts\ManagerInterface;
 use OpenFGA\Laravel\Events\CacheWarmed;
+use OpenFGA\Laravel\Tests\TestCase;
+
+uses(TestCase::class);
 
 describe('CacheWarmer', function (): void {
     beforeEach(function (): void {
@@ -109,7 +112,7 @@ describe('CacheWarmer', function (): void {
             ->shouldReceive('listObjects')
             ->times(2)
             ->andReturnUsing(function ($user, $relation, $type) {
-                if ('user:123' === $user && in_array($relation, ['viewer', 'editor'], true) && 'document' === $type) {
+                if ('user:123' === $user && in_array(needle: $relation, haystack: ['viewer', 'editor'], strict: true) && 'document' === $type) {
                     return ['document:1', 'document:2'];
                 }
 

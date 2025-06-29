@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 use OpenFGA\Laravel\Testing\{AssertionHelper, FakeOpenFga};
+use OpenFGA\Laravel\Tests\TestCase;
 use PHPUnit\Framework\AssertionFailedError;
+
+uses(TestCase::class);
 
 describe('AssertionHelper', function (): void {
     beforeEach(function (): void {

@@ -13,6 +13,7 @@ use OpenFGA\Laravel\Events\{BatchWriteCompleted, BatchWriteFailed, PermissionChe
 use function in_array;
 use function is_array;
 use function is_bool;
+use function is_string;
 
 /**
  * Listener to audit permission changes and operations.
@@ -156,8 +157,10 @@ final class AuditPermissionChanges implements ShouldQueue
      */
     private function getLogChannel(): string
     {
-        /** @var string */
-        return config('openfga.logging.channel', config('logging.default', 'stack'));
+        /** @var mixed $channel */
+        $channel = config('openfga.logging.channel') ?? config('logging.default') ?? 'stack';
+
+        return is_string($channel) ? $channel : 'stack';
     }
 
     /**

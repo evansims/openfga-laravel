@@ -6,6 +6,7 @@ namespace OpenFGA\Laravel\Console\Commands;
 
 use Exception;
 use Illuminate\Console\Command;
+use Illuminate\Contracts\Container\BindingResolutionException;
 use InvalidArgumentException;
 use OpenFGA\Exceptions\ClientThrowable;
 use OpenFGA\Laravel\OpenFgaManager;
@@ -49,14 +50,19 @@ final class CheckCommand extends Command
     /**
      * Execute the console command.
      *
-     * @param OpenFgaManager $manager
-     *
      * @throws \Psr\SimpleCache\InvalidArgumentException
      * @throws ClientThrowable
      * @throws InvalidArgumentException
      */
-    public function handle(OpenFgaManager $manager): int
+    public function handle(): int
     {
+        try {
+            $manager = app(OpenFgaManager::class);
+        } catch (BindingResolutionException) {
+            $this->error('OpenFGA manager not available');
+
+            return Command::FAILURE;
+        }
         $userArg = $this->argument('user');
         $relationArg = $this->argument('relation');
         $objectArg = $this->argument('object');

@@ -40,12 +40,14 @@ final class User extends Model
  */
 final class UserFactory
 {
+    private static int $counter = 0;
+
     private array $attributes = [];
 
     public function create(array $attributes = []): User
     {
         $user = new User;
-        $user->id = $attributes['id'] ?? random_int(1, 10000);
+        $user->id = $attributes['id'] ?? $this->generateId();
         $user->name = $attributes['name'] ?? 'Test User';
         $user->email = $attributes['email'] ?? "test{$user->id}@example.com";
 
@@ -58,10 +60,17 @@ final class UserFactory
     public function make(array $attributes = []): User
     {
         $user = new User;
-        $user->id = $attributes['id'] ?? random_int(1, 10000);
+        $user->id = $attributes['id'] ?? $this->generateId();
         $user->name = $attributes['name'] ?? 'Test User';
         $user->email = $attributes['email'] ?? "test{$user->id}@example.com";
 
         return $user;
+    }
+
+    private function generateId(): int
+    {
+        self::$counter++;
+
+        return getmypid() * 10000 + self::$counter;
     }
 }

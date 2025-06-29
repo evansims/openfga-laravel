@@ -39,10 +39,8 @@ final class ExportCommand extends Command
 
     /**
      * Execute the console command.
-     *
-     * @param PermissionExporter $exporter
      */
-    public function handle(PermissionExporter $exporter): int
+    public function handle(): int
     {
         /** @var string $file */
         $file = $this->argument('file');
@@ -94,6 +92,8 @@ final class ExportCommand extends Command
             }
             $exportOptions['include_metadata'] = $options['include_metadata'];
             $exportOptions['pretty_print'] = $options['pretty_print'];
+
+            $exporter = app(PermissionExporter::class);
 
             $count = $exporter->exportToFile($file, $filters, $exportOptions);
 

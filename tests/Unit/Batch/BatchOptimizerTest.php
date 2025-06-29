@@ -30,7 +30,7 @@ describe('BatchOptimizer', function (): void {
             'chunk_size' => 100,
         ];
 
-        $optimizer = new BatchOptimizer($config);
+        $optimizer = new BatchOptimizer(config: $config);
 
         // Configuration should be applied (tested through behavior)
         expect($optimizer)->toBeInstanceOf(BatchOptimizer::class);
@@ -68,7 +68,7 @@ describe('BatchOptimizer', function (): void {
 
     it('chunks operations correctly', function (): void {
         $operations = array_fill(0, 10, ['user' => 'user:1', 'relation' => 'viewer', 'object' => 'document:1']);
-        $optimizer = new BatchOptimizer(['chunk_size' => 3]);
+        $optimizer = new BatchOptimizer(config: ['chunk_size' => 3]);
 
         $chunks = $optimizer->chunkOperations($operations);
 
@@ -81,7 +81,7 @@ describe('BatchOptimizer', function (): void {
 
     it('returns single chunk when chunk size is zero', function (): void {
         $operations = array_fill(0, 10, ['user' => 'user:1', 'relation' => 'viewer', 'object' => 'document:1']);
-        $optimizer = new BatchOptimizer(['chunk_size' => 0]);
+        $optimizer = new BatchOptimizer(config: ['chunk_size' => 0]);
 
         $chunks = $optimizer->chunkOperations($operations);
 
@@ -136,8 +136,8 @@ describe('BatchOptimizer', function (): void {
         expect($result)->toHaveCount(3);
 
         // Find document operations (should come first)
-        $documentOps = array_filter($result, fn ($op) => str_starts_with($op['object'], 'document:'));
-        $folderOps = array_filter($result, fn ($op) => str_starts_with($op['object'], 'folder:'));
+        $documentOps = array_filter(array: $result, callback: fn ($op) => str_starts_with(haystack: $op['object'], needle: 'document:'));
+        $folderOps = array_filter(array: $result, callback: fn ($op) => str_starts_with(haystack: $op['object'], needle: 'folder:'));
 
         expect($documentOps)->toHaveCount(2);
         expect($folderOps)->toHaveCount(1);
@@ -149,7 +149,7 @@ describe('BatchOptimizer', function (): void {
             ['user' => 'user:1', 'relation' => 'viewer', 'object' => 'document:1'], // duplicate
         ];
 
-        $optimizer = new BatchOptimizer(['remove_duplicates' => false]);
+        $optimizer = new BatchOptimizer(config: ['remove_duplicates' => false]);
         $result = $optimizer->optimizeWrites($operations);
 
         // Even with remove_duplicates disabled, other optimization steps may still remove duplicates
@@ -240,7 +240,7 @@ describe('BatchOptimizer', function (): void {
             ['user' => 'user:1', 'relation' => 'editor', 'object' => 'document:1'], // conflict - same user/object
         ];
 
-        $optimizer = new BatchOptimizer(['resolve_conflicts' => true]);
+        $optimizer = new BatchOptimizer(config: ['resolve_conflicts' => true]);
         $result = $optimizer->optimizeWrites($operations);
         $stats = $optimizer->getStats();
 

@@ -4,13 +4,16 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Tests\Unit;
 
+use Illuminate\Config\Repository;
 use Illuminate\Container\Container;
-use Illuminate\Support\Facades\App;
+use Illuminate\Support\Facades\{App};
 use InvalidArgumentException;
-use Mockery;
 use OpenFGA\Laravel\OpenFgaManager;
 use OpenFGA\Laravel\Tests\Support\{TestDocument, TestUser};
+use OpenFGA\Laravel\Tests\TestCase;
 use ReflectionClass;
+
+uses(TestCase::class);
 
 describe('HasAuthorization Trait', function (): void {
     beforeEach(function (): void {
@@ -18,18 +21,18 @@ describe('HasAuthorization Trait', function (): void {
         Container::setInstance($this->container);
         App::setFacadeApplication($this->container);
 
-        // Mock config using Mockery
-        $configMock = Mockery::mock('config');
-        $configMock->shouldReceive('get')
-            ->with('openfga.cleanup_on_delete', Mockery::any())
-            ->andReturn(true);
-        $configMock->shouldReceive('get')
-            ->with('openfga.replicate_permissions', Mockery::any())
-            ->andReturn(false);
-        $configMock->shouldReceive('get')
-            ->andReturnUsing(fn ($key, $default = null) => $default);
+        // Register the 'app' binding that facades expect
+        $this->container->instance('app', $this->container);
 
-        $this->container->instance('config', $configMock);
+        // Set up config repository properly
+        $config = new Repository([
+            'openfga' => [
+                'cleanup_on_delete' => true,
+                'replicate_permissions' => false,
+            ],
+        ]);
+
+        $this->container->instance('config', $config);
 
         $this->config = [
             'default' => 'main',
@@ -45,7 +48,7 @@ describe('HasAuthorization Trait', function (): void {
             ],
         ];
 
-        $this->manager = new OpenFgaManager($this->container, $this->config);
+        $this->manager = new OpenFgaManager(container: $this->container, config: $this->config);
         $this->container->instance(OpenFgaManager::class, $this->manager);
 
         $this->document = new TestDocument(['id' => 123]);
@@ -98,52 +101,6 @@ describe('HasAuthorization Trait', function (): void {
 
             expect(fn () => $method->invoke($this->document, []))
                 ->toThrow(InvalidArgumentException::class, 'User must be a Model, string, or integer');
-        });
-    });
-
-    describe('Permission Operations', function (): void {
-        it('grants permission to a user', function (): void {
-            // This would need mocking to test properly
-            expect($this->document)->toBeInstanceOf(TestDocument::class);
-        });
-
-        it('revokes permission from a user', function (): void {
-            // This would need mocking to test properly
-            expect($this->document)->toBeInstanceOf(TestDocument::class);
-        });
-
-        it('checks permission for a user', function (): void {
-            // This would need mocking to test properly
-            expect($this->document)->toBeInstanceOf(TestDocument::class);
-        });
-
-        it('checks permission for current user', function (): void {
-            // This would need mocking to test properly
-            expect($this->document)->toBeInstanceOf(TestDocument::class);
-        });
-    });
-
-    describe('Batch Operations', function (): void {
-        it('grants multiple permissions to multiple users', function (): void {
-            // This would need mocking to test properly
-            expect($this->document)->toBeInstanceOf(TestDocument::class);
-        });
-
-        it('revokes multiple permissions from multiple users', function (): void {
-            // This would need mocking to test properly
-            expect($this->document)->toBeInstanceOf(TestDocument::class);
-        });
-    });
-
-    describe('Query Operations', function (): void {
-        it('gets users with a specific relation', function (): void {
-            // This would need mocking to test properly
-            expect($this->document)->toBeInstanceOf(TestDocument::class);
-        });
-
-        it('gets all relations for a user', function (): void {
-            // This would need mocking to test properly
-            expect($this->document)->toBeInstanceOf(TestDocument::class);
         });
     });
 

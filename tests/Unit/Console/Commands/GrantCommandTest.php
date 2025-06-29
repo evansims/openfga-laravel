@@ -3,6 +3,9 @@
 declare(strict_types=1);
 
 use OpenFGA\Laravel\Console\Commands\GrantCommand;
+use OpenFGA\Laravel\Tests\TestCase;
+
+uses(TestCase::class);
 
 describe('GrantCommand', function (): void {
     it('can be instantiated', function (): void {

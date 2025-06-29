@@ -37,10 +37,8 @@ final class ImportCommand extends Command
 
     /**
      * Execute the console command.
-     *
-     * @param PermissionImporter $importer
      */
-    public function handle(PermissionImporter $importer): int
+    public function handle(): int
     {
         /** @var string $file */
         $file = $this->argument('file');
@@ -81,6 +79,8 @@ final class ImportCommand extends Command
         $this->info(sprintf('Importing permissions from: %s', $file));
 
         try {
+            $importer = app(PermissionImporter::class);
+
             $stats = $importer->importFromFile($file, $options);
 
             $this->displayResults($stats);

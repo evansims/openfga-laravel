@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace OpenFGA\Laravel\Tests\Authorization;
+namespace OpenFGA\Laravel\Tests\Unit\Authorization;
 
 use Illuminate\Contracts\Auth\Access\Gate;
 use Illuminate\Contracts\Auth\Authenticatable;
@@ -10,7 +10,11 @@ use Illuminate\Contracts\Container\Container;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use OpenFGA\Laravel\Authorization\OpenFgaGate;
-use OpenFGA\Laravel\Contracts\{AuthorizableUser, AuthorizationObject, AuthorizationType, ManagerInterface, OpenFgaGateInterface};
+use OpenFGA\Laravel\Contracts\{AuthorizationObject, AuthorizationType, OpenFgaGateInterface};
+use OpenFGA\Laravel\Tests\Support\{MockScenarios, TestAssertions, TestConstants, TestFactories};
+use OpenFGA\Laravel\Tests\TestCase;
+
+uses(TestCase::class);
 
 use function expect;
 
@@ -26,61 +30,15 @@ enum OpenFgaGateTest
 describe('OpenFgaGate', function (): void {
     beforeEach(function (): void {
         $this->container = $this->createMock(Container::class);
-        $this->manager = $this->createMock(ManagerInterface::class);
+        $this->manager = TestFactories::createMockManager();
+        $this->user = TestFactories::createTestUser(authId: TestConstants::DEFAULT_USER_ID);
         $this->userResolver = fn (): ?Authenticatable => $this->user;
 
         $this->gate = new OpenFgaGate(
-            $this->manager,
-            $this->container,
-            $this->userResolver,
+            manager: $this->manager,
+            container: $this->container,
+            userResolver: $this->userResolver,
         );
-
-        // Create test user
-        $this->user = new class implements Authenticatable, AuthorizableUser {
-            public function authorizationUser(): string
-            {
-                return 'user:123';
-            }
-
-            public function getAuthIdentifier(): mixed
-            {
-                return 123;
-            }
-
-            public function getAuthIdentifierName(): string
-            {
-                return 'id';
-            }
-
-            public function getAuthorizationUserId(): string
-            {
-                return 'user:123';
-            }
-
-            public function getAuthPassword(): ?string
-            {
-                return null;
-            }
-
-            public function getAuthPasswordName(): string
-            {
-                return 'password';
-            }
-
-            public function getRememberToken(): ?string
-            {
-                return null;
-            }
-
-            public function getRememberTokenName(): ?string
-            {
-                return null;
-            }
-
-            public function setRememberToken($value): void
-            {
-            }
-        };
     });
 
     describe('Interface Implementation', function (): void {
@@ -126,109 +84,98 @@ describe('OpenFgaGate', function (): void {
     });
 
     describe('check() method - OpenFGA integration', function (): void {
-        it('detects OpenFGA permission check with object:id format', function (): void {
+        it('should return true when user has read permission on document using object:id format', function (): void {
+            // Arrange: Set up manager to expect permission check and return success
             $this->manager
-                ->expects($this->once())
-                ->method('check')
-                ->with('user:123', 'read', 'document:456')
-                ->willReturn(true);
+                ->shouldReceive('check')
+                ->once()
+                ->with(TestConstants::DEFAULT_USER_ID, 'read', TestConstants::DEFAULT_DOCUMENT_ID)
+                ->andReturn(true);
 
-            $result = $this->gate->check('read', 'document:456');
-            expect($result)->toBeTrue();
+            // Act: Check permission using object:id string format
+            $result = $this->gate->check('read', TestConstants::DEFAULT_DOCUMENT_ID);
+
+            // Assert: Permission check should succeed
+            TestAssertions::assertUserCanAccess(
+                $result,
+                TestConstants::DEFAULT_USER_ID,
+                'read',
+                TestConstants::DEFAULT_DOCUMENT_ID,
+            );
         });
 
-        it('detects OpenFGA permission check with model instance', function (): void {
-            $model = new class extends Model implements AuthorizationObject {
-                public $id = 456;
+        it('should return true when user has read permission on document using model instance', function (): void {
+            // Arrange: Create a test document model with authorization capabilities
+            $document = TestFactories::createTestDocument(
+                objectId: TestConstants::DEFAULT_DOCUMENT_ID,
+                identifier: 456,
+            );
 
-                protected $primaryKey = 'id';
+            // Verify the model has proper authorization capabilities
+            TestAssertions::assertModelHasAuthorizationCapabilities(
+                $document,
+                TestConstants::DEFAULT_DOCUMENT_ID,
+            );
 
-                protected $table = 'documents';
-
-                public function authorizationObject(): string
-                {
-                    return 'document:456';
-                }
-
-                public function getKey(): mixed
-                {
-                    return $this->id;
-                }
-            };
-
+            // Set up manager to expect permission check for this specific document
             $this->manager
-                ->expects($this->once())
-                ->method('check')
-                ->with('user:123', 'read', 'document:456')
-                ->willReturn(true);
+                ->shouldReceive('check')
+                ->once()
+                ->with(TestConstants::DEFAULT_USER_ID, 'read', TestConstants::DEFAULT_DOCUMENT_ID)
+                ->andReturn(true);
 
-            $result = $this->gate->check('read', $model);
-            expect($result)->toBeTrue();
+            // Act: Check permission using model instance
+            $result = $this->gate->check('read', $document);
+
+            // Assert: Permission check should succeed for model-based check
+            TestAssertions::assertUserCanAccess(
+                $result,
+                TestConstants::DEFAULT_USER_ID,
+                'read',
+                TestConstants::DEFAULT_DOCUMENT_ID,
+            );
         });
 
-        it('detects OpenFGA permission check with array containing object', function (): void {
-            $this->manager
-                ->expects($this->once())
-                ->method('check')
-                ->with('user:123', 'write', 'document:789')
-                ->willReturn(false);
+        it('should return false when user lacks write permission on document using array format', function (): void {
+            // Arrange: Set up manager to deny write permission for this document
+            $this->manager = MockScenarios::managerExpectingCalls([
+                'check' => [
+                    'times' => 1,
+                    'with' => [TestConstants::DEFAULT_USER_ID, 'write', 'document:789'],
+                    'andReturn' => false,
+                ],
+            ]);
 
+            // Recreate gate with new manager mock that denies permission
+            $this->gate = new OpenFgaGate(
+                manager: $this->manager,
+                container: $this->container,
+                userResolver: $this->userResolver,
+            );
+
+            // Act: Check permission using array format (first element should be extracted)
             $result = $this->gate->check('write', ['document:789', 'extra-param']);
-            expect($result)->toBeFalse();
+
+            // Assert: Permission check should fail for unauthorized write access
+            TestAssertions::assertUserCannotAccess(
+                $result,
+                TestConstants::DEFAULT_USER_ID,
+                'write',
+                'document:789',
+            );
         });
 
         it('handles custom user parameter', function (): void {
-            $customUser = new class implements Authenticatable, AuthorizableUser {
-                public function authorizationUser(): string
-                {
-                    return 'user:999';
-                }
-
-                public function getAuthIdentifier(): mixed
-                {
-                    return 999;
-                }
-
-                public function getAuthIdentifierName(): string
-                {
-                    return 'id';
-                }
-
-                public function getAuthorizationUserId(): string
-                {
-                    return 'user:999';
-                }
-
-                public function getAuthPassword(): ?string
-                {
-                    return null;
-                }
-
-                public function getAuthPasswordName(): string
-                {
-                    return 'password';
-                }
-
-                public function getRememberToken(): ?string
-                {
-                    return null;
-                }
-
-                public function getRememberTokenName(): ?string
-                {
-                    return null;
-                }
-
-                public function setRememberToken($value): void
-                {
-                }
-            };
+            $customUser = TestFactories::createTestUser(
+                authId: TestConstants::ALTERNATIVE_USER_ID,
+                identifier: 999,
+            );
 
             $this->manager
-                ->expects($this->once())
-                ->method('check')
+                ->shouldReceive('check')
+                ->once()
                 ->with('user:999', 'admin', 'system:1')
-                ->willReturn(true);
+                ->andReturn(true);
 
             $result = $this->gate->check('admin', 'system:1', $customUser);
             expect($result)->toBeTrue();
@@ -266,16 +213,7 @@ describe('OpenFgaGate', function (): void {
         });
 
         it('returns true for basic models since they can be used with OpenFGA', function (): void {
-            $model = new class extends Model {
-                public $id = 123;
-
-                protected $table = 'basic_models';
-
-                public function getKey(): mixed
-                {
-                    return $this->id;
-                }
-            };
+            $model = TestFactories::createTestDocument(identifier: 123);
 
             expect($this->gate->isOpenFgaPermission($model))->toBeTrue();
         });
@@ -285,9 +223,9 @@ describe('OpenFgaGate', function (): void {
         it('resolves different argument types correctly', function (): void {
             // Test string format
             $this->manager
-                ->expects($this->exactly(2))
-                ->method('check')
-                ->willReturnCallback(function ($user, $ability, $object) {
+                ->shouldReceive('check')
+                ->twice()
+                ->andReturnUsing(function ($user, $ability, $object) {
                     if ('user:123' === $user && 'read' === $ability && 'document:123' === $object) {
                         return true;
                     }
@@ -321,10 +259,10 @@ describe('OpenFgaGate', function (): void {
             };
 
             $this->manager
-                ->expects($this->once())
-                ->method('check')
+                ->shouldReceive('check')
+                ->once()
                 ->with('user:123', 'delete', 'custom_document:789')
-                ->willReturn(true);
+                ->andReturn(true);
 
             $result = $this->gate->checkOpenFgaPermission('delete', $model);
             expect($result)->toBeTrue();
@@ -343,10 +281,10 @@ describe('OpenFgaGate', function (): void {
             };
 
             $this->manager
-                ->expects($this->once())
-                ->method('check')
+                ->shouldReceive('check')
+                ->once()
                 ->with('user:123', 'view', 'posts:999')
-                ->willReturn(false);
+                ->andReturn(false);
 
             $result = $this->gate->checkOpenFgaPermission('view', $model);
             expect($result)->toBeFalse();
@@ -359,7 +297,11 @@ describe('OpenFgaGate', function (): void {
 
         it('returns false when user is null', function (): void {
             $this->userResolver = fn (): ?Authenticatable => null;
-            $gate = new OpenFgaGate($this->manager, $this->container, $this->userResolver);
+            $gate = new OpenFgaGate(
+                manager: $this->manager,
+                container: $this->container,
+                userResolver: $this->userResolver,
+            );
 
             $result = $gate->checkOpenFgaPermission('read', 'document:123');
             expect($result)->toBeFalse();
@@ -383,10 +325,10 @@ describe('OpenFgaGate', function (): void {
             ];
 
             $this->manager
-                ->expects($this->once())
-                ->method('check')
+                ->shouldReceive('check')
+                ->once()
                 ->with('user:123', 'access', 'model:123')
-                ->willReturn(true);
+                ->andReturn(true);
 
             $result = $this->gate->checkOpenFgaPermission('access', $arguments);
             expect($result)->toBeTrue();
@@ -435,10 +377,10 @@ describe('OpenFgaGate', function (): void {
             };
 
             $this->manager
-                ->expects($this->once())
-                ->method('check')
+                ->shouldReceive('check')
+                ->once()
                 ->with('custom:user:id', 'read', 'document:123')
-                ->willReturn(true);
+                ->andReturn(true);
 
             $result = $this->gate->checkOpenFgaPermission('read', 'document:123', $userWithMethod);
             expect($result)->toBeTrue();
@@ -482,10 +424,10 @@ describe('OpenFgaGate', function (): void {
             };
 
             $this->manager
-                ->expects($this->once())
-                ->method('check')
+                ->shouldReceive('check')
+                ->once()
                 ->with('user:basic-user', 'read', 'document:123')
-                ->willReturn(true);
+                ->andReturn(true);
 
             $result = $this->gate->checkOpenFgaPermission('read', 'document:123', $basicUser);
             expect($result)->toBeTrue();
@@ -517,10 +459,10 @@ describe('OpenFgaGate', function (): void {
             $arguments = ['document:correct', $model]; // Put string first to ensure it's found first
 
             $this->manager
-                ->expects($this->once())
-                ->method('check')
+                ->shouldReceive('check')
+                ->once()
                 ->with('user:123', 'read', 'document:correct')
-                ->willReturn(true);
+                ->andReturn(true);
 
             $result = $this->gate->checkOpenFgaPermission('read', $arguments);
             expect($result)->toBeTrue();
@@ -530,10 +472,10 @@ describe('OpenFgaGate', function (): void {
     describe('Integration with Laravel Gate methods', function (): void {
         it('allows() method works with OpenFGA permissions', function (): void {
             $this->manager
-                ->expects($this->once())
-                ->method('check')
+                ->shouldReceive('check')
+                ->once()
                 ->with('user:123', 'read', 'document:123')
-                ->willReturn(true);
+                ->andReturn(true);
 
             $result = $this->gate->allows('read', 'document:123');
             expect($result)->toBeTrue();
@@ -541,10 +483,10 @@ describe('OpenFgaGate', function (): void {
 
         it('denies() method works with OpenFGA permissions', function (): void {
             $this->manager
-                ->expects($this->once())
-                ->method('check')
+                ->shouldReceive('check')
+                ->once()
                 ->with('user:123', 'write', 'document:123')
-                ->willReturn(false);
+                ->andReturn(false);
 
             $result = $this->gate->denies('write', 'document:123');
             expect($result)->toBeTrue();

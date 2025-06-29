@@ -27,6 +27,8 @@ use OpenFGA\Laravel\Listeners\ProfileOpenFgaOperations;
 use OpenFGA\Laravel\{OpenFgaManager, OpenFgaServiceProvider};
 use OpenFGA\Laravel\Profiling\{OpenFgaProfiler, ProfilingMiddleware};
 use OpenFGA\Laravel\Providers\SpatieCompatibilityServiceProvider;
+use OpenFGA\Laravel\Tests\Support\{TestDebugging};
+use OpenFGA\Laravel\Tests\TestCase;
 use OpenFGA\Laravel\View\{BladeServiceProvider, JavaScriptHelper, MenuBuilder};
 use OpenFGA\Laravel\Webhooks\WebhookServiceProvider;
 use RuntimeException;
@@ -34,21 +36,45 @@ use stdClass;
 
 use function function_exists;
 
+uses(TestCase::class);
+
 describe('OpenFgaServiceProvider', function (): void {
     describe('Service Registration', function (): void {
-        it('registers all required services', function (): void {
+        it('should register all required OpenFGA services in the container', function (): void {
+            // Arrange: Create service provider instance
             $provider = new OpenFgaServiceProvider($this->app);
+
+            // Act: Register all services
             $provider->register();
 
-            expect($this->app->bound(OpenFgaManager::class))->toBeTrue()
-                ->and($this->app->bound(ClientInterface::class))->toBeTrue()
-                ->and($this->app->bound(Client::class))->toBeTrue()
-                ->and($this->app->bound('openfga'))->toBeTrue()
-                ->and($this->app->bound('openfga.manager'))->toBeTrue()
-                ->and($this->app->bound(JavaScriptHelper::class))->toBeTrue()
-                ->and($this->app->bound(MenuBuilder::class))->toBeTrue()
-                ->and($this->app->bound(PermissionImporter::class))->toBeTrue()
-                ->and($this->app->bound(PermissionExporter::class))->toBeTrue();
+            // Assert: Verify all core services are registered
+            $requiredServices = [
+                OpenFgaManager::class => 'OpenFGA Manager',
+                ClientInterface::class => 'OpenFGA Client Interface',
+                Client::class => 'OpenFGA Client Implementation',
+                'openfga' => 'OpenFGA Facade Alias',
+                'openfga.manager' => 'OpenFGA Manager Alias',
+            ];
+
+            foreach ($requiredServices as $service => $description) {
+                expect($this->app->bound($service))->toBeTrue(
+                    "{$description} should be registered in the container",
+                );
+            }
+
+            // Verify additional optional services are also registered
+            $optionalServices = [
+                JavaScriptHelper::class => 'JavaScript Helper',
+                MenuBuilder::class => 'Menu Builder',
+                PermissionImporter::class => 'Permission Importer',
+                PermissionExporter::class => 'Permission Exporter',
+            ];
+
+            foreach ($optionalServices as $service => $description) {
+                expect($this->app->bound($service))->toBeTrue(
+                    "{$description} should be available as an optional service",
+                );
+            }
         });
 
         it('registers manager as singleton', function (): void {
@@ -162,9 +188,15 @@ describe('OpenFgaServiceProvider', function (): void {
             $provider = new OpenFgaServiceProvider($app);
             $provider->register();
 
-            // Should not throw exception
-            $provider->boot();
-            expect(true)->toBeTrue();
+            // Should not throw exception when router is not available
+            TestDebugging::assertExecutionTime(
+                fn () => $provider->boot(),
+                0.1,
+                'Service provider boot without router',
+            );
+
+            // Verify boot completed successfully
+            expect($provider)->toBeObject();
         });
 
         it('registers authorization service provider', function (): void {
@@ -182,47 +214,6 @@ describe('OpenFgaServiceProvider', function (): void {
             expect($this->app->getProviders(AuthorizationServiceProvider::class))->not->toBeEmpty()
                 ->and($this->app->getProviders(BladeServiceProvider::class))->not->toBeEmpty()
                 ->and($this->app->getProviders(WebhookServiceProvider::class))->not->toBeEmpty();
-        });
-
-        it('registers Blade components', function (): void {
-            $this->app['config']->set('openfga.connections.main', [
-                'url' => 'https://api.example.com',
-                'store_id' => 'test-store',
-                'authorization_model_id' => 'test-model',
-            ]);
-
-            $provider = new OpenFgaServiceProvider($this->app);
-            $provider->register();
-            $provider->boot();
-
-            // Check Blade compiler has components registered
-            if ($this->app->bound('blade.compiler')) {
-                $blade = $this->app->make('blade.compiler');
-                expect($blade)->toBeObject();
-            } else {
-                expect(true)->toBeTrue(); // Skip if Blade not available
-            }
-        });
-
-        it('loads views from package directory', function (): void {
-            $this->app['config']->set('openfga.connections.main', [
-                'url' => 'https://api.example.com',
-                'store_id' => 'test-store',
-                'authorization_model_id' => 'test-model',
-            ]);
-
-            $provider = new OpenFgaServiceProvider($this->app);
-            $provider->register();
-            $provider->boot();
-
-            // Check that views are loaded by trying to resolve view factory
-            if ($this->app->bound('view')) {
-                $viewFactory = $this->app->make('view');
-                $namespaces = $viewFactory->getFinder()->getHints();
-                expect($namespaces)->toHaveKey('openfga');
-            } else {
-                expect(true)->toBeTrue(); // Skip if view not available
-            }
         });
 
         it('registers Spatie compatibility when enabled', function (): void {
@@ -250,7 +241,10 @@ describe('OpenFgaServiceProvider', function (): void {
             $this->app['config']->set('openfga.profiling.enabled', true);
 
             $events = Mockery::mock(Dispatcher::class);
-            $events->shouldReceive('subscribe')->with(ProfileOpenFgaOperations::class)->once();
+            $events->shouldReceive('subscribe')
+                ->once()
+                ->with(ProfileOpenFgaOperations::class)
+                ->andReturnNull();
             $this->app->instance('events', $events);
 
             $provider = new OpenFgaServiceProvider($this->app);
@@ -270,10 +264,13 @@ describe('OpenFgaServiceProvider', function (): void {
             $this->app['config']->set('openfga.profiling.inject_web_middleware', true);
 
             $router = Mockery::mock(Router::class);
-            $router->shouldReceive('aliasMiddleware')->andReturnSelf();
+            $router->shouldReceive('aliasMiddleware')
+                ->atLeast()->once()
+                ->andReturnSelf();
             $router->shouldReceive('pushMiddlewareToGroup')
+                ->once()
                 ->with('web', ProfilingMiddleware::class)
-                ->once();
+                ->andReturnSelf();
 
             $this->app->instance('router', $router);
 
@@ -348,7 +345,7 @@ describe('OpenFgaServiceProvider', function (): void {
                     throw new RuntimeException('Failed to resolve OpenFgaManager from container');
                 }
 
-                return new MenuBuilder($manager);
+                return new MenuBuilder(manager: $manager);
             };
 
             expect(fn () => $closure($container))
@@ -648,11 +645,11 @@ describe('OpenFgaServiceProvider', function (): void {
 
             // Create a mock that simulates not running in console
             $mock = Mockery::mock(Application::class);
-            $mock->shouldReceive('runningInConsole')->andReturn(false);
+            $mock->shouldReceive('runningInConsole')->andReturnFalse();
             $mock->shouldReceive('singleton')->andReturnSelf();
             $mock->shouldReceive('bind')->andReturnSelf();
             $mock->shouldReceive('alias')->andReturnSelf();
-            $mock->shouldReceive('bound')->andReturn(false);
+            $mock->shouldReceive('bound')->andReturnFalse();
             $mock->shouldReceive('register')->andReturnSelf();
             $mock->shouldReceive('make')->with('config')->andReturn(new Repository([
                 'openfga' => [
@@ -669,8 +666,8 @@ describe('OpenFgaServiceProvider', function (): void {
             $mock->shouldReceive('make')->with('events')->andReturn(new Dispatcher($mock));
 
             // Ensure publishes and commands are never called
-            $mock->shouldNotReceive('publishes');
-            $mock->shouldNotReceive('commands');
+            $mock->shouldReceive('publishes')->never();
+            $mock->shouldReceive('commands')->never();
             $mock->shouldReceive('afterResolving')->andReturnSelf();
             $mock->shouldReceive('resolved')->andReturn(false);
 

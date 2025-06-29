@@ -7,7 +7,10 @@ namespace OpenFGA\Laravel\Tests\Unit\Facades;
 use Illuminate\Support\Facades\Facade;
 use OpenFGA\Laravel\Facades\OpenFga;
 use OpenFGA\Laravel\OpenFgaManager;
+use OpenFGA\Laravel\Tests\TestCase;
 use ReflectionClass;
+
+uses(TestCase::class);
 
 describe('OpenFga Facade', function (): void {
     beforeEach(function (): void {

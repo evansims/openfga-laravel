@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 use Illuminate\Database\Eloquent\Model;
 use OpenFGA\Laravel\Helpers\ModelKeyHelper;
+use OpenFGA\Laravel\Tests\TestCase;
+
+uses(TestCase::class);
 
 describe('ModelKeyHelper', function (): void {
     it('converts integer model key to string', function (): void {

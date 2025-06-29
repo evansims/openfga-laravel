@@ -8,7 +8,7 @@ use Exception;
 use Illuminate\Contracts\Container\BindingResolutionException;
 use InvalidArgumentException;
 use OpenFGA\Exceptions\ClientThrowable;
-use OpenFGA\Laravel\OpenFgaManager;
+use OpenFGA\Laravel\Contracts\ManagerInterface;
 use OpenFGA\Models\Collections\TupleKeys;
 use OpenFGA\Models\TupleKey;
 use ReflectionException;
@@ -43,7 +43,7 @@ final class PermissionImporter
         'errors' => 0,
     ];
 
-    public function __construct(private readonly OpenFgaManager $manager)
+    public function __construct(private readonly ManagerInterface $manager)
     {
     }
 
@@ -358,7 +358,7 @@ final class PermissionImporter
     /**
      * Process a batch of permissions.
      *
-     * @param array<int, array{user: string, relation: string, object: string}> $batch
+     * @param array<int, mixed> $batch
      *
      * @throws BindingResolutionException|ClientThrowable|Exception|InvalidArgumentException|ReflectionException
      */
@@ -371,6 +371,13 @@ final class PermissionImporter
             ++$this->stats['processed'];
 
             try {
+                // Skip non-array items
+                if (! is_array($permission)) {
+                    ++$this->stats['skipped'];
+
+                    continue;
+                }
+
                 // Validate permission
                 if (! $this->validatePermission($permission)) {
                     ++$this->stats['skipped'];
@@ -378,11 +385,23 @@ final class PermissionImporter
                     continue;
                 }
 
+                // Ensure values are strings - validation guarantees they exist and are valid
+                $user = isset($permission['user']) && is_string($permission['user']) ? $permission['user'] : '';
+                $relation = isset($permission['relation']) && is_string($permission['relation']) ? $permission['relation'] : '';
+                $object = isset($permission['object']) && is_string($permission['object']) ? $permission['object'] : '';
+
+                // Skip if any value is empty (should not happen after validation)
+                if ('' === $user || '' === $relation || '' === $object) {
+                    ++$this->stats['skipped'];
+
+                    continue;
+                }
+
                 // Build TupleKey
                 $tuples[] = new TupleKey(
-                    user: $permission['user'],
-                    relation: $permission['relation'],
-                    object: $permission['object'],
+                    user: $user,
+                    relation: $relation,
+                    object: $object,
                 );
 
                 ++$this->stats['imported'];
@@ -428,8 +447,8 @@ final class PermissionImporter
             return;
         }
 
-        // Check if it's a direct array of permissions
-        if (isset($data[0]) && is_array($data[0])) {
+        // Check if it's a direct array of permissions (can be empty)
+        if ([] === $data || (isset($data[0]) && is_array($data[0]))) {
             return;
         }
 
@@ -439,7 +458,7 @@ final class PermissionImporter
     /**
      * Validate permission data.
      *
-     * @param array<string, mixed> $permission
+     * @param array<mixed, mixed> $permission
      */
     private function validatePermission(array $permission): bool
     {

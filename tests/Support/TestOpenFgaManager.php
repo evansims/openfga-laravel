@@ -58,7 +58,7 @@ final class TestOpenFgaManager extends OpenFgaManager
             }
         }
 
-        throw new AssertionFailedError("Expected check('{$user}', '{$relation}', '{$object}') to be called");
+        throw new AssertionFailedError(message: "Expected check('{$user}', '{$relation}', '{$object}') to be called");
     }
 
     public function assertGrantCalled(string $user, string $relation, string $object): void
@@ -69,7 +69,7 @@ final class TestOpenFgaManager extends OpenFgaManager
             }
         }
 
-        throw new AssertionFailedError("Expected grant('{$user}', '{$relation}', '{$object}') to be called");
+        throw new AssertionFailedError(message: "Expected grant('{$user}', '{$relation}', '{$object}') to be called");
     }
 
     public function assertRevokeCalled(string $user, string $relation, string $object): void
@@ -80,7 +80,7 @@ final class TestOpenFgaManager extends OpenFgaManager
             }
         }
 
-        throw new AssertionFailedError("Expected revoke('{$user}', '{$relation}', '{$object}') to be called");
+        throw new AssertionFailedError(message: "Expected revoke('{$user}', '{$relation}', '{$object}') to be called");
     }
 
     public function check(

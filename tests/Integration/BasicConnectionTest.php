@@ -8,6 +8,17 @@ uses(IntegrationTestCase::class);
 
 describe('Basic Connection', function (): void {
     beforeEach(function (): void {
+        // Check if we're running in Docker environment
+        $isDocker = file_exists('/.dockerenv') || (is_string(env('OPENFGA_TEST_URL')) && str_contains(env('OPENFGA_TEST_URL'), 'openfga:'));
+
+        if (! $this->isOpenFgaAvailable()) {
+            if ($isDocker) {
+                // In Docker, OpenFGA should always be available
+                throw new RuntimeException('OpenFGA server is not available in Docker environment. URL: ' . env('OPENFGA_TEST_URL'));
+            }
+            $this->markTestSkipped('OpenFGA server is not available');
+        }
+
         $this->setUpIntegrationTest();
     });
 
@@ -15,7 +26,7 @@ describe('Basic Connection', function (): void {
         $this->tearDownIntegrationTest();
     });
 
-    it('can create store and model', function (): void {
+    it('creates store and model', function (): void {
         // Verify store and model are created
         expect($this->testStoreId)->not->toBeNull();
         expect($this->testModelId)->not->toBeNull();

@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 use Illuminate\Contracts\Auth\Authenticatable;
 use OpenFGA\Laravel\DTOs\PermissionCheckRequest;
+use OpenFGA\Laravel\Tests\TestCase;
+
+uses(TestCase::class);
 
 describe('PermissionCheckRequest', function (): void {
     it('can be constructed with required parameters', function (): void {

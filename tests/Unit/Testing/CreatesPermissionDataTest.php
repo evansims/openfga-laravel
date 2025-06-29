@@ -3,6 +3,9 @@
 declare(strict_types=1);
 
 use OpenFGA\Laravel\Testing\{CreatesPermissionData, FakeOpenFga};
+use OpenFGA\Laravel\Tests\TestCase;
+
+uses(TestCase::class);
 
 describe('CreatesPermissionData', function (): void {
     $createInstance = function () {

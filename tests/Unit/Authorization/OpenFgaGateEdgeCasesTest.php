@@ -9,8 +9,11 @@ use Illuminate\Contracts\Container\Container;
 use Illuminate\Database\Eloquent\Model;
 use OpenFGA\Laravel\Authorization\OpenFgaGate;
 use OpenFGA\Laravel\Contracts\{AuthorizableUser, AuthorizationObject, AuthorizationType, ManagerInterface};
+use OpenFGA\Laravel\Tests\TestCase;
 
 use function expect;
+
+uses(TestCase::class);
 
 describe('OpenFgaGate Edge Cases', function (): void {
     beforeEach(function (): void {
@@ -19,9 +22,9 @@ describe('OpenFgaGate Edge Cases', function (): void {
         $this->userResolver = fn (): ?Authenticatable => $this->user;
 
         $this->gate = new OpenFgaGate(
-            $this->manager,
-            $this->container,
-            $this->userResolver,
+            manager: $this->manager,
+            container: $this->container,
+            userResolver: $this->userResolver,
         );
 
         // Create test user

@@ -86,7 +86,7 @@ echo "OpenFGA is ready! Starting tests..."
 echo "Note: Skipping OTEL Collector health check for CI speed"
 
 # Execute tests
-exec composer test:integration:run:ci
+exec composer test:integration:run
 EOF
 
 chmod +x /tmp/wait-and-test-ci.sh

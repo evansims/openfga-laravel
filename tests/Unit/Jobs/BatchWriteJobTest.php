@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 use OpenFGA\Laravel\Jobs\BatchWriteJob;
 use OpenFGA\Laravel\Testing\FakesOpenFga;
+use OpenFGA\Laravel\Tests\TestCase;
 
 describe('BatchWriteJob', function (): void {
-    uses(FakesOpenFga::class);
+    uses(TestCase::class, FakesOpenFga::class);
 
     it('has correct backoff strategy', function (): void {
         $job = new BatchWriteJob;
@@ -26,7 +27,11 @@ describe('BatchWriteJob', function (): void {
             ['user' => 'user:3', 'relation' => 'reader', 'object' => 'document:3'],
         ];
 
-        $job = new BatchWriteJob($writes, $deletes, 'main');
+        $job = new BatchWriteJob(
+            writes: $writes,
+            deletes: $deletes,
+            openfgaConnection: 'main',
+        );
 
         expect($job)->toBeInstanceOf(BatchWriteJob::class);
         expect($job->tries)->toBe(3);
@@ -44,7 +49,11 @@ describe('BatchWriteJob', function (): void {
             ['user' => 'user:3', 'relation' => 'reader', 'object' => 'document:3'],
         ];
 
-        $job = new BatchWriteJob($writes, $deletes, 'test');
+        $job = new BatchWriteJob(
+            writes: $writes,
+            deletes: $deletes,
+            openfgaConnection: 'test',
+        );
 
         $tags = $job->tags();
 

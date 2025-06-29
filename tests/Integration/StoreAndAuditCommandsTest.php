@@ -79,10 +79,10 @@ describe('Store And Audit Commands', function (): void {
             ->assertSuccessful();
 
         // Clean up exported file
-        $files = glob('openfga_audit_*.csv');
+        $files = glob(pattern: 'openfga_audit_*.csv');
 
         foreach ($files as $file) {
-            unlink($file);
+            unlink(filename: $file);
         }
     });
 
@@ -95,10 +95,10 @@ describe('Store And Audit Commands', function (): void {
             ->assertSuccessful();
 
         // Clean up exported file
-        $files = glob('openfga_audit_*.json');
+        $files = glob(pattern: 'openfga_audit_*.json');
 
         foreach ($files as $file) {
-            unlink($file);
+            unlink(filename: $file);
         }
     });
 
@@ -121,7 +121,7 @@ describe('Store And Audit Commands', function (): void {
     });
 
     it('store create command with model', function (): void {
-        $modelFile = tempnam(sys_get_temp_dir(), 'model');
+        $modelFile = tempnam(directory: sys_get_temp_dir(), prefix: 'model');
         file_put_contents($modelFile, "model\n  schema 1.1\n\ntype user");
 
         $this->artisan('openfga:store:create', [
@@ -131,6 +131,6 @@ describe('Store And Audit Commands', function (): void {
             ->expectsOutputToContain('Creating initial model from:')
             ->assertSuccessful();
 
-        unlink($modelFile);
+        unlink(filename: $modelFile);
     });
 });

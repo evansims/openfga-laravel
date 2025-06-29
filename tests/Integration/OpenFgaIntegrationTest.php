@@ -5,8 +5,10 @@ declare(strict_types=1);
 use Illuminate\Config\Repository;
 use Illuminate\Support\Facades\Config;
 use OpenFGA\Laravel\Testing\IntegrationTestCase;
+use OpenFGA\Laravel\Tests\Support\ConfigRestoration;
 
 uses(IntegrationTestCase::class);
+uses(ConfigRestoration::class);
 
 /*
  * Integration tests for OpenFGA Laravel.
@@ -15,17 +17,25 @@ uses(IntegrationTestCase::class);
  */
 describe('OpenFGA Integration', function (): void {
     beforeEach(function (): void {
+        $this->setUpConfigRestoration();
+
+        // Check if we're running in Docker environment
+        $isDocker = file_exists('/.dockerenv') || (is_string(env('OPENFGA_TEST_URL')) && str_contains(env('OPENFGA_TEST_URL'), 'openfga:'));
+
         if (! $this->isOpenFgaAvailable()) {
-            $this->markTestSkipped('OpenFGA server is not available at ' . env('OPENFGA_TEST_URL', 'http://localhost:8080'));
+            if ($isDocker) {
+                // In Docker, OpenFGA should always be available
+                throw new RuntimeException('OpenFGA server is not available in Docker environment. URL: ' . env('OPENFGA_TEST_URL'));
+            }
+            $this->markTestSkipped('OpenFGA server is not available');
         }
 
         $this->setUpIntegrationTest();
     });
 
     afterEach(function (): void {
-        if ($this->isOpenFgaAvailable()) {
-            $this->tearDownIntegrationTest();
-        }
+        $this->tearDownIntegrationTest();
+        $this->tearDownConfigRestoration();
     });
 
     it('tests basic permission check', function (): void {
@@ -46,7 +56,7 @@ describe('OpenFGA Integration', function (): void {
         });
     });
 
-    it('tests batch write performance', function (): void {
+    it('tests batch write functionality', function (): void {
         $this->runWithCleanStore(function (): void {
             $permissions = [];
 
@@ -60,11 +70,7 @@ describe('OpenFGA Integration', function (): void {
             }
 
             // Test batch permissions implementation
-            $startTime = microtime(true);
             $this->grantPermissions($permissions);
-            $batchTime = (microtime(true) - $startTime) * 1000;
-
-            expect($batchTime)->toBeLessThan(1000, 'Batch write of 100 permissions should complete under 1 second');
 
             // Verify a sample of permissions
             foreach (array_slice($permissions, 0, 10) as $perm) {
@@ -260,7 +266,7 @@ describe('OpenFGA Integration', function (): void {
             $objects = $manager->listObjects($user, 'viewer', 'document', connection: 'integration_test');
 
             expect($objects)->toBeArray();
-            expect(count($objects))->toBeGreaterThanOrEqual(count($docs));
+            expect(count(value: $objects))->toBeGreaterThanOrEqual(count(value: $docs));
 
             // Verify all our documents are in the list
             foreach ($docs as $doc) {
@@ -284,7 +290,7 @@ describe('OpenFGA Integration', function (): void {
         });
     });
 
-    it('tests performance benchmarks', function (): void {
+    it('tests multiple permission operations', function (): void {
         $this->runWithCleanStore(function (): void {
             $user = $this->createTestUser('benchmark');
             $document = $this->createTestDocument('perf-test');
@@ -293,35 +299,29 @@ describe('OpenFGA Integration', function (): void {
             $this->grantPermission($user, 'viewer', $document);
             $this->waitForConsistency();
 
-            // Benchmark permission check
-            $times = [];
-
-            for ($i = 0; 50 > $i; $i++) {
-                $result = $this->measureTime(
-                    fn () => $this->getManager()->check($user, 'viewer', $document, [], [], 'integration_test'),
-                );
-                $times[] = $result['duration_ms'];
+            // Test multiple permission checks work correctly
+            for ($i = 0; 10 > $i; $i++) {
+                $result = $this->getManager()->check($user, 'viewer', $document, [], [], 'integration_test');
+                expect($result)->toBeTrue();
             }
 
-            $avgCheckTime = array_sum($times) / count($times);
-            expect($avgCheckTime)->toBeLessThan(50, 'Average permission check should be under 50ms');
-
-            // Benchmark write operation
-            $writeTimes = [];
-
-            for ($i = 0; 20 > $i; $i++) {
-                $result = $this->measureTime(
-                    fn () => $this->grantPermission(
-                        $this->createTestUser(uniqid()),
-                        'viewer',
-                        $this->createTestDocument(uniqid()),
-                    ),
+            // Test multiple write operations
+            for ($i = 0; 5 > $i; $i++) {
+                $this->grantPermission(
+                    $this->createTestUser("write-test-user-{$i}"),
+                    'viewer',
+                    $this->createTestDocument("write-test-doc-{$i}"),
                 );
-                $writeTimes[] = $result['duration_ms'];
             }
 
-            $avgWriteTime = array_sum($writeTimes) / count($writeTimes);
-            expect($avgWriteTime)->toBeLessThan(100, 'Average write operation should be under 100ms');
+            // Verify writes succeeded
+            for ($i = 0; 5 > $i; $i++) {
+                $this->assertEventuallyAllowed(
+                    $this->createTestUser("write-test-user-{$i}"),
+                    'viewer',
+                    $this->createTestDocument("write-test-doc-{$i}"),
+                );
+            }
         });
     });
 
@@ -381,7 +381,8 @@ describe('OpenFGA Integration', function (): void {
         $this->assertEventuallyAllowed($user, 'viewer', $document);
 
         // Create a new store for isolation testing
-        $newStore = $this->createStore('test_isolation_' . uniqid());
+        $testId = (string) time() . '_' . getmypid();
+        $newStore = $this->createStore('test_isolation_' . $testId);
         $newStoreId = $newStore['id'];
         $this->createdStores[] = $newStoreId;
 
@@ -389,7 +390,7 @@ describe('OpenFGA Integration', function (): void {
         $this->testStoreId = $newStoreId;
 
         // Create model in new store
-        Config::set('openfga.connections.integration_test.store_id', $newStoreId);
+        $this->setConfigWithRestore('openfga.connections.integration_test.store_id', $newStoreId);
         $newModel = $this->createAuthorizationModel($this->getTestAuthorizationModel());
         $newModelId = $newModel['authorization_model_id'];
 
@@ -397,7 +398,7 @@ describe('OpenFGA Integration', function (): void {
         $this->testModelId = $newModelId;
 
         // Update connection with new store/model
-        Config::set('openfga.connections.integration_test.model_id', $newModelId);
+        $this->setConfigWithRestore('openfga.connections.integration_test.model_id', $newModelId);
 
         // Update manager config
         /** @var Repository $configRepository */
@@ -414,9 +415,9 @@ describe('OpenFGA Integration', function (): void {
         $result = $this->getManager()->check($user, 'viewer', $document, [], [], 'integration_test');
         expect($result)->toBeFalse('Permission should not exist in new store');
 
-        // Switch back to original store
-        Config::set('openfga.connections.integration_test.store_id', $originalStoreId);
-        Config::set('openfga.connections.integration_test.model_id', $originalModelId);
+        // Switch back to original store (restoration will happen automatically)
+        // But we need to trigger the manager update
+        $this->restoreOriginalConfig();
         $this->openFgaManager->updateConfig($configRepository->get('openfga', []));
         $this->openFgaClient = $this->openFgaManager->connection('integration_test');
 

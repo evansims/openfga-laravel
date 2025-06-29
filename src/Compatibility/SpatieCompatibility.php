@@ -10,9 +10,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use InvalidArgumentException;
 use OpenFGA\Exceptions\ClientThrowable;
-use OpenFGA\Laravel\Contracts\AuthorizationUser;
+use OpenFGA\Laravel\Contracts\{AuthorizationUser, ManagerInterface};
 use OpenFGA\Laravel\Facades\OpenFga;
-use OpenFGA\Laravel\OpenFgaManager;
 
 use function in_array;
 use function is_scalar;
@@ -101,7 +100,7 @@ final class SpatieCompatibility
             $userId = 'user:' . (is_scalar($key) ? (string) $key : '');
         }
 
-        $manager = app(OpenFgaManager::class);
+        $manager = app(ManagerInterface::class);
         $manager->grant($userId, $relation, $object);
     }
 
@@ -201,7 +200,7 @@ final class SpatieCompatibility
             $userId = 'user:' . (is_scalar($key) ? (string) $key : '');
         }
 
-        $manager = app(OpenFgaManager::class);
+        $manager = app(ManagerInterface::class);
         $manager->grant($userId, $relation, $object);
     }
 
@@ -305,7 +304,7 @@ final class SpatieCompatibility
             $userId = 'user:' . (is_scalar($key) ? (string) $key : '');
         }
 
-        $manager = app(OpenFgaManager::class);
+        $manager = app(ManagerInterface::class);
 
         return $manager->check($userId, $relation, $object);
     }
@@ -336,7 +335,7 @@ final class SpatieCompatibility
             $userId = 'user:' . (is_scalar($key) ? (string) $key : '');
         }
 
-        $manager = app(OpenFgaManager::class);
+        $manager = app(ManagerInterface::class);
 
         return $manager->check($userId, $relation, $object);
     }
@@ -366,7 +365,7 @@ final class SpatieCompatibility
             $userId = 'user:' . (is_scalar($key) ? (string) $key : '');
         }
 
-        $manager = app(OpenFgaManager::class);
+        $manager = app(ManagerInterface::class);
         $manager->revoke($userId, $relation, $object);
     }
 
@@ -394,7 +393,7 @@ final class SpatieCompatibility
             $userId = 'user:' . (is_scalar($key) ? (string) $key : '');
         }
 
-        $manager = app(OpenFgaManager::class);
+        $manager = app(ManagerInterface::class);
         $manager->revoke($userId, $relation, $object);
     }
 

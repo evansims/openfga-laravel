@@ -9,6 +9,7 @@ use Illuminate\Console\Command;
 use Illuminate\Contracts\Container\BindingResolutionException;
 use InvalidArgumentException;
 use OpenFGA\Exceptions\ClientThrowable;
+use OpenFGA\Laravel\Contracts\ManagerInterface;
 use OpenFGA\Laravel\OpenFgaManager;
 use OpenFGA\Models\Collections\TupleKeys;
 use OpenFGA\Models\TupleKey;
@@ -43,15 +44,13 @@ final class RevokeCommand extends Command
     /**
      * Execute the console command.
      *
-     * @param OpenFgaManager $manager
-     *
      * @throws BindingResolutionException
      * @throws ClientThrowable
      * @throws Exception
      * @throws InvalidArgumentException
      * @throws ReflectionException
      */
-    public function handle(OpenFgaManager $manager): int
+    public function handle(): int
     {
         $connectionOption = $this->option('connection');
         $connection = is_string($connectionOption) ? $connectionOption : null;
@@ -60,8 +59,12 @@ final class RevokeCommand extends Command
             $batchOption = $this->option('batch');
 
             if (true === $batchOption) {
+                $manager = app(OpenFgaManager::class);
+
                 return $this->handleBatch($manager, $connection);
             }
+
+            $manager = app(OpenFgaManager::class);
 
             return $this->handleSingle($manager, $connection);
         } catch (Exception $exception) {
@@ -96,32 +99,11 @@ final class RevokeCommand extends Command
      * @throws InvalidArgumentException
      * @throws ReflectionException
      */
-    private function handleBatch(OpenFgaManager $manager, ?string $connection): int
+    private function handleBatch(ManagerInterface $manager, ?string $connection): int
     {
         $this->info('Reading tuples from stdin (format: user:relation:object per line, empty line to finish)...');
 
-        $tuples = [];
-
-        while (($input = fgets(STDIN)) !== false) {
-            $line = trim($input);
-
-            if ('' === $line) {
-                break;
-            }
-            $parts = explode(':', $line, 3);
-
-            if (3 !== count($parts)) {
-                $this->warn(sprintf('Skipping invalid tuple format: %s. Expected format: user:relation:object', $line));
-
-                continue;
-            }
-
-            $tuples[] = [
-                'user' => $parts[0],
-                'relation' => $parts[1],
-                'object' => $parts[2],
-            ];
-        }
+        $tuples = $this->readTuplesFromInput();
 
         if ([] === $tuples) {
             $this->warn('No valid tuples provided');
@@ -196,7 +178,7 @@ final class RevokeCommand extends Command
      * @throws ClientThrowable
      * @throws Exception
      */
-    private function handleSingle(OpenFgaManager $manager, ?string $connection): int
+    private function handleSingle(ManagerInterface $manager, ?string $connection): int
     {
         $userArg = $this->argument('user');
         $relationArg = $this->argument('relation');
@@ -248,5 +230,38 @@ final class RevokeCommand extends Command
         }
 
         return Command::SUCCESS;
+    }
+
+    /**
+     * Read tuples from input stream.
+     *
+     * @return array<array{user: string, relation: string, object: string}>
+     */
+    private function readTuplesFromInput(): array
+    {
+        $tuples = [];
+
+        while (($input = fgets(STDIN)) !== false) {
+            $line = trim($input);
+
+            if ('' === $line) {
+                break;
+            }
+            $parts = explode(':', $line, 3);
+
+            if (3 !== count($parts)) {
+                $this->warn(sprintf('Skipping invalid tuple format: %s. Expected format: user:relation:object', $line));
+
+                continue;
+            }
+
+            $tuples[] = [
+                'user' => $parts[0],
+                'relation' => $parts[1],
+                'object' => $parts[2],
+            ];
+        }
+
+        return $tuples;
     }
 }

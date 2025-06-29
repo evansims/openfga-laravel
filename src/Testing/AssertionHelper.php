@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Testing;
 
+use OpenFGA\Laravel\Support\{ArrayHelper, MessageFormatter};
 use PHPUnit\Framework\{Assert, AssertionFailedError, Exception, ExpectationFailedException, GeneratorNotSupportedException};
 use RuntimeException;
 use Throwable;
 
 use function count;
-use function is_array;
 use function sprintf;
 
 /**
@@ -41,11 +41,7 @@ final class AssertionHelper
         $expansion = $fake->expand($object, $relation);
 
         /** @var array<string> $actualUsers */
-        $actualUsers = [];
-
-        if (isset($expansion['tree']) && is_array($expansion['tree']) && (isset($expansion['tree']['root']) && is_array($expansion['tree']['root'])) && (isset($expansion['tree']['root']['leaf']) && is_array($expansion['tree']['root']['leaf']) && (isset($expansion['tree']['root']['leaf']['users']) && is_array($expansion['tree']['root']['leaf']['users'])))) {
-            $actualUsers = $expansion['tree']['root']['leaf']['users'];
-        }
+        $actualUsers = ArrayHelper::getExpansionUsers($expansion);
 
         $message ??= sprintf('Failed asserting that expand result for [%s] on [%s] contains expected users', $relation, $object);
 
@@ -72,11 +68,7 @@ final class AssertionHelper
         $expansion = $fake->expand($object, $relation);
 
         /** @var array<string> $actualUsers */
-        $actualUsers = [];
-
-        if (isset($expansion['tree']) && is_array($expansion['tree']) && (isset($expansion['tree']['root']) && is_array($expansion['tree']['root'])) && (isset($expansion['tree']['root']['leaf']) && is_array($expansion['tree']['root']['leaf']) && (isset($expansion['tree']['root']['leaf']['users']) && is_array($expansion['tree']['root']['leaf']['users'])))) {
-            $actualUsers = $expansion['tree']['root']['leaf']['users'];
-        }
+        $actualUsers = ArrayHelper::getExpansionUsers($expansion);
 
         $message ??= sprintf('Failed asserting that expand result for [%s] on [%s] does not contain forbidden users', $relation, $object);
 
@@ -99,7 +91,7 @@ final class AssertionHelper
         $failedChecks = array_filter($fake->getChecks(), static fn ($check): bool => false === $check['result']);
 
         $actualCount = count($failedChecks);
-        $message ??= sprintf('Failed asserting that [%d] failed checks were performed. Actual: [%d]', $expectedCount, $actualCount);
+        $message ??= MessageFormatter::formatCountAssertion('failed checks were performed', $expectedCount, $actualCount);
 
         Assert::assertSame($expectedCount, $actualCount, $message);
     }

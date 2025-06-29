@@ -13,8 +13,8 @@ use Illuminate\Support\Facades\Auth;
 use InvalidArgumentException;
 use OpenFGA\Exceptions\ClientThrowable;
 use OpenFGA\Laravel\Contracts\{AuthorizationType, AuthorizationUser, AuthorizationUserId};
+use OpenFGA\Laravel\Contracts\ManagerInterface;
 use OpenFGA\Laravel\Helpers\ModelKeyHelper;
-use OpenFGA\Laravel\OpenFgaManager;
 use RuntimeException;
 
 use function gettype;
@@ -38,11 +38,11 @@ final readonly class MenuBuilder
     /**
      * Create a new menu builder instance.
      *
-     * @param OpenFgaManager $manager
-     * @param ?string        $connection
+     * @param ManagerInterface $manager
+     * @param ?string          $connection
      */
     public function __construct(
-        private OpenFgaManager $manager,
+        private ManagerInterface $manager,
         private ?string $connection = null,
     ) {
         $this->items = collect();
@@ -55,7 +55,7 @@ final readonly class MenuBuilder
      */
     public static function make(?string $connection = null): static
     {
-        return new self(app(OpenFgaManager::class), $connection);
+        return new self(app(ManagerInterface::class), $connection);
     }
 
     /**

@@ -16,7 +16,6 @@ use OpenFGA\Exceptions\ClientThrowable;
 use OpenFGA\Laravel\Contracts\AuthorizationType;
 use OpenFGA\Laravel\Helpers\ModelKeyHelper;
 use OpenFGA\Laravel\OpenFgaManager;
-use OpenFGA\Results\SuccessInterface;
 use Override;
 
 use function gettype;
@@ -70,9 +69,7 @@ final class Cannot extends Component
         $userId = $this->resolveUserId($currentUser);
         $objectId = $this->resolveObject($this->object);
 
-        $result = $manager->check($userId, $this->relation, $objectId, [], [], $this->connection);
-
-        return $result instanceof SuccessInterface;
+        return $manager->check($userId, $this->relation, $objectId, [], [], $this->connection);
     }
 
     /**

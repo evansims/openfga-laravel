@@ -6,8 +6,11 @@ namespace OpenFGA\Laravel\Support;
 
 use function array_key_exists;
 use function is_array;
+use function is_numeric;
 use function is_string;
 use function sprintf;
+use function str_replace;
+use function ucfirst;
 
 /**
  * Configuration validator for OpenFGA connections.
