@@ -384,7 +384,7 @@ describe('OpenFGA Integration', function (): void {
         $newStore = $this->createStore('test_isolation_' . uniqid());
         $newStoreId = $newStore['id'];
         $this->createdStores[] = $newStoreId;
-        
+
         // Update test properties to the new store temporarily
         $this->testStoreId = $newStoreId;
 
@@ -392,7 +392,7 @@ describe('OpenFGA Integration', function (): void {
         Config::set('openfga.connections.integration_test.store_id', $newStoreId);
         $newModel = $this->createAuthorizationModel($this->getTestAuthorizationModel());
         $newModelId = $newModel['authorization_model_id'];
-        
+
         // Update test model ID
         $this->testModelId = $newModelId;
 

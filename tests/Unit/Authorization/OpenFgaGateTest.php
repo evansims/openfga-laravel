@@ -14,7 +14,7 @@ use OpenFGA\Laravel\Contracts\{AuthorizableUser, AuthorizationObject, Authorizat
 
 use function expect;
 
-enum TestPermissionEnum
+enum OpenFgaGateTest
 {
     case DELETE;
 
@@ -117,7 +117,7 @@ describe('OpenFgaGate', function (): void {
 
         it('handles UnitEnum abilities', function (): void {
             // Create a test enum case for testing
-            $enumCase = TestPermissionEnum::READ;
+            $enumCase = OpenFgaGateTest::READ;
 
             // Should delegate to parent for enum values
             $result = $this->gate->check($enumCase, []);

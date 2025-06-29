@@ -5,8 +5,6 @@ use OpenFGA\Laravel\Testing\IntegrationTestCase;
 
 uses(IntegrationTestCase::class);
 
-use OpenFGA\Laravel\{OpenFgaManager, OpenFgaServiceProvider};
-
 describe('Basic Integration', function (): void {
     beforeEach(function (): void {
         $this->setUpIntegrationTest();
@@ -22,13 +20,13 @@ describe('Basic Integration', function (): void {
     it('can connect to openfga', function (): void {
         // Get the manager
         $manager = $this->getManager();
-        
+
         // Try to get a connection - this should work if OpenFGA is running
         $client = $this->getClient();
 
         expect($client)->not->toBeNull();
         expect($manager)->not->toBeNull();
-        
+
         // Verify we can make a basic API call
         $currentModel = $this->getCurrentModel();
         expect($currentModel)->toBeArray();

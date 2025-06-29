@@ -44,7 +44,7 @@ final class AuthorizationQuery extends AbstractAuthorizationQuery
     {
         /** @var OpenFgaManager $manager */
         $manager = $this->manager;
-        
+
         return new self($manager, $this->connection);
     }
 }

@@ -49,6 +49,10 @@ parameters:
         - 
             message: '#PHPDoc tag @var with type .+ is not subtype of native type#'
             path: src/Console/Commands/ModelValidateCommand.php
+        # ConfigValidator array access is safely guarded by array_key_exists checks
+        -
+            message: '#Cannot access an offset on mixed#'
+            path: src/Support/ConfigValidator.php
 
     paths:
         - src

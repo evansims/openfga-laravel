@@ -8,7 +8,7 @@ use OpenFGA\Laravel\Support\ConfigValidator;
 
 describe('ConfigValidator', function (): void {
     beforeEach(function (): void {
-        $this->validator = new ConfigValidator();
+        $this->validator = new ConfigValidator;
     });
 
     describe('validate', function (): void {

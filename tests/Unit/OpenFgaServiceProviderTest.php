@@ -4,39 +4,35 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Tests\Unit;
 
-use Barryvdh\Debugbar\ServiceProvider as DebugbarServiceProvider;
 use Illuminate\Config\Repository;
+use Illuminate\Container\Container;
+use Illuminate\Contracts\Container\BindingResolutionException;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Events\Dispatcher;
 use Illuminate\Routing\Router;
-use Illuminate\Support\Facades\Event;
 use InvalidArgumentException;
 use Mockery;
 use OpenFGA\{Client, ClientInterface};
-use OpenFGA\Laravel\{OpenFgaManager, OpenFgaServiceProvider};
 use OpenFGA\Laravel\Authorization\AuthorizationServiceProvider;
-use OpenFGA\Laravel\Console\Commands\{
-    CheckCommand, GrantCommand, RevokeCommand, ExpandCommand, ListObjectsCommand,
-    DebugCommand, StatsCommand, WarmCacheCommand, ClearCacheCommand, CacheStatsCommand,
-    MigrateFromSpatieCommand, SnapshotCommand, BenchmarkCommand, SetupIntegrationTestsCommand,
-    ModelCreateCommand, ModelValidateCommand, StoreCreateCommand, AuditPermissionsCommand,
-    AnalyzePermissionsCommand, WebhookCommand, ImportCommand, ExportCommand, ProfileCommand,
-    MakePermissionMigrationCommand, MakePermissionSeederCommand
-};
-use OpenFGA\Laravel\Debugbar\{DebugbarServiceProvider as OpenFgaDebugbarServiceProvider, OpenFgaCollector};
 use OpenFGA\Laravel\Export\PermissionExporter;
 use OpenFGA\Laravel\Http\Middleware\{
-    OpenFgaMiddleware, RequiresPermission, RequiresAnyPermission, 
-    RequiresAllPermissions, LoadPermissions
+    LoadPermissions,
+    OpenFgaMiddleware,
+    RequiresAllPermissions,
+    RequiresAnyPermission,
+    RequiresPermission
 };
 use OpenFGA\Laravel\Import\PermissionImporter;
 use OpenFGA\Laravel\Listeners\ProfileOpenFgaOperations;
+use OpenFGA\Laravel\{OpenFgaManager, OpenFgaServiceProvider};
 use OpenFGA\Laravel\Profiling\{OpenFgaProfiler, ProfilingMiddleware};
 use OpenFGA\Laravel\Providers\SpatieCompatibilityServiceProvider;
 use OpenFGA\Laravel\View\{BladeServiceProvider, JavaScriptHelper, MenuBuilder};
-use OpenFGA\Laravel\View\Components\{Can, Cannot, CanAny, CanAll};
 use OpenFGA\Laravel\Webhooks\WebhookServiceProvider;
 use RuntimeException;
+use stdClass;
+
+use function function_exists;
 
 describe('OpenFgaServiceProvider', function (): void {
     describe('Service Registration', function (): void {
@@ -139,7 +135,7 @@ describe('OpenFgaServiceProvider', function (): void {
             ]);
 
             // Create mock app instance without router
-            $app = Mockery::mock(\Illuminate\Contracts\Foundation\Application::class);
+            $app = Mockery::mock(Application::class);
             $app->shouldReceive('runningInConsole')->andReturn(false);
             $app->shouldReceive('singleton')->andReturnSelf();
             $app->shouldReceive('bind')->andReturnSelf();
@@ -165,7 +161,7 @@ describe('OpenFgaServiceProvider', function (): void {
 
             $provider = new OpenFgaServiceProvider($app);
             $provider->register();
-            
+
             // Should not throw exception
             $provider->boot();
             expect(true)->toBeTrue();
@@ -181,7 +177,7 @@ describe('OpenFgaServiceProvider', function (): void {
             $provider = new OpenFgaServiceProvider($this->app);
             $provider->register();
             $provider->boot();
-            
+
             // Check that the authorization service provider was registered
             expect($this->app->getProviders(AuthorizationServiceProvider::class))->not->toBeEmpty()
                 ->and($this->app->getProviders(BladeServiceProvider::class))->not->toBeEmpty()
@@ -198,7 +194,7 @@ describe('OpenFgaServiceProvider', function (): void {
             $provider = new OpenFgaServiceProvider($this->app);
             $provider->register();
             $provider->boot();
-            
+
             // Check Blade compiler has components registered
             if ($this->app->bound('blade.compiler')) {
                 $blade = $this->app->make('blade.compiler');
@@ -218,7 +214,7 @@ describe('OpenFgaServiceProvider', function (): void {
             $provider = new OpenFgaServiceProvider($this->app);
             $provider->register();
             $provider->boot();
-            
+
             // Check that views are loaded by trying to resolve view factory
             if ($this->app->bound('view')) {
                 $viewFactory = $this->app->make('view');
@@ -240,7 +236,7 @@ describe('OpenFgaServiceProvider', function (): void {
             $provider = new OpenFgaServiceProvider($this->app);
             $provider->register();
             $provider->boot();
-            
+
             // Check that Spatie compatibility provider was registered
             expect($this->app->getProviders(SpatieCompatibilityServiceProvider::class))->not->toBeEmpty();
         });
@@ -299,7 +295,7 @@ describe('OpenFgaServiceProvider', function (): void {
 
             // Function might already be loaded from previous tests
             $functionExistsBefore = function_exists('openfga');
-            
+
             $provider = new OpenFgaServiceProvider($this->app);
             $provider->register();
             $provider->boot();
@@ -323,35 +319,39 @@ describe('OpenFgaServiceProvider', function (): void {
 
         it('throws exception when JavaScriptHelper cannot resolve manager', function (): void {
             // Test the closure directly
-            $container = Mockery::mock(\Illuminate\Container\Container::class);
+            $container = Mockery::mock(Container::class);
             $container->shouldReceive('get')->with(OpenFgaManager::class)->andReturn(null);
 
             $closure = function ($app) {
                 $manager = $app->get(OpenFgaManager::class);
+
                 if (! $manager instanceof OpenFgaManager) {
                     throw new RuntimeException('Failed to resolve OpenFgaManager from container');
                 }
+
                 return new JavaScriptHelper($manager);
             };
 
-            expect(fn() => $closure($container))
+            expect(fn () => $closure($container))
                 ->toThrow(RuntimeException::class, 'Failed to resolve OpenFgaManager from container');
         });
 
         it('throws exception when MenuBuilder cannot resolve manager', function (): void {
             // Test the closure directly
-            $container = Mockery::mock(\Illuminate\Container\Container::class);
+            $container = Mockery::mock(Container::class);
             $container->shouldReceive('get')->with(OpenFgaManager::class)->andReturn(null);
 
             $closure = function ($app) {
                 $manager = $app->get(OpenFgaManager::class);
+
                 if (! $manager instanceof OpenFgaManager) {
                     throw new RuntimeException('Failed to resolve OpenFgaManager from container');
                 }
+
                 return new MenuBuilder($manager);
             };
 
-            expect(fn() => $closure($container))
+            expect(fn () => $closure($container))
                 ->toThrow(RuntimeException::class, 'Failed to resolve OpenFgaManager from container');
         });
     });
@@ -368,7 +368,7 @@ describe('OpenFgaServiceProvider', function (): void {
             $provider = new OpenFgaServiceProvider($this->app);
             $provider->register();
 
-            expect(fn() => $provider->boot())
+            expect(fn () => $provider->boot())
                 ->toThrow(InvalidArgumentException::class, 'Default OpenFGA connection [missing] is not configured.');
         });
 
@@ -382,7 +382,7 @@ describe('OpenFgaServiceProvider', function (): void {
             $provider = new OpenFgaServiceProvider($this->app);
             $provider->register();
 
-            expect(fn() => $provider->boot())
+            expect(fn () => $provider->boot())
                 ->toThrow(InvalidArgumentException::class, 'Invalid URL configured for OpenFGA connection [main].');
         });
 
@@ -397,7 +397,7 @@ describe('OpenFgaServiceProvider', function (): void {
             $provider = new OpenFgaServiceProvider($this->app);
             $provider->register();
 
-            expect(fn() => $provider->boot())
+            expect(fn () => $provider->boot())
                 ->toThrow(InvalidArgumentException::class, 'Invalid authentication method [invalid_method] for OpenFGA connection [main].');
         });
 
@@ -413,7 +413,7 @@ describe('OpenFgaServiceProvider', function (): void {
             $provider = new OpenFgaServiceProvider($this->app);
             $provider->register();
 
-            expect(fn() => $provider->boot())
+            expect(fn () => $provider->boot())
                 ->toThrow(InvalidArgumentException::class, 'API token is required when using api_token authentication for connection [main].');
         });
 
@@ -439,7 +439,7 @@ describe('OpenFgaServiceProvider', function (): void {
                 $provider = new OpenFgaServiceProvider($this->app);
                 $provider->register();
 
-                expect(fn() => $provider->boot())
+                expect(fn () => $provider->boot())
                     ->toThrow(InvalidArgumentException::class, "Field [{$field}] is required when using client_credentials authentication for connection [main].");
             }
         });
@@ -455,7 +455,7 @@ describe('OpenFgaServiceProvider', function (): void {
             $provider = new OpenFgaServiceProvider($this->app);
             $provider->register();
 
-            expect(fn() => $provider->boot())
+            expect(fn () => $provider->boot())
                 ->toThrow(InvalidArgumentException::class, 'Invalid max_retries value for OpenFGA connection [main]. Must be a non-negative integer.');
         });
 
@@ -473,7 +473,7 @@ describe('OpenFgaServiceProvider', function (): void {
                 $provider = new OpenFgaServiceProvider($this->app);
                 $provider->register();
 
-                expect(fn() => $provider->boot())
+                expect(fn () => $provider->boot())
                     ->toThrow(InvalidArgumentException::class, "Invalid {$option} value for OpenFGA connection [main]. Must be a positive number.");
             }
         });
@@ -519,7 +519,7 @@ describe('OpenFgaServiceProvider', function (): void {
             $provider = new OpenFgaServiceProvider($this->app);
             $provider->register();
 
-            expect(fn() => $provider->boot())
+            expect(fn () => $provider->boot())
                 ->toThrow(InvalidArgumentException::class, 'Invalid authentication method [integer] for OpenFGA connection [main].');
         });
     });
@@ -533,7 +533,7 @@ describe('OpenFgaServiceProvider', function (): void {
             ]);
 
             // Create mock app without blade compiler
-            $app = Mockery::mock(\Illuminate\Contracts\Foundation\Application::class);
+            $app = Mockery::mock(Application::class);
             $app->shouldReceive('runningInConsole')->andReturn(false);
             $app->shouldReceive('singleton')->andReturnSelf();
             $app->shouldReceive('bind')->andReturnSelf();
@@ -560,7 +560,7 @@ describe('OpenFgaServiceProvider', function (): void {
             $provider = new OpenFgaServiceProvider($app);
             $provider->register();
             $provider->boot();
-            
+
             expect(true)->toBeTrue();
         });
 
@@ -571,13 +571,13 @@ describe('OpenFgaServiceProvider', function (): void {
                 'authorization_model_id' => 'test-model',
             ]);
 
-            $bladeCompiler = new \stdClass(); // Object without component method
+            $bladeCompiler = new stdClass; // Object without component method
             $this->app->instance('blade.compiler', $bladeCompiler);
 
             $provider = new OpenFgaServiceProvider($this->app);
             $provider->register();
             $provider->boot();
-            
+
             expect(true)->toBeTrue();
         });
 
@@ -588,7 +588,7 @@ describe('OpenFgaServiceProvider', function (): void {
                 'authorization_model_id' => 'test-model',
             ]);
 
-            $router = new \stdClass(); // Object without aliasMiddleware method
+            $router = new stdClass; // Object without aliasMiddleware method
             $this->app->instance('router', $router);
 
             $provider = new OpenFgaServiceProvider($this->app);
@@ -605,7 +605,7 @@ describe('OpenFgaServiceProvider', function (): void {
                 'authorization_model_id' => 'test-model',
             ]);
 
-            $mock = Mockery::mock(\Illuminate\Contracts\Foundation\Application::class);
+            $mock = Mockery::mock(Application::class);
             $mock->shouldReceive('runningInConsole')->andReturn(false);
             $mock->shouldReceive('make')->with('config')->andReturn(new Repository([
                 'openfga' => [
@@ -619,10 +619,10 @@ describe('OpenFgaServiceProvider', function (): void {
                     ],
                 ],
             ]));
-            $mock->shouldReceive('make')->with('blade.compiler')->andThrow(new \Illuminate\Contracts\Container\BindingResolutionException());
-            $mock->shouldReceive('make')->with('router')->andThrow(new \Illuminate\Contracts\Container\BindingResolutionException());
+            $mock->shouldReceive('make')->with('blade.compiler')->andThrow(new BindingResolutionException);
+            $mock->shouldReceive('make')->with('router')->andThrow(new BindingResolutionException);
             $mock->shouldReceive('make')->with('events')->andReturn(new Dispatcher($mock));
-            $mock->shouldReceive('make')->with('view')->andThrow(new \Illuminate\Contracts\Container\BindingResolutionException());
+            $mock->shouldReceive('make')->with('view')->andThrow(new BindingResolutionException);
             $mock->shouldReceive('bound')->andReturn(true);
             $mock->shouldReceive('register')->andReturnSelf();
             $mock->shouldReceive('singleton')->andReturnSelf();
@@ -647,7 +647,7 @@ describe('OpenFgaServiceProvider', function (): void {
             ]);
 
             // Create a mock that simulates not running in console
-            $mock = Mockery::mock(\Illuminate\Contracts\Foundation\Application::class);
+            $mock = Mockery::mock(Application::class);
             $mock->shouldReceive('runningInConsole')->andReturn(false);
             $mock->shouldReceive('singleton')->andReturnSelf();
             $mock->shouldReceive('bind')->andReturnSelf();
@@ -667,17 +667,17 @@ describe('OpenFgaServiceProvider', function (): void {
                 ],
             ]));
             $mock->shouldReceive('make')->with('events')->andReturn(new Dispatcher($mock));
-            
+
             // Ensure publishes and commands are never called
             $mock->shouldNotReceive('publishes');
             $mock->shouldNotReceive('commands');
             $mock->shouldReceive('afterResolving')->andReturnSelf();
             $mock->shouldReceive('resolved')->andReturn(false);
-            
+
             $provider = new OpenFgaServiceProvider($mock);
             $provider->register();
             $provider->boot();
-            
+
             // Verify runningInConsole was called
             expect(true)->toBeTrue();
         });

@@ -7,7 +7,6 @@ namespace OpenFGA\Laravel\Tests\Unit\Traits;
 use Illuminate\Database\Eloquent\Model;
 use InvalidArgumentException;
 use OpenFGA\Laravel\Tests\Support\{TestDocument, TestUser};
-use OpenFGA\Laravel\Traits\HasAuthorization;
 use ReflectionClass;
 
 describe('HasAuthorization Trait Simple Tests', function (): void {
@@ -69,16 +68,18 @@ describe('HasAuthorization Trait Simple Tests', function (): void {
             // Create a model without the trait
             $mockModel = new class extends Model {
                 protected $attributes = ['id' => 789];
-                
-                public function getKey() { 
-                    return $this->attributes['id']; 
+
+                public function getKey()
+                {
+                    return $this->attributes['id'];
                 }
-                
-                public function getTable() {
+
+                public function getTable()
+                {
                     return 'test_model';
                 }
             };
-            
+
             // Anonymous classes have auto-generated names
             $result = $method->invoke($this->document, $mockModel);
             expect($result)->toEndWith(':789');
@@ -102,7 +103,7 @@ describe('HasAuthorization Trait Simple Tests', function (): void {
 
         it('has protected methods', function (): void {
             $reflection = new ReflectionClass($this->document);
-            
+
             expect($reflection->hasMethod('shouldCleanupPermissionsOnDelete'))->toBeTrue();
             expect($reflection->hasMethod('shouldReplicatePermissions'))->toBeTrue();
             expect($reflection->hasMethod('getOpenFgaManager'))->toBeTrue();
@@ -167,7 +168,7 @@ describe('HasAuthorization Trait Simple Tests', function (): void {
                 protected $attributes = ['id' => 999];
             };
 
-            expect(fn() => $this->document->replicatePermissionsTo($invalidModel))
+            expect(fn () => $this->document->replicatePermissionsTo($invalidModel))
                 ->toThrow(InvalidArgumentException::class, 'Target model must use HasAuthorization trait');
         });
     });

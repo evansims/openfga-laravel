@@ -87,6 +87,11 @@ abstract class AbstractAuthorizationQuery
     }
 
     /**
+     * Clone the query with a clean state.
+     */
+    abstract public function fresh(): static;
+
+    /**
      * Set the relation for the query.
      *
      * @param string $relation
@@ -175,11 +180,6 @@ abstract class AbstractAuthorizationQuery
 
         return $this;
     }
-
-    /**
-     * Clone the query with a clean state.
-     */
-    abstract public function fresh(): static;
 
     /**
      * Grant permissions (write tuples).

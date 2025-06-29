@@ -4,63 +4,68 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Support;
 
+use function array_key_exists;
+use function is_array;
+use function is_string;
+use function sprintf;
+
 /**
  * Configuration validator for OpenFGA connections.
  *
  * This class provides validation logic for OpenFGA configuration,
  * extracted to allow for easier testing and reuse.
  */
-class ConfigValidator
+final class ConfigValidator
 {
+    /**
+     * Get flat list of all error messages.
+     *
+     * @param  array<string, array<string>> $errors
+     * @return array<string>
+     */
+    public function flattenErrors(array $errors): array
+    {
+        $flat = [];
+
+        foreach ($errors as $field => $fieldErrors) {
+            foreach ($fieldErrors as $fieldError) {
+                $flat[] = sprintf('%s: %s', $field, $fieldError);
+            }
+        }
+
+        return $flat;
+    }
+
+    /**
+     * Check if configuration is valid (no errors).
+     *
+     * @param array<string, mixed> $config
+     */
+    public function isValid(array $config): bool
+    {
+        return [] === $this->validate($config);
+    }
+
     /**
      * Validate a complete configuration array.
      *
-     * @param array<string, mixed> $config
-     *
+     * @param  array<string, mixed>         $config
      * @return array<string, array<string>>
      */
     public function validate(array $config): array
     {
         $errors = [];
 
-        if (!isset($config['default'])) {
+        if (! array_key_exists('default', $config)) {
             $errors['default'][] = 'Default connection is required';
         }
 
-        if (!isset($config['connections']) || !is_array($config['connections'])) {
+        if (! array_key_exists('connections', $config) || ! is_array($config['connections'])) {
             $errors['connections'][] = 'Connections array is required';
         } else {
-            $errors = array_merge($errors, $this->validateConnections($config['connections']));
-        }
-
-        return $errors;
-    }
-
-    /**
-     * Validate connections configuration.
-     *
-     * @param array<string, mixed> $connections
-     *
-     * @return array<string, array<string>>
-     */
-    public function validateConnections(array $connections): array
-    {
-        $errors = [];
-
-        if (empty($connections)) {
-            $errors['connections'][] = 'At least one connection must be configured';
-        }
-
-        foreach ($connections as $name => $connection) {
-            if (!is_array($connection)) {
-                $errors["connections.{$name}"][] = 'Connection configuration must be an array';
-                continue;
-            }
-
-            $connectionErrors = $this->validateConnection($connection);
-            foreach ($connectionErrors as $field => $fieldErrors) {
-                $errors["connections.{$name}.{$field}"] = $fieldErrors;
-            }
+            /** @var array<string, mixed> $connections */
+            $connections = $config['connections'];
+            $errors = array_merge($errors, $this->validateConnections($connections));
         }
 
         return $errors;
@@ -69,8 +74,7 @@ class ConfigValidator
     /**
      * Validate a single connection configuration.
      *
-     * @param array<string, mixed> $connection
-     *
+     * @param  array<string, mixed>         $connection
      * @return array<string, array<string>>
      */
     public function validateConnection(array $connection): array
@@ -78,27 +82,41 @@ class ConfigValidator
         $errors = [];
 
         // Validate URL
-        if (!isset($connection['url']) || !is_string($connection['url'])) {
+        if (! array_key_exists('url', $connection) || ! is_string($connection['url'])) {
             $errors['url'][] = 'URL is required and must be a string';
-        } elseif (!filter_var($connection['url'], FILTER_VALIDATE_URL)) {
-            $errors['url'][] = 'URL must be a valid URL';
+        } else {
+            $url = $connection['url'];
+
+            if (false === filter_var($url, FILTER_VALIDATE_URL)) {
+                $errors['url'][] = 'URL must be a valid URL';
+            }
         }
 
         // Validate store ID
-        if (!isset($connection['store_id']) || !is_string($connection['store_id'])) {
+        if (! array_key_exists('store_id', $connection) || ! is_string($connection['store_id'])) {
             $errors['store_id'][] = 'Store ID is required and must be a string';
-        } elseif (empty(trim($connection['store_id']))) {
-            $errors['store_id'][] = 'Store ID cannot be empty';
+        } else {
+            $storeId = $connection['store_id'];
+
+            if ('' === trim($storeId)) {
+                $errors['store_id'][] = 'Store ID cannot be empty';
+            }
         }
 
         // Validate credentials if present
-        if (isset($connection['credentials'])) {
-            if (!is_array($connection['credentials'])) {
+        if (array_key_exists('credentials', $connection)) {
+            /** @var mixed $credentialsValue */
+            $credentialsValue = $connection['credentials'];
+
+            if (! is_array($credentialsValue)) {
                 $errors['credentials'][] = 'Credentials must be an array';
             } else {
-                $credentialErrors = $this->validateCredentials($connection['credentials']);
+                /** @var array<string, mixed> $credentials */
+                $credentials = $credentialsValue;
+                $credentialErrors = $this->validateCredentials($credentials);
+
                 foreach ($credentialErrors as $field => $fieldErrors) {
-                    $errors["credentials.{$field}"] = $fieldErrors;
+                    $errors['credentials.' . $field] = $fieldErrors;
                 }
             }
         }
@@ -112,10 +130,41 @@ class ConfigValidator
     }
 
     /**
+     * Validate connections configuration.
+     *
+     * @param  array<string, mixed>         $connections
+     * @return array<string, array<string>>
+     */
+    public function validateConnections(array $connections): array
+    {
+        $errors = [];
+
+        if ([] === $connections) {
+            $errors['connections'][] = 'At least one connection must be configured';
+        }
+
+        foreach ($connections as $name => $connection) {
+            if (! is_array($connection)) {
+                $errors['connections.' . $name][] = 'Connection configuration must be an array';
+
+                continue;
+            }
+
+            /** @var array<string, mixed> $connection */
+            $connectionErrors = $this->validateConnection($connection);
+
+            foreach ($connectionErrors as $field => $fieldErrors) {
+                $errors[sprintf('connections.%s.%s', $name, $field)] = $fieldErrors;
+            }
+        }
+
+        return $errors;
+    }
+
+    /**
      * Validate credential configuration.
      *
-     * @param array<string, mixed> $credentials
-     *
+     * @param  array<string, mixed>         $credentials
      * @return array<string, array<string>>
      */
     public function validateCredentials(array $credentials): array
@@ -123,8 +172,9 @@ class ConfigValidator
         $errors = [];
         $method = $credentials['method'] ?? null;
 
-        if (!is_string($method)) {
+        if (! is_string($method)) {
             $errors['method'][] = 'Authentication method must be a string';
+
             return $errors;
         }
 
@@ -134,33 +184,47 @@ class ConfigValidator
                 break;
 
             case 'api_token':
-                if (!isset($credentials['token']) || !is_string($credentials['token'])) {
+                if (! array_key_exists('token', $credentials) || ! is_string($credentials['token'])) {
                     $errors['token'][] = 'API token is required and must be a string';
-                } elseif (empty($credentials['token'])) {
-                    $errors['token'][] = 'API token cannot be empty';
+                } else {
+                    $token = $credentials['token'];
+
+                    if ('' === $token) {
+                        $errors['token'][] = 'API token cannot be empty';
+                    }
                 }
+
                 break;
 
             case 'client_credentials':
-                if (!isset($credentials['client_id']) || !is_string($credentials['client_id'])) {
+                if (! array_key_exists('client_id', $credentials) || ! is_string($credentials['client_id'])) {
                     $errors['client_id'][] = 'Client ID is required and must be a string';
-                } elseif (empty($credentials['client_id'])) {
-                    $errors['client_id'][] = 'Client ID cannot be empty';
+                } else {
+                    $clientId = $credentials['client_id'];
+
+                    if ('' === $clientId) {
+                        $errors['client_id'][] = 'Client ID cannot be empty';
+                    }
                 }
 
-                if (!isset($credentials['client_secret']) || !is_string($credentials['client_secret'])) {
+                if (! array_key_exists('client_secret', $credentials) || ! is_string($credentials['client_secret'])) {
                     $errors['client_secret'][] = 'Client secret is required and must be a string';
-                } elseif (empty($credentials['client_secret'])) {
-                    $errors['client_secret'][] = 'Client secret cannot be empty';
+                } else {
+                    $clientSecret = $credentials['client_secret'];
+
+                    if ('' === $clientSecret) {
+                        $errors['client_secret'][] = 'Client secret cannot be empty';
+                    }
                 }
 
                 // Need either token_endpoint or api_token_issuer
-                $hasTokenEndpoint = isset($credentials['token_endpoint']) && !empty($credentials['token_endpoint']);
-                $hasIssuer = isset($credentials['api_token_issuer']) && !empty($credentials['api_token_issuer']);
+                $hasTokenEndpoint = array_key_exists('token_endpoint', $credentials) && is_string($credentials['token_endpoint']) && '' !== $credentials['token_endpoint'];
+                $hasIssuer = array_key_exists('api_token_issuer', $credentials) && is_string($credentials['api_token_issuer']) && '' !== $credentials['api_token_issuer'];
 
-                if (!$hasTokenEndpoint && !$hasIssuer) {
+                if (! $hasTokenEndpoint && ! $hasIssuer) {
                     $errors['token_endpoint'][] = 'Either token_endpoint or api_token_issuer is required';
                 }
+
                 break;
 
             default:
@@ -173,29 +237,28 @@ class ConfigValidator
     /**
      * Validate a numeric field.
      *
-     * @param array<string, mixed> $config
-     * @param string $field
+     * @param array<string, mixed>         $config
+     * @param string                       $field
      * @param array<string, array<string>> $errors
-     * @param int $min
-     * @param int $max
-     *
-     * @return void
+     * @param int                          $min
+     * @param int                          $max
      */
     private function validateNumericField(
         array $config,
         string $field,
         array &$errors,
         int $min,
-        int $max
+        int $max,
     ): void {
-        if (!isset($config[$field])) {
+        if (! array_key_exists($field, $config)) {
             return;
         }
 
         $value = $config[$field];
 
-        if (!is_numeric($value)) {
+        if (! is_numeric($value)) {
             $errors[$field][] = sprintf('%s must be numeric', ucfirst(str_replace('_', ' ', $field)));
+
             return;
         }
 
@@ -208,37 +271,5 @@ class ConfigValidator
         if ($intValue > $max) {
             $errors[$field][] = sprintf('%s must be at most %d', ucfirst(str_replace('_', ' ', $field)), $max);
         }
-    }
-
-    /**
-     * Check if configuration is valid (no errors).
-     *
-     * @param array<string, mixed> $config
-     *
-     * @return bool
-     */
-    public function isValid(array $config): bool
-    {
-        return empty($this->validate($config));
-    }
-
-    /**
-     * Get flat list of all error messages.
-     *
-     * @param array<string, array<string>> $errors
-     *
-     * @return array<string>
-     */
-    public function flattenErrors(array $errors): array
-    {
-        $flat = [];
-
-        foreach ($errors as $field => $fieldErrors) {
-            foreach ($fieldErrors as $error) {
-                $flat[] = sprintf('%s: %s', $field, $error);
-            }
-        }
-
-        return $flat;
     }
 }

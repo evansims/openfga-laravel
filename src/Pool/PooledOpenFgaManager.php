@@ -172,6 +172,29 @@ final class PooledOpenFgaManager implements ManagerInterface
     }
 
     /**
+     * Grant permission(s) to user(s).
+     *
+     * @param array<string>|string $users
+     * @param string               $relation
+     * @param string               $object
+     * @param string|null          $connection
+     *
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
+     * @throws InvalidArgumentException
+     */
+    #[Override]
+    public function grant(
+        string | array $users,
+        string $relation,
+        string $object,
+        ?string $connection = null,
+    ): bool {
+        return $this->manager->grant($users, $relation, $object, $connection);
+    }
+
+    /**
      * List objects that a user has a specific relation to.
      *
      * @param string                                                                $user
@@ -198,6 +221,84 @@ final class PooledOpenFgaManager implements ManagerInterface
     }
 
     /**
+     * List all relations a user has with an object.
+     *
+     * @param string                                                                $user
+     * @param string                                                                $object
+     * @param array<string>                                                         $relations
+     * @param array<array{user: string, relation: string, object: string}|TupleKey> $contextualTuples
+     * @param array<string, mixed>                                                  $context
+     * @param string|null                                                           $connection
+     *
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
+     * @throws InvalidArgumentException
+     *
+     * @return array<string, bool>
+     */
+    #[Override]
+    public function listRelations(
+        string $user,
+        string $object,
+        array $relations = [],
+        array $contextualTuples = [],
+        array $context = [],
+        ?string $connection = null,
+    ): array {
+        return $this->manager->listRelations($user, $object, $relations, $contextualTuples, $context, $connection);
+    }
+
+    /**
+     * List all users who have a specific relation with an object.
+     *
+     * @param string                                                                $object
+     * @param string                                                                $relation
+     * @param array<string>                                                         $userTypes
+     * @param array<array{user: string, relation: string, object: string}|TupleKey> $contextualTuples
+     * @param array<string, mixed>                                                  $context
+     * @param string|null                                                           $connection
+     *
+     * @throws BindingResolutionException
+     * @throws ClientThrowable
+     * @throws Exception
+     * @throws InvalidArgumentException
+     *
+     * @return array<mixed>
+     */
+    #[Override]
+    public function listUsers(
+        string $object,
+        string $relation,
+        array $userTypes = [],
+        array $contextualTuples = [],
+        array $context = [],
+        ?string $connection = null,
+    ): array {
+        return $this->manager->listUsers($object, $relation, $userTypes, $contextualTuples, $context, $connection);
+    }
+
+    /**
+     * Revoke permission(s) from user(s).
+     *
+     * @param array<string>|string $users
+     * @param string               $relation
+     * @param string               $object
+     * @param string|null          $connection
+     *
+     * @throws BindingResolutionException|ClientThrowable|Exception|InvalidArgumentException
+     */
+    #[Override]
+    public function revoke(
+        string | array $users,
+        string $relation,
+        string $object,
+        ?string $connection = null,
+    ): bool {
+        return $this->manager->revoke($users, $relation, $object, $connection);
+    }
+
+    /**
      * Shutdown the connection pool.
      */
     public function shutdownPool(): void
@@ -217,6 +318,7 @@ final class PooledOpenFgaManager implements ManagerInterface
      *
      * @throws BindingResolutionException|ClientThrowable|Exception|InvalidArgumentException|ReflectionException
      */
+    #[Override]
     public function write(?TupleKeysInterface $writes = null, ?TupleKeysInterface $deletes = null, ?string $connection = null): bool
     {
         $poolEnabled = config('openfga.pool.enabled', false);
@@ -291,85 +393,5 @@ final class PooledOpenFgaManager implements ManagerInterface
         }
 
         return $this->pool;
-    }
-
-    /**
-     * Grant permission(s) to user(s).
-     *
-     * @param array<string>|string $users
-     * @param string               $relation
-     * @param string               $object
-     * @param string|null          $connection
-     */
-    public function grant(
-        string | array $users,
-        string $relation,
-        string $object,
-        ?string $connection = null,
-    ): bool {
-        return $this->manager->grant($users, $relation, $object, $connection);
-    }
-
-    /**
-     * List all relations a user has with an object.
-     *
-     * @param string                                                                $user
-     * @param string                                                                $object
-     * @param array<string>                                                         $relations
-     * @param array<array{user: string, relation: string, object: string}|TupleKey> $contextualTuples
-     * @param array<string, mixed>                                                  $context
-     * @param string|null                                                           $connection
-     *
-     * @return array<string, bool>
-     */
-    public function listRelations(
-        string $user,
-        string $object,
-        array $relations = [],
-        array $contextualTuples = [],
-        array $context = [],
-        ?string $connection = null,
-    ): array {
-        return $this->manager->listRelations($user, $object, $relations, $contextualTuples, $context, $connection);
-    }
-
-    /**
-     * List all users who have a specific relation with an object.
-     *
-     * @param string                                                                $object
-     * @param string                                                                $relation
-     * @param array<string>                                                         $userTypes
-     * @param array<array{user: string, relation: string, object: string}|TupleKey> $contextualTuples
-     * @param array<string, mixed>                                                  $context
-     * @param string|null                                                           $connection
-     *
-     * @return array<mixed>
-     */
-    public function listUsers(
-        string $object,
-        string $relation,
-        array $userTypes = [],
-        array $contextualTuples = [],
-        array $context = [],
-        ?string $connection = null,
-    ): array {
-        return $this->manager->listUsers($object, $relation, $userTypes, $contextualTuples, $context, $connection);
-    }
-
-    /**
-     * Revoke permission(s) from user(s).
-     *
-     * @param array<string>|string $users
-     * @param string               $relation
-     * @param string               $object
-     * @param string|null          $connection
-     */
-    public function revoke(
-        string | array $users,
-        string $relation,
-        string $object,
-        ?string $connection = null,
-    ): bool {
-        return $this->manager->revoke($users, $relation, $object, $connection);
     }
 }

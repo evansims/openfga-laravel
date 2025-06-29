@@ -529,6 +529,31 @@ abstract class IntegrationTestCase extends BaseTestCase
     }
 
     /**
+     * Check if OpenFGA server is available.
+     */
+    protected function isOpenFgaAvailable(): bool
+    {
+        /** @var mixed $envUrl */
+        $envUrl = env('OPENFGA_TEST_URL', 'http://localhost:8080');
+        $url = is_string($envUrl) ? $envUrl : 'http://localhost:8080';
+
+        try {
+            $context = stream_context_create([
+                'http' => [
+                    'timeout' => 2,
+                    'method' => 'GET',
+                ],
+            ]);
+
+            $result = @file_get_contents($url . '/stores', false, $context);
+
+            return false !== $result;
+        } catch (Exception) {
+            return false;
+        }
+    }
+
+    /**
      * List all tuples in the store.
      *
      * @throws RuntimeException
@@ -659,31 +684,6 @@ abstract class IntegrationTestCase extends BaseTestCase
         $this->clearAllTuples();
         $test();
         $this->clearAllTuples();
-    }
-
-    /**
-     * Check if OpenFGA server is available.
-     *
-     * @return bool
-     */
-    protected function isOpenFgaAvailable(): bool
-    {
-        $url = env('OPENFGA_TEST_URL', 'http://localhost:8080');
-        
-        try {
-            $context = stream_context_create([
-                'http' => [
-                    'timeout' => 2,
-                    'method' => 'GET',
-                ],
-            ]);
-            
-            $result = @file_get_contents($url . '/stores', false, $context);
-            
-            return $result !== false;
-        } catch (Exception $e) {
-            return false;
-        }
     }
 
     /**

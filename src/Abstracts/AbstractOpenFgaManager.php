@@ -17,9 +17,11 @@ use OpenFGA\Exceptions\ClientThrowable;
 use OpenFGA\Laravel\Cache\{ReadThroughCache, TaggedCache};
 use OpenFGA\Laravel\Contracts\ManagerInterface;
 use OpenFGA\Laravel\Query\AuthorizationQuery;
+use OpenFGA\Laravel\Traits\ManagerOperations;
 use OpenFGA\Models\{BatchCheckItem, TupleKey, UserTypeFilter};
 use OpenFGA\Models\Collections\{BatchCheckItems, TupleKeys, TupleKeysInterface, UserTypeFilters};
 use OpenFGA\Results\{FailureInterface, SuccessInterface};
+use Override;
 use Psr\Http\Message\{RequestFactoryInterface, ResponseFactoryInterface, StreamFactoryInterface};
 use RuntimeException;
 use Throwable;
@@ -43,6 +45,8 @@ use function sprintf;
  */
 abstract class AbstractOpenFgaManager implements ManagerInterface
 {
+    use ManagerOperations;
+
     /**
      * The active connection instances.
      *
@@ -95,6 +99,13 @@ abstract class AbstractOpenFgaManager implements ManagerInterface
     }
 
     /**
+     * Create a new query builder instance.
+     *
+     * @param string|null $connection Optional connection name
+     */
+    abstract public function query(?string $connection = null): AuthorizationQuery;
+
+    /**
      * Batch check multiple permissions at once.
      *
      * @param array<int, array{user: string, relation: string, object: string}> $checks
@@ -107,6 +118,7 @@ abstract class AbstractOpenFgaManager implements ManagerInterface
      *
      * @return array<string, bool> Keyed by "user:relation:object"
      */
+    #[Override]
     public function batchCheck(array $checks, ?string $connection = null): array
     {
         $batchItems = [];
@@ -243,6 +255,7 @@ abstract class AbstractOpenFgaManager implements ManagerInterface
      * @throws Exception                                 If throwExceptions is true and an error occurs
      * @throws InvalidArgumentException
      */
+    #[Override]
     public function check(
         string $user,
         string $relation,
@@ -532,6 +545,7 @@ abstract class AbstractOpenFgaManager implements ManagerInterface
      * @throws Exception                  If throwExceptions is true and an error occurs
      * @throws InvalidArgumentException
      */
+    #[Override]
     public function grant(
         string | array $users,
         string $relation,
@@ -621,6 +635,7 @@ abstract class AbstractOpenFgaManager implements ManagerInterface
      *
      * @return array<string>
      */
+    #[Override]
     public function listObjects(
         string $user,
         string $relation,
@@ -717,6 +732,7 @@ abstract class AbstractOpenFgaManager implements ManagerInterface
      *
      * @return array<string, bool> Relations mapped to whether the user has them
      */
+    #[Override]
     public function listRelations(
         string $user,
         string $object,
@@ -760,6 +776,7 @@ abstract class AbstractOpenFgaManager implements ManagerInterface
      *
      * @return array<mixed>
      */
+    #[Override]
     public function listUsers(
         string $object,
         string $relation,
@@ -843,13 +860,6 @@ abstract class AbstractOpenFgaManager implements ManagerInterface
     }
 
     /**
-     * Create a new query builder instance.
-     *
-     * @param string|null $connection Optional connection name
-     */
-    abstract public function query(?string $connection = null): AuthorizationQuery;
-
-    /**
      * Revoke permission(s) from user(s).
      *
      * @param array<string>|string $users      User identifier(s)
@@ -862,6 +872,7 @@ abstract class AbstractOpenFgaManager implements ManagerInterface
      * @throws Exception                  If throwExceptions is true and an error occurs
      * @throws InvalidArgumentException
      */
+    #[Override]
     public function revoke(
         string | array $users,
         string $relation,
@@ -932,6 +943,7 @@ abstract class AbstractOpenFgaManager implements ManagerInterface
      * @throws Exception                  If throwExceptions is true and an error occurs
      * @throws InvalidArgumentException
      */
+    #[Override]
     public function write(
         ?TupleKeysInterface $writes = null,
         ?TupleKeysInterface $deletes = null,

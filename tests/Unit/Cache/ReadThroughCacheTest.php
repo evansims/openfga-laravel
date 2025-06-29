@@ -8,6 +8,7 @@ use Exception;
 use Illuminate\Cache\{ArrayStore, Repository};
 use OpenFGA\Laravel\Cache\ReadThroughCache;
 use OpenFGA\Laravel\Contracts\ManagerInterface;
+use OpenFGA\Models\Collections\TupleKeysInterface;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 
@@ -301,6 +302,15 @@ final class TestableOpenFgaManager implements ManagerInterface
         return $this->listObjectsCount;
     }
 
+    public function grant(
+        string | array $users,
+        string $relation,
+        string $object,
+        ?string $connection = null,
+    ): bool {
+        return true;
+    }
+
     public function listObjects(
         string $user,
         string $relation,
@@ -318,30 +328,6 @@ final class TestableOpenFgaManager implements ManagerInterface
         $key = "{$user}:{$relation}:{$type}";
 
         return $this->listResults[$key] ?? [];
-    }
-
-    public function setCheckResult(string $user, string $relation, string $object, bool $result): void
-    {
-        $this->checkResults["{$user}:{$relation}:{$object}"] = $result;
-    }
-
-    public function setListObjectsResult(string $user, string $relation, string $type, array $result): void
-    {
-        $this->listResults["{$user}:{$relation}:{$type}"] = $result;
-    }
-
-    public function setShouldThrow(?Exception $exception): void
-    {
-        $this->shouldThrow = $exception;
-    }
-
-    public function grant(
-        string | array $users,
-        string $relation,
-        string $object,
-        ?string $connection = null,
-    ): bool {
-        return true;
     }
 
     public function listRelations(
@@ -375,9 +361,24 @@ final class TestableOpenFgaManager implements ManagerInterface
         return true;
     }
 
+    public function setCheckResult(string $user, string $relation, string $object, bool $result): void
+    {
+        $this->checkResults["{$user}:{$relation}:{$object}"] = $result;
+    }
+
+    public function setListObjectsResult(string $user, string $relation, string $type, array $result): void
+    {
+        $this->listResults["{$user}:{$relation}:{$type}"] = $result;
+    }
+
+    public function setShouldThrow(?Exception $exception): void
+    {
+        $this->shouldThrow = $exception;
+    }
+
     public function write(
-        ?\OpenFGA\Models\Collections\TupleKeysInterface $writes = null,
-        ?\OpenFGA\Models\Collections\TupleKeysInterface $deletes = null,
+        ?TupleKeysInterface $writes = null,
+        ?TupleKeysInterface $deletes = null,
         ?string $connection = null,
     ): bool {
         return true;

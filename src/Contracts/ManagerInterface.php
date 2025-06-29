@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Contracts;
 
-use OpenFGA\Models\{TupleKey};
 use OpenFGA\Models\Collections\{TupleKeysInterface};
+use OpenFGA\Models\{TupleKey};
 
 /**
  * Core interface defining OpenFGA manager operations.
@@ -85,13 +85,12 @@ interface ManagerInterface
     /**
      * List all relations a user has with an object.
      *
-     * @param string                                                                $user
-     * @param string                                                                $object
-     * @param array<string>                                                         $relations
-     * @param array<array{user: string, relation: string, object: string}|TupleKey> $contextualTuples
-     * @param array<string, mixed>                                                  $context
-     * @param string|null                                                           $connection
-     *
+     * @param  string                                                                $user
+     * @param  string                                                                $object
+     * @param  array<string>                                                         $relations
+     * @param  array<array{user: string, relation: string, object: string}|TupleKey> $contextualTuples
+     * @param  array<string, mixed>                                                  $context
+     * @param  string|null                                                           $connection
      * @return array<string, bool>
      */
     public function listRelations(
@@ -106,13 +105,12 @@ interface ManagerInterface
     /**
      * List all users who have a specific relation with an object.
      *
-     * @param string                                                                $object
-     * @param string                                                                $relation
-     * @param array<string>                                                         $userTypes
-     * @param array<array{user: string, relation: string, object: string}|TupleKey> $contextualTuples
-     * @param array<string, mixed>                                                  $context
-     * @param string|null                                                           $connection
-     *
+     * @param  string                                                                $object
+     * @param  string                                                                $relation
+     * @param  array<string>                                                         $userTypes
+     * @param  array<array{user: string, relation: string, object: string}|TupleKey> $contextualTuples
+     * @param  array<string, mixed>                                                  $context
+     * @param  string|null                                                           $connection
      * @return array<mixed>
      */
     public function listUsers(
