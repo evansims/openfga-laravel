@@ -419,6 +419,116 @@ public function register()
    );
    ```
 
+## Custom Exception Types
+
+OpenFGA Laravel provides typed exceptions for better error handling:
+
+### AuthorizationException
+
+Thrown when authorization operations fail.
+
+```php
+use OpenFGA\Laravel\Exceptions\AuthorizationException;
+
+try {
+    $allowed = OpenFga::check('user:123', 'viewer', 'document:456');
+} catch (AuthorizationException $e) {
+    // Specific handling for authorization failures
+    \Log::error('Authorization failed: ' . $e->getMessage());
+}
+```
+
+### ConnectionException
+
+Thrown when there are connection issues with OpenFGA.
+
+```php
+use OpenFGA\Laravel\Exceptions\ConnectionException;
+
+try {
+    $result = OpenFga::listStores();
+} catch (ConnectionException $e) {
+    // Handle connection issues
+    if (str_contains($e->getMessage(), 'timed out')) {
+        // Retry with longer timeout
+    }
+}
+```
+
+### ModelNotFoundException
+
+Thrown when a specified authorization model cannot be found.
+
+```php
+use OpenFGA\Laravel\Exceptions\ModelNotFoundException;
+
+try {
+    $model = OpenFga::readAuthorizationModel($modelId);
+} catch (ModelNotFoundException $e) {
+    // Model doesn't exist
+    \Log::warning('Model not found: ' . $modelId);
+}
+```
+
+### StoreNotFoundException
+
+Thrown when a specified store cannot be found.
+
+```php
+use OpenFGA\Laravel\Exceptions\StoreNotFoundException;
+
+try {
+    $store = OpenFga::getStore($storeId);
+} catch (StoreNotFoundException $e) {
+    // Store doesn't exist
+    // Maybe create a new store or use default
+}
+```
+
+### InvalidTupleException
+
+Thrown when tuple format is invalid.
+
+```php
+use OpenFGA\Laravel\Exceptions\InvalidTupleException;
+
+try {
+    OpenFga::grant('invalid-format', 'viewer', 'document:123');
+} catch (InvalidTupleException $e) {
+    // Fix the tuple format
+    // Should be 'type:id' format
+}
+```
+
+### ConnectionPoolException
+
+Thrown when connection pool operations fail.
+
+```php
+use OpenFGA\Laravel\Exceptions\ConnectionPoolException;
+
+try {
+    // Connection pool operations
+} catch (ConnectionPoolException $e) {
+    // Handle pool exhaustion or connection failures
+}
+```
+
+### Base OpenFgaException
+
+All custom exceptions extend from `OpenFgaException`:
+
+```php
+use OpenFGA\Laravel\Exceptions\OpenFgaException;
+
+try {
+    // Any OpenFGA operation
+} catch (OpenFgaException $e) {
+    // Catches any OpenFGA-related exception
+    \Log::error('OpenFGA error: ' . $e->getMessage());
+}
+```
+
 ## Error Messages Reference
 
 ### "Result unwrapping failed"

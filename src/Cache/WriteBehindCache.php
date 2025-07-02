@@ -9,6 +9,7 @@ use Illuminate\Contracts\Cache\Repository as Cache;
 use Illuminate\Support\Facades\Log;
 use OpenFGA\Exceptions\ClientThrowable;
 use OpenFGA\Laravel\Jobs\FlushWriteBehindCacheJob;
+use OpenFGA\Laravel\Jobs\WriteTupleToFgaJob;
 use OpenFGA\Laravel\OpenFgaManager;
 
 use function count;
@@ -36,6 +37,9 @@ final class WriteBehindCache
         private readonly OpenFgaManager $manager,
         private readonly int $batchSize = 100,
         private readonly int $flushInterval = 5,
+        private readonly bool $useQueue = false,
+        private readonly ?string $queueConnection = null,
+        private readonly string $queueName = 'openfga',
     ) {
     }
 
@@ -98,20 +102,47 @@ final class WriteBehindCache
         $deletes = array_values($this->pendingDeletes);
 
         try {
-            // Perform the actual write to OpenFGA
-            if ([] !== $writes || [] !== $deletes) {
-                $this->manager->writeBatch(
-                    array_map(static fn (array $w): array => [
-                        'user' => $w['user'],
-                        'relation' => $w['relation'],
-                        'object' => $w['object'],
-                    ], $writes),
-                    array_map(static fn (array $d): array => [
-                        'user' => $d['user'],
-                        'relation' => $d['relation'],
-                        'object' => $d['object'],
-                    ], $deletes),
-                );
+            if ($this->useQueue) {
+                // Dispatch individual jobs for each operation
+                $currentConnection = $this->manager->getDefaultConnection();
+                
+                foreach ($writes as $write) {
+                    WriteTupleToFgaJob::dispatch(
+                        user: $write['user'],
+                        relation: $write['relation'],
+                        object: $write['object'],
+                        operation: 'write',
+                        openfgaConnection: $currentConnection
+                    )->onConnection($this->queueConnection)
+                     ->onQueue($this->queueName);
+                }
+                
+                foreach ($deletes as $delete) {
+                    WriteTupleToFgaJob::dispatch(
+                        user: $delete['user'],
+                        relation: $delete['relation'],
+                        object: $delete['object'],
+                        operation: 'delete',
+                        openfgaConnection: $currentConnection
+                    )->onConnection($this->queueConnection)
+                     ->onQueue($this->queueName);
+                }
+            } else {
+                // Perform the actual write to OpenFGA synchronously
+                if ([] !== $writes || [] !== $deletes) {
+                    $this->manager->writeBatch(
+                        array_map(static fn (array $w): array => [
+                            'user' => $w['user'],
+                            'relation' => $w['relation'],
+                            'object' => $w['object'],
+                        ], $writes),
+                        array_map(static fn (array $d): array => [
+                            'user' => $d['user'],
+                            'relation' => $d['relation'],
+                            'object' => $d['object'],
+                        ], $deletes),
+                    );
+                }
             }
 
             $stats = [
@@ -242,7 +273,9 @@ final class WriteBehindCache
     private function scheduleFlush(): void
     {
         // Dispatch job to flush the cache
-        dispatch(new FlushWriteBehindCacheJob)->onQueue('openfga-write-behind');
+        FlushWriteBehindCacheJob::dispatch()
+            ->onConnection($this->queueConnection)
+            ->onQueue($this->queueName);
     }
 
     /**

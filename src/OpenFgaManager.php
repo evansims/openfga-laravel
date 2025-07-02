@@ -20,7 +20,7 @@ use Override;
  *
  * @api
  */
-final class OpenFgaManager extends AbstractOpenFgaManager
+class OpenFgaManager extends AbstractOpenFgaManager
 {
     /**
      * Create a new query builder instance.

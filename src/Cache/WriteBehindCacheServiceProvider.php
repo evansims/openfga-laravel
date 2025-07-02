@@ -61,11 +61,23 @@ final class WriteBehindCacheServiceProvider extends ServiceProvider
             /** @var int $flushInterval */
             $flushInterval = config('openfga.cache.write_behind_flush_interval', 5);
 
+            /** @var bool $useQueue */
+            $useQueue = config('openfga.queue.enabled', false);
+
+            /** @var string|null $queueConnection */
+            $queueConnection = config('openfga.queue.connection');
+
+            /** @var string $queueName */
+            $queueName = config('openfga.queue.queue', 'openfga');
+
             return new WriteBehindCache(
                 $cacheFactory->store($store),
                 $manager,
                 $batchSize,
                 $flushInterval,
+                $useQueue,
+                $queueConnection,
+                $queueName,
             );
         });
     }

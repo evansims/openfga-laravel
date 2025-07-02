@@ -24,7 +24,7 @@ The plan is prioritized to deliver the most impactful changes first.
 - [x] Define specific exception classes (e.g., `ModelNotFoundException`, `InvalidTupleException`, `StoreNotFoundException`) in the `src/Exceptions` directory.
 - [x] Wrap the underlying OpenFGA SDK exceptions in our custom exceptions within the `OpenFgaManager` and other relevant services.
 - [x] Update method docblocks across the codebase to include `@throws` tags for the new exceptions.
-- [ ] Add a section to the `troubleshooting.md` documentation explaining the common exceptions and how to handle them.
+- [x] Add a section to the `troubleshooting.md` documentation explaining the common exceptions and how to handle them.
 
 ### 1.2. IDE Helper Integration ✅
 **Benefit:** Massively improves developer productivity by enabling full autocompletion and static analysis within IDEs.
@@ -66,28 +66,28 @@ The plan is prioritized to deliver the most impactful changes first.
 - [x] Add a `webhook` section to the `config/openfga.php` file to enable/disable handling and configure the endpoint.
 - [x] Add a new `webhooks.md` documentation file explaining the feature and setup.
 
-### 2.3. First-Class Multi-Tenancy Support
+### 2.3. First-Class Multi-Tenancy Support ✅
 **Benefit:** Allows a single Laravel instance to serve multiple tenants with isolated authorization.
 
-- [ ] Update the `config/openfga.php` file to support a `connections` array, each with its own `store_id`, `api_token`, etc.
-- [ ] Modify the `OpenFgaManager` to accept a `connection` name and return a client configured for that connection.
-- [ ] Implement a `setConnection(string $name)` method on the manager to switch the default connection at runtime.
-- [ ] Refactor existing services to resolve their OpenFGA client from the manager, respecting the selected connection.
-- [ ] Add integration tests for switching between tenants.
-- [ ] Update the documentation to explain the multi-tenancy configuration.
+- [x] Update the `config/openfga.php` file to support a `connections` array, each with its own `store_id`, `api_token`, etc.
+- [x] Modify the `OpenFgaManager` to accept a `connection` name and return a client configured for that connection.
+- [x] Implement a `setConnection(string $name)` method on the manager to switch the default connection at runtime.
+- [x] Refactor existing services to resolve their OpenFGA client from the manager, respecting the selected connection.
+- [x] Add integration tests for switching between tenants.
+- [x] Update the documentation to explain the multi-tenancy configuration.
 
 ---
 
 ## 3. ⚡ Performance
 
-### 3.1. Integrate `WriteBehindCache` with Laravel Queues
+### 3.1. Integrate `WriteBehindCache` with Laravel Queues ✅
 **Benefit:** Increases the reliability of write operations and keeps web requests fast.
 
-- [ ] Create a new `WriteTupleToFga` job class in the `src/Jobs` directory.
-- [ ] Update the `WriteBehindCache` service to dispatch this job instead of writing directly to the API.
-- [ ] Add a `queue` configuration option to `config/openfga.php` to specify the desired queue connection and tube.
-- [ ] Ensure the job is serializable and handles potential failures gracefully (e.g., using retries).
-- [ ] Document this feature in the `performance.md` and `cache/write-behind.md` files.
+- [x] Create a new `WriteTupleToFga` job class in the `src/Jobs` directory.
+- [x] Update the `WriteBehindCache` service to dispatch this job instead of writing directly to the API.
+- [x] Add a `queue` configuration option to `config/openfga.php` to specify the desired queue connection and tube.
+- [x] Ensure the job is serializable and handles potential failures gracefully (e.g., using retries).
+- [x] Document this feature in the `performance.md` and `cache/write-behind.md` files.
 
 ---
 

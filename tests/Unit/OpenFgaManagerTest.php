@@ -141,6 +141,12 @@ describe('OpenFgaManager', function (): void {
                 ->and($this->manager->getDefaultConnection())->toBe('secondary');
         });
 
+        it('can set connection with fluent interface', function (): void {
+            expect($this->manager->setConnection('secondary'))
+                ->toBeInstanceOf(OpenFgaManager::class)
+                ->and($this->manager->getDefaultConnection())->toBe('secondary');
+        });
+
         it('validates default connection exists', function (): void {
             // Setting invalid default connection is allowed - it will fail when trying to use it
             $this->manager->setDefaultConnection('invalid');

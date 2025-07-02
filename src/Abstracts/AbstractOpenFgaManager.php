@@ -910,6 +910,20 @@ abstract class AbstractOpenFgaManager implements ManagerInterface
     }
 
     /**
+     * Set the connection to use for subsequent operations.
+     *
+     * This is an alias for setDefaultConnection for better developer experience.
+     *
+     * @param string $name The connection name
+     * @return $this For method chaining
+     */
+    public function setConnection(string $name): self
+    {
+        $this->setDefaultConnection($name);
+        return $this;
+    }
+
+    /**
      * Set whether to throw exceptions instead of returning Result pattern.
      *
      * @param  bool  $throw
