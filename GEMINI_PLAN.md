@@ -93,12 +93,12 @@ The plan is prioritized to deliver the most impactful changes first.
 
 ## 4. 📚 Documentation
 
-### 4.1. Add Visual Request Lifecycle Diagram
+### 4.1. Add Visual Request Lifecycle Diagram ✅
 **Benefit:** Provides an immediate, intuitive understanding of how the package's components interact.
 
-- [ ] Choose a Mermaid.js diagram type (e.g., flowchart).
-- [ ] Create the diagram illustrating the flow from a `Gate::check()` call through the package's services to the OpenFGA API.
-- [ ] Embed the diagram in the `quickstart.md` file.
+- [x] Choose a Mermaid.js diagram type (e.g., flowchart).
+- [x] Create the diagram illustrating the flow from a `Gate::check()` call through the package's services to the OpenFGA API.
+- [x] Embed the diagram in the `quickstart.md` file.
 
 ### 4.2. Create a "Cookbook/Recipes" Section
 **Benefit:** Helps users solve real-world problems with the library.

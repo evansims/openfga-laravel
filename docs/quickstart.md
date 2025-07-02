@@ -29,6 +29,60 @@ type document
 
 Load this model into your OpenFGA store using the OpenFGA CLI or API.
 
+## How It Works
+
+Understanding how OpenFGA Laravel processes authorization requests helps you build more efficient applications. Here's the complete request lifecycle:
+
+```mermaid
+flowchart TD
+    Start([Application Request]) --> Gate{Laravel Gate?}
+    
+    Gate -->|Yes| GateProvider[OpenFgaGateProvider]
+    Gate -->|No| DirectCall[Direct OpenFga Call]
+    
+    GateProvider --> Manager[OpenFgaManager]
+    DirectCall --> Manager
+    
+    Manager --> Cache{Cache Enabled?}
+    Cache -->|Yes| CacheCheck{Cache Hit?}
+    Cache -->|No| ClientCall[OpenFGA Client]
+    
+    CacheCheck -->|Hit| CacheReturn[Return Cached Result]
+    CacheCheck -->|Miss| ClientCall
+    
+    ClientCall --> Connection[Connection Pool]
+    Connection --> APICall[OpenFGA API Request]
+    
+    APICall --> Response[API Response]
+    Response --> StoreCache{Should Cache?}
+    
+    StoreCache -->|Yes| CacheStore[Store in Cache]
+    StoreCache -->|No| ReturnResult[Return Result]
+    
+    CacheStore --> ReturnResult
+    CacheReturn --> ReturnResult
+    
+    ReturnResult --> WriteBehind{Write-Behind Cache?}
+    WriteBehind -->|Yes| QueueJob[Queue Write Job]
+    WriteBehind -->|No| End([Result])
+    
+    QueueJob --> End
+    
+    style Manager fill:#e1f5fe
+    style Cache fill:#f3e5f5
+    style ClientCall fill:#e8f5e8
+    style APICall fill:#fff3e0
+```
+
+**Key Components:**
+
+1. **Laravel Gate Integration**: Seamlessly integrates with Laravel's authorization system
+2. **OpenFgaManager**: Central coordination point with connection pooling and multi-tenancy
+3. **Caching Layer**: Optional Redis/database caching for improved performance
+4. **Connection Pool**: Manages multiple OpenFGA connections for different tenants
+5. **Write-Behind Cache**: Queued write operations for better response times
+6. **OpenFGA API**: The actual authorization service
+
 ## Basic Usage
 
 ### 1. Granting Permissions
