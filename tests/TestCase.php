@@ -5,14 +5,16 @@ declare(strict_types=1);
 namespace OpenFGA\Laravel\Tests;
 
 use OpenFGA\Laravel\OpenFgaServiceProvider;
+use Override;
 
 abstract class TestCase extends \Orchestra\Testbench\TestCase
 {
+    #[Override]
     protected function tearDown(): void
     {
         // Restore error and exception handlers to prevent risky test warnings
         while (true) {
-            $previousHandler = set_error_handler(static fn () => null);
+            $previousHandler = set_error_handler(static fn (): null => null);
             restore_error_handler();
 
             if (null === $previousHandler) {
@@ -22,7 +24,7 @@ abstract class TestCase extends \Orchestra\Testbench\TestCase
         }
 
         while (true) {
-            $previousHandler = set_exception_handler(static fn () => null);
+            $previousHandler = set_exception_handler(static fn (): null => null);
             restore_exception_handler();
 
             if (null === $previousHandler) {

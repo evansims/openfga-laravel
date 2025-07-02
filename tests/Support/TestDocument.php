@@ -6,6 +6,7 @@ namespace OpenFGA\Laravel\Tests\Support;
 
 use Illuminate\Database\Eloquent\Model;
 use OpenFGA\Laravel\Traits\HasAuthorization;
+use Override;
 
 // Test model that uses the trait
 final class TestDocument extends Model
@@ -25,11 +26,13 @@ final class TestDocument extends Model
     }
 
     // Override for testing
+    #[Override]
     public function getKey()
     {
         return $this->id ?? 123;
     }
 
+    #[Override]
     public function getKeyName()
     {
         return 'id';

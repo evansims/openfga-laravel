@@ -538,7 +538,7 @@ describe('AbstractAuthorizationQuery', function (): void {
     describe('concrete implementation', function (): void {
         it('implements fresh method', function (): void {
             $fresh = $this->query->fresh();
-            expect($fresh)->toBeInstanceOf(get_class($this->query));
+            expect($fresh)->toBeInstanceOf($this->query::class);
             expect($fresh)->not()->toBe($this->query);
         });
     });

@@ -101,7 +101,7 @@ describe('PermissionImporter', function (): void {
 
             $this->mockManager->shouldReceive('write')
                 ->once()
-                ->with(Mockery::on(function (TupleKeys $tuples) {
+                ->with(Mockery::on(function (TupleKeys $tuples): bool {
                     return 2 === $tuples->count(); // Only valid rows should be processed
                 }));
 
@@ -351,7 +351,7 @@ describe('PermissionImporter', function (): void {
 
             $this->mockManager->shouldReceive('write')
                 ->once()
-                ->with(Mockery::on(fn (TupleKeys $tuples) => 1 === $tuples->count()));
+                ->with(Mockery::on(static fn (TupleKeys $tuples): bool => 1 === $tuples->count()));
 
             $stats = $this->importer->importFromArray($data);
 

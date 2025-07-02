@@ -67,6 +67,7 @@ describe('RevokeCommand', function (): void {
     it('has correct signature', function (): void {
         $command = new RevokeCommand;
         $command->setLaravel($this->app);
+
         expect($command->getName())->toBe('openfga:revoke');
         expect($command->getDescription())->toContain('Revoke a permission from a user');
 
@@ -143,8 +144,8 @@ describe('RevokeCommand', function (): void {
         try {
             $this->artisan('openfga:revoke');
             $this->fail('Expected RuntimeException');
-        } catch (RuntimeException $e) {
-            expect($e->getMessage())->toContain('Not enough arguments');
+        } catch (RuntimeException $runtimeException) {
+            expect($runtimeException->getMessage())->toContain('Not enough arguments');
         }
     });
 });

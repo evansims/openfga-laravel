@@ -8,20 +8,18 @@ use OpenFGA\Laravel\Tests\TestCase;
 uses(TestCase::class);
 
 describe('CreatesPermissionData', function (): void {
-    $createInstance = function () {
-        return new class {
-            use CreatesPermissionData {
-                createDocumentHierarchy as public;
-                createBlogSystem as public;
-                createEcommerceSystem as public;
-                createFileSystem as public;
-                createNestedHierarchy as public;
-                createOrganizationStructure as public;
-                createProjectManagementSystem as public;
-                createRandomPermissions as public;
-            }
-        };
-    };
+    $createInstance = (static fn (): object => new class {
+        use CreatesPermissionData {
+            createDocumentHierarchy as public;
+            createBlogSystem as public;
+            createEcommerceSystem as public;
+            createFileSystem as public;
+            createNestedHierarchy as public;
+            createOrganizationStructure as public;
+            createProjectManagementSystem as public;
+            createRandomPermissions as public;
+        }
+    });
 
     beforeEach(function () use ($createInstance): void {
         $this->fake = new FakeOpenFga;

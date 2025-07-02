@@ -118,13 +118,13 @@ describe('Permission Management System', function (): void {
         });
     });
 
-    describe('Permission Data Transfer Objects', function (): void {
+    describe('Permission Data Transfer Objects', static function (): void {
         /*
          * These tests verify that our DTOs properly handle the complex data
          * structures needed for OpenFGA permission checks.
          */
 
-        it('should create valid permission request from user object', function (): void {
+        it('should create valid permission request from user object', static function (): void {
             // This test ensures that we can seamlessly convert Laravel user objects
             // into OpenFGA permission check requests without losing important data
 
@@ -148,7 +148,7 @@ describe('Permission Management System', function (): void {
             expect($request->object)->toBe(TestConstants::DEFAULT_DOCUMENT_ID);
         });
 
-        it('should handle optional context data gracefully', function (): void {
+        it('should handle optional context data gracefully', static function (): void {
             // This test ensures that optional permission context (like IP address,
             // time of day, etc.) is handled properly when present or absent
 
@@ -175,13 +175,13 @@ describe('Permission Management System', function (): void {
         });
     });
 
-    describe('Batch Operations', function (): void {
+    describe('Batch Operations', static function (): void {
         /*
          * These tests verify that bulk permission operations work correctly
          * and provide meaningful feedback about their results.
          */
 
-        it('should process batch permission checks efficiently', function (): void {
+        it('should process batch permission checks efficiently', static function (): void {
             // This test ensures that when checking many permissions at once,
             // the system handles them efficiently and reports accurate results
 
@@ -217,13 +217,13 @@ describe('Permission Management System', function (): void {
         });
     });
 
-    describe('Configuration Validation', function (): void {
+    describe('Configuration Validation', static function (): void {
         /*
          * These tests ensure that the system properly validates configuration
          * and provides helpful error messages when configuration is invalid.
          */
 
-        it('should accept valid OpenFGA configuration', function (): void {
+        it('should accept valid OpenFGA configuration', static function (): void {
             // This test ensures that properly formatted configuration is accepted
             // and can be used to establish OpenFGA connections
 
@@ -242,7 +242,7 @@ describe('Permission Management System', function (): void {
             );
         });
 
-        it('should reject invalid OpenFGA configuration with clear error message', function (): void {
+        it('should reject invalid OpenFGA configuration with clear error message', static function (): void {
             // This test ensures that invalid configuration is rejected with
             // helpful error messages that guide users to fix the problem
 

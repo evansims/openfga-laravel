@@ -20,7 +20,7 @@ describe('LoadPermissions', function (): void {
         $this->mockManager = Mockery::mock(ManagerInterface::class);
         $this->middleware = new LoadPermissions($this->mockManager);
         $this->request = Request::create(uri: '/test');
-        $this->next = fn (Request $request): Response => new Response('OK');
+        $this->next = static fn (Request $request): Response => new Response('OK');
     });
 
     describe('object handling', function (): void {
@@ -37,10 +37,11 @@ describe('LoadPermissions', function (): void {
             $route->bind($this->request);
             $route->setParameter('document1', $document1);
             $route->setParameter('document2', $document2);
-            $this->request->setRouteResolver(fn () => $route);
+
+            $this->request->setRouteResolver(static fn (): Route => $route);
 
             Auth::shouldReceive('check')->once()->andReturnTrue();
-            $this->request->setUserResolver(fn () => $user);
+            $this->request->setUserResolver(static fn (): object => $user);
 
             $this->mockManager->shouldReceive('batchCheck')
                 ->once()
@@ -65,10 +66,11 @@ describe('LoadPermissions', function (): void {
             );
             $route->bind($this->request);
             $route->setParameter('post', $plainModel);
-            $this->request->setRouteResolver(fn () => $route);
+
+            $this->request->setRouteResolver(static fn (): Route => $route);
 
             Auth::shouldReceive('check')->once()->andReturnTrue();
-            $this->request->setUserResolver(fn () => $user);
+            $this->request->setUserResolver(static fn (): object => $user);
 
             $this->mockManager->shouldReceive('batchCheck')
                 ->once()
@@ -86,7 +88,7 @@ describe('LoadPermissions', function (): void {
     describe('error handling', function (): void {
         it('handles null user gracefully', function (): void {
             Auth::shouldReceive('check')->once()->andReturnTrue();
-            $this->request->setUserResolver(fn () => null);
+            $this->request->setUserResolver(static fn (): null => null);
 
             $this->mockManager->shouldNotReceive('batchCheck');
 
@@ -100,8 +102,8 @@ describe('LoadPermissions', function (): void {
             $user = createAuthUser('user:123');
 
             Auth::shouldReceive('check')->once()->andReturnTrue();
-            $this->request->setUserResolver(fn () => $user);
-            $this->request->setRouteResolver(fn () => null);
+            $this->request->setUserResolver(static fn (): object => $user);
+            $this->request->setRouteResolver(static fn (): null => null);
 
             $this->mockManager->shouldNotReceive('batchCheck');
 
@@ -121,10 +123,11 @@ describe('LoadPermissions', function (): void {
             );
             $route->bind($this->request);
             $route->setParameter('query', 'test search');
-            $this->request->setRouteResolver(fn () => $route);
+
+            $this->request->setRouteResolver(static fn (): Route => $route);
 
             Auth::shouldReceive('check')->once()->andReturnTrue();
-            $this->request->setUserResolver(fn () => $user);
+            $this->request->setUserResolver(static fn (): object => $user);
 
             $this->mockManager->shouldNotReceive('batchCheck');
 
@@ -143,10 +146,11 @@ describe('LoadPermissions', function (): void {
                 action: [],
             );
             $route->bind($this->request);
-            $this->request->setRouteResolver(fn () => $route);
+
+            $this->request->setRouteResolver(static fn (): Route => $route);
 
             Auth::shouldReceive('check')->once()->andReturnTrue();
-            $this->request->setUserResolver(fn () => $user);
+            $this->request->setUserResolver(static fn (): object => $user);
 
             $this->mockManager->shouldNotReceive('batchCheck');
 
@@ -171,10 +175,11 @@ describe('LoadPermissions', function (): void {
             $route->bind($this->request);
             $route->setParameter('document', $document);
             $route->setParameter('folder', $folder);
-            $this->request->setRouteResolver(fn () => $route);
+
+            $this->request->setRouteResolver(static fn (): Route => $route);
 
             Auth::shouldReceive('check')->once()->andReturnTrue();
-            $this->request->setUserResolver(fn () => $user);
+            $this->request->setUserResolver(static fn (): object => $user);
 
             $this->mockManager->shouldReceive('batchCheck')
                 ->once()
@@ -204,10 +209,11 @@ describe('LoadPermissions', function (): void {
             );
             $route->bind($this->request);
             $route->setParameter('document', $document);
-            $this->request->setRouteResolver(fn () => $route);
+
+            $this->request->setRouteResolver(static fn (): Route => $route);
 
             Auth::shouldReceive('check')->once()->andReturnTrue();
-            $this->request->setUserResolver(fn () => $user);
+            $this->request->setUserResolver(static fn (): object => $user);
 
             $this->mockManager->shouldReceive('batchCheck')
                 ->once()
@@ -235,10 +241,11 @@ describe('LoadPermissions', function (): void {
             );
             $route->bind($this->request);
             $route->setParameter('document', $document);
-            $this->request->setRouteResolver(fn () => $route);
+
+            $this->request->setRouteResolver(static fn (): Route => $route);
 
             Auth::shouldReceive('check')->once()->andReturnTrue();
-            $this->request->setUserResolver(fn () => $user);
+            $this->request->setUserResolver(static fn (): object => $user);
 
             $this->mockManager->shouldReceive('batchCheck')
                 ->once()
@@ -263,10 +270,11 @@ describe('LoadPermissions', function (): void {
                 action: [],
             );
             $route->bind($this->request);
-            $this->request->setRouteResolver(fn () => $route);
+
+            $this->request->setRouteResolver(static fn (): Route => $route);
 
             Auth::shouldReceive('check')->once()->andReturnTrue();
-            $this->request->setUserResolver(fn () => $user);
+            $this->request->setUserResolver(static fn (): object => $user);
 
             $this->mockManager->shouldNotReceive('batchCheck');
 

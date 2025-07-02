@@ -39,7 +39,7 @@ describe('ImportCommand', function (): void {
             ->once()
             ->with(
                 $this->tempFile,
-                Mockery::on(fn ($options) => true === $options['skip_errors']),
+                Mockery::on(static fn ($options): bool => true === $options['skip_errors']),
             )
             ->andReturn([
                 'processed' => 50,
@@ -102,7 +102,7 @@ describe('ImportCommand', function (): void {
             ->once()
             ->with(
                 $this->tempFile,
-                Mockery::on(function ($options) {
+                Mockery::on(function (array $options): bool {
                     return 100 === $options['batch_size']; // Should use default
                 }),
             )
@@ -185,7 +185,7 @@ describe('ImportCommand', function (): void {
             ->once()
             ->with(
                 $this->tempFile,
-                Mockery::on(fn ($options) => 250 === $options['batch_size']),
+                Mockery::on(static fn ($options): bool => 250 === $options['batch_size']),
             )
             ->andReturn([
                 'processed' => 100,
@@ -206,7 +206,7 @@ describe('ImportCommand', function (): void {
             ->once()
             ->with(
                 $this->tempFile,
-                Mockery::on(fn ($options) => false === $options['validate']),
+                Mockery::on(static fn ($options): bool => false === $options['validate']),
             )
             ->andReturn([
                 'processed' => 30,
@@ -227,7 +227,7 @@ describe('ImportCommand', function (): void {
             ->once()
             ->with(
                 $this->tempFile,
-                Mockery::on(fn ($options) => isset($options['format']) && 'csv' === $options['format']),
+                Mockery::on(static fn ($options): bool => isset($options['format']) && 'csv' === $options['format']),
             )
             ->andReturn([
                 'processed' => 100,
@@ -257,7 +257,7 @@ describe('ImportCommand', function (): void {
             ->once()
             ->with(
                 $this->tempFile,
-                Mockery::on(fn ($options) => true === $options['dry_run']),
+                Mockery::on(static fn ($options): bool => true === $options['dry_run']),
             )
             ->andReturn([
                 'processed' => 20,

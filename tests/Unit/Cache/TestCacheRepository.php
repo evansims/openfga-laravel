@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OpenFGA\Laravel\Tests\Unit\Cache;
 
 use Illuminate\Cache\Repository;
+use Override;
 
 /**
  * Test cache repository that tracks operations.
@@ -25,6 +26,7 @@ final class TestCacheRepository extends Repository
         return $this->putCount;
     }
 
+    #[Override]
     public function increment($key, $value = 1)
     {
         $current = $this->get($key, 0);
@@ -33,9 +35,10 @@ final class TestCacheRepository extends Repository
         return $current + $value;
     }
 
+    #[Override]
     public function put($key, $value, $ttl = null): bool
     {
-        $this->putCount++;
+        ++$this->putCount;
         $this->lastPut = ['key' => $key, 'value' => $value, 'ttl' => $ttl];
 
         return parent::put($key, $value, $ttl);

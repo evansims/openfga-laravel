@@ -41,7 +41,7 @@ describe('RequiresPermission middleware', function (): void {
         $this->middleware = new RequiresPermission($openFgaMiddleware);
 
         $this->request = Request::create(uri: '/test');
-        $this->next = fn (Request $request): Response => new Response('OK');
+        $this->next = static fn (Request $request): Response => new Response('OK');
     });
 
     describe('permission delegation', function (): void {
@@ -49,7 +49,7 @@ describe('RequiresPermission middleware', function (): void {
             $user = createAuthUser('user:999');
 
             Auth::shouldReceive('check')->once()->andReturnTrue();
-            $this->request->setUserResolver(fn () => $user);
+            $this->request->setUserResolver(static fn (): object => $user);
 
             $this->mockManager->shouldReceive('check')
                 ->once()
@@ -67,7 +67,7 @@ describe('RequiresPermission middleware', function (): void {
             $user = createMiddlewareTestUser(123, 'user:123');
 
             Auth::shouldReceive('check')->once()->andReturnTrue();
-            $this->request->setUserResolver(fn () => $user);
+            $this->request->setUserResolver(static fn (): object => $user);
 
             $this->mockManager->shouldReceive('check')
                 ->once()
@@ -91,10 +91,11 @@ describe('RequiresPermission middleware', function (): void {
             );
             $route->bind($this->request);
             $route->setParameter('post', '789');
-            $this->request->setRouteResolver(fn () => $route);
+
+            $this->request->setRouteResolver(static fn (): Route => $route);
 
             Auth::shouldReceive('check')->once()->andReturnTrue();
-            $this->request->setUserResolver(fn () => $user);
+            $this->request->setUserResolver(static fn (): object => $user);
 
             $this->mockManager->shouldReceive('check')
                 ->once()
@@ -112,14 +113,14 @@ describe('RequiresPermission middleware', function (): void {
             $user = createMiddlewareTestUser(substr(string: $userId, offset: 5), $userId);
 
             Auth::shouldReceive('check')->once()->andReturnTrue();
-            $this->request->setUserResolver(fn () => $user);
+            $this->request->setUserResolver(static fn (): object => $user);
 
             $this->mockManager->shouldReceive('check')
                 ->once()
                 ->with($userId, $relation, $object, [], [], $connection)
                 ->andReturnTrue();
 
-            $args = array_filter(array: [$relation, $object, $connection], callback: fn ($v) => null !== $v);
+            $args = array_filter(array: [$relation, $object, $connection], callback: static fn ($v): bool => null !== $v);
             $response = $this->middleware->handle($this->request, $this->next, ...$args);
 
             expect($response)
@@ -131,7 +132,7 @@ describe('RequiresPermission middleware', function (): void {
             $user = createMiddlewareTestUser($id, $authId);
 
             Auth::shouldReceive('check')->once()->andReturnTrue();
-            $this->request->setUserResolver(fn () => $user);
+            $this->request->setUserResolver(static fn (): object => $user);
 
             $this->mockManager->shouldReceive('check')
                 ->once()
@@ -178,7 +179,7 @@ describe('RequiresPermission middleware', function (): void {
             $user = createMiddlewareTestUser(123, 'user:123');
 
             Auth::shouldReceive('check')->once()->andReturnTrue();
-            $this->request->setUserResolver(fn () => $user);
+            $this->request->setUserResolver(static fn (): object => $user);
 
             $this->mockManager->shouldReceive('check')
                 ->once()

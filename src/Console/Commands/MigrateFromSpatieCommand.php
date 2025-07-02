@@ -556,7 +556,7 @@ final class MigrateFromSpatieCommand extends Command
             $userId = isset($user->id) && is_scalar($user->id) ? (string) $user->id : '';
             $hasPermission = OpenFga::check('user:' . $userId, $relation, $object);
 
-            if ($hasPermission->failed() && ! $this->dryRun) {
+            if (! $hasPermission && ! $this->dryRun) {
                 $userId = isset($user->id) && is_scalar($user->id) ? (string) $user->id : '';
 
                 throw new Exception(sprintf('User %s missing role %s (relation: %s)', $userId, $spatieRole, $relation));

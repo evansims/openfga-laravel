@@ -5,9 +5,8 @@ declare(strict_types=1);
 namespace OpenFGA\Laravel\Tests\Unit;
 
 use Illuminate\Container\Container;
-use InvalidArgumentException;
-use OpenFGA\Laravel\Exceptions\ConnectionException;
 use OpenFGA\ClientInterface;
+use OpenFGA\Laravel\Exceptions\ConnectionException;
 use OpenFGA\Laravel\OpenFgaManager;
 use OpenFGA\Laravel\Tests\TestCase;
 use ReflectionClass;

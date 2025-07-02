@@ -32,7 +32,7 @@ describe('Custom Pest Expectations', function (): void {
     ]);
 
     it('rejects invalid OpenFGA identifiers', function (string $invalidIdentifier): void {
-        expect(fn () => expect($invalidIdentifier)->toBeOpenFgaIdentifier())
+        expect(static fn () => expect($invalidIdentifier)->toBeOpenFgaIdentifier())
             ->toThrow(ExpectationFailedException::class);
     })->with('invalid_identifiers');
 
@@ -100,8 +100,8 @@ describe('Custom Pest Expectations', function (): void {
         expect($permissionTuples)->toHaveCount(2);
         expect($writeOperations)->toHaveCount(2);
 
-        foreach ($permissionTuples as $tuple) {
-            expect($tuple)->toBePermissionTuple();
+        foreach ($permissionTuples as $permissionTuple) {
+            expect($permissionTuple)->toBePermissionTuple();
         }
     });
 

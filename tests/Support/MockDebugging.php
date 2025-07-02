@@ -10,6 +10,7 @@ use Mockery\{Mock, MockInterface};
 use PHPUnit\Framework\AssertionFailedError;
 
 use function is_string;
+use function sprintf;
 
 /**
  * Mock debugging utilities to make mock failures easier to diagnose.
@@ -31,11 +32,11 @@ final class MockDebugging
         string $context = '',
     ): void {
         $mock->shouldHaveReceived($method)
-            ->withArgs(function (...$actualArgs) use ($partialArgs, $context) {
+            ->withArgs(static function (...$actualArgs) use ($partialArgs, $context): true {
                 foreach ($partialArgs as $index => $expectedArg) {
                     if (! isset($actualArgs[$index])) {
                         TestDebugging::failWithDebugInfo(
-                            "Missing argument at index {$index}",
+                            'Missing argument at index ' . $index,
                             [
                                 'Expected argument' => $expectedArg,
                                 'Actual arguments' => $actualArgs,
@@ -46,7 +47,7 @@ final class MockDebugging
 
                     if ($actualArgs[$index] !== $expectedArg) {
                         TestDebugging::failWithDebugInfo(
-                            "Argument mismatch at index {$index}",
+                            'Argument mismatch at index ' . $index,
                             [
                                 'Expected' => $expectedArg,
                                 'Actual' => $actualArgs[$index],
@@ -74,8 +75,8 @@ final class MockDebugging
         $mock = Mockery::mock($class);
 
         // Add description for debugging
-        if ($description) {
-            $mock->mockery_getName = "{$class} ({$description})";
+        if ('' !== $description && '0' !== $description) {
+            $mock->mockery_getName = sprintf('%s (%s)', $class, $description);
         }
 
         return $mock;
@@ -95,9 +96,9 @@ final class MockDebugging
 
         if ($logCalls && (getenv('DEBUG_TESTS') || getenv('PEST_VERBOSE'))) {
             // Intercept all method calls for logging
-            $spy->shouldReceive('*')->andReturnUsing(function (...$args) use ($class) {
+            $spy->shouldReceive('*')->andReturnUsing(static function (...$args) use ($class): null {
                 $method = debug_backtrace()[1]['function'] ?? 'unknown';
-                TestDebugging::log("Spy called: {$class}::{$method}", $args);
+                TestDebugging::log(sprintf('Spy called: %s::%s', $class, $method), $args);
 
                 return null;
             });
@@ -119,7 +120,7 @@ final class MockDebugging
         $mock = Mockery::mock($class)->makePartial();
 
         // By default, disallow all methods except those specified
-        $mock->shouldReceive('*')->andReturnUsing(function (...$args) use ($class): void {
+        $mock->shouldReceive('*')->andReturnUsing(static function (...$args) use ($class): never {
             $method = debug_backtrace()[1]['function'] ?? 'unknown';
 
             TestDebugging::failWithDebugInfo(
@@ -134,8 +135,8 @@ final class MockDebugging
         });
 
         // Allow specified methods
-        foreach ($allowedMethods as $method) {
-            $mock->shouldReceive($method)->passthru();
+        foreach ($allowedMethods as $allowedMethod) {
+            $mock->shouldReceive($allowedMethod)->passthru();
         }
 
         return $mock;
@@ -159,7 +160,7 @@ final class MockDebugging
     ): void {
         $expectation = $mock->shouldReceive($method);
 
-        if (! empty($arguments)) {
+        if ([] !== $arguments) {
             $expectation->with(...$arguments);
         }
 
@@ -170,7 +171,7 @@ final class MockDebugging
         $expectation->once();
 
         // Store context for debugging
-        if ($context) {
+        if ('' !== $context && '0' !== $context) {
             $expectation->getMock()->mockery_getExpectations($method)[0]->_debugContext = $context;
         }
     }
@@ -190,7 +191,7 @@ final class MockDebugging
                 }
             } catch (Exception $e) {
                 $mockName = is_string($name) ? $name : $mock::class;
-                $context = $testContext ? " in context: {$testContext}" : '';
+                $context = '' !== $testContext && '0' !== $testContext ? ' in context: ' . $testContext : '';
 
                 throw new AssertionFailedError("Mock verification failed for {$mockName}{$context}\n\n" . self::formatMockExpectations($mock) . "\n\n" . $e->getMessage());
             }
@@ -209,21 +210,21 @@ final class MockDebugging
         $expectations = $mock->mockery_getExpectations();
 
         foreach ($expectations as $method => $methodExpectations) {
-            foreach ($methodExpectations as $expectation) {
-                $output .= "  - {$method}(";
+            foreach ($methodExpectations as $methodExpectation) {
+                $output .= sprintf('  - %s(', $method);
 
-                if ($expectation->_expectedArgs) {
+                if ($methodExpectation->_expectedArgs) {
                     $args = array_map(
-                        fn ($arg) => TestDebugging::formatValue($arg),
-                        $expectation->_expectedArgs,
+                        static fn ($arg): string => TestDebugging::formatValue($arg),
+                        $methodExpectation->_expectedArgs,
                     );
                     $output .= implode(', ', $args);
                 }
 
                 $output .= ')';
 
-                if (isset($expectation->_debugContext)) {
-                    $output .= " // {$expectation->_debugContext}";
+                if (isset($methodExpectation->_debugContext)) {
+                    $output .= ' // ' . $methodExpectation->_debugContext;
                 }
 
                 $output .= "\n";

@@ -7,6 +7,7 @@ namespace OpenFGA\Laravel\Tests\Support;
 use Closure;
 
 use function is_string;
+use function sprintf;
 
 /**
  * Custom test assertions to make tests more readable and semantic.
@@ -33,11 +34,11 @@ final class TestAssertions
 
         expect($result['totalOperations'])->toBe(
             $expectedTotal,
-            "Should have {$expectedTotal} total operations",
+            sprintf('Should have %d total operations', $expectedTotal),
         );
         expect($result['processedOperations'])->toBe(
             $expectedProcessed,
-            "Should have processed {$expectedProcessed} operations",
+            sprintf('Should have processed %d operations', $expectedProcessed),
         );
         expect($result['success'])->toBe(
             $shouldSucceed,
@@ -63,21 +64,21 @@ final class TestAssertions
             case 'hit':
                 expect($cacheResult)->toBe(
                     $expectedValue,
-                    "Cache should return stored value for key '{$key}'",
+                    sprintf("Cache should return stored value for key '%s'", $key),
                 );
 
                 break;
 
             case 'miss':
                 expect($cacheResult)->toBeNull(
-                    "Cache should return null for missing key '{$key}'",
+                    sprintf("Cache should return null for missing key '%s'", $key),
                 );
 
                 break;
 
             case 'store':
                 expect($cacheResult)->toBeTrue(
-                    "Cache should successfully store value for key '{$key}'",
+                    sprintf("Cache should successfully store value for key '%s'", $key),
                 );
 
                 break;
@@ -98,11 +99,11 @@ final class TestAssertions
     ): void {
         expect($actualDuration)->toBeLessThanOrEqual(
             $maxExpected,
-            "{$operationName} should complete within {$maxExpected}ms (actual: {$actualDuration}ms)",
+            sprintf('%s should complete within %sms (actual: %sms)', $operationName, $maxExpected, $actualDuration),
         );
         expect($actualDuration)->toBeGreaterThan(
             0,
-            "{$operationName} should take some measurable time",
+            $operationName . ' should take some measurable time',
         );
     }
 
@@ -122,8 +123,6 @@ final class TestAssertions
         mixed $returnValue,
         string $context = '',
     ): void {
-        $contextMessage = $context ? " when {$context}" : '';
-
         $mock->shouldReceive($method)
             ->once()
             ->with(...$arguments)
@@ -145,7 +144,7 @@ final class TestAssertions
         );
         expect($model->authorizationObject())->toBe(
             $expectedAuthorizationId,
-            "Model should return correct authorization ID: {$expectedAuthorizationId}",
+            'Model should return correct authorization ID: ' . $expectedAuthorizationId,
         );
     }
 
@@ -157,11 +156,11 @@ final class TestAssertions
      */
     public static function assertNamingConventions(array $data, string $prefix): void
     {
-        foreach ($data as $key => $value) {
+        foreach ($data as $value) {
             if (is_string($value)) {
                 expect($value)->toStartWith(
                     $prefix,
-                    "Value '{$value}' should start with '{$prefix}' prefix for consistency",
+                    sprintf("Value '%s' should start with '%s' prefix for consistency", $value, $prefix),
                 );
             }
         }
@@ -185,12 +184,12 @@ final class TestAssertions
         string $object,
         string $context = '',
     ): void {
-        $contextMessage = $context ? " ({$context})" : '';
+        $contextMessage = '' !== $context && '0' !== $context ? sprintf(' (%s)', $context) : '';
         $action = $expected ? 'should have' : 'should not have';
 
         if ($result !== $expected) {
             TestDebugging::failWithDebugInfo(
-                "Permission check failed: User '{$user}' {$action} '{$relation}' permission on '{$object}'{$contextMessage}",
+                sprintf("Permission check failed: User '%s' %s '%s' permission on '%s'%s", $user, $action, $relation, $object, $contextMessage),
                 [
                     'Expected result' => $expected ? 'allowed' : 'denied',
                     'Actual result' => $result ? 'allowed' : 'denied',
@@ -233,10 +232,10 @@ final class TestAssertions
     ): void {
         expect($service)->toBeInstanceOf(
             $expectedInterface,
-            "{$serviceName} should implement {$expectedInterface}",
+            sprintf('%s should implement %s', $serviceName, $expectedInterface),
         );
         expect($service)->not->toBeNull(
-            "{$serviceName} should be registered in the container",
+            $serviceName . ' should be registered in the container',
         );
     }
 
@@ -257,7 +256,7 @@ final class TestAssertions
         expect($callback)->toThrow(
             $exceptionClass,
             $expectedMessage,
-            "Should throw {$exceptionClass} when {$context}",
+            sprintf('Should throw %s when %s', $exceptionClass, $context),
         );
     }
 
@@ -277,7 +276,7 @@ final class TestAssertions
     ): void {
         if (! $result) {
             TestDebugging::failWithDebugInfo(
-                "Access denied: User '{$user}' should be able to '{$action}' resource '{$resource}'",
+                sprintf("Access denied: User '%s' should be able to '%s' resource '%s'", $user, $action, $resource),
                 [
                     'Expected' => 'Access allowed',
                     'Actual' => 'Access denied',
@@ -306,7 +305,7 @@ final class TestAssertions
     ): void {
         if ($result) {
             TestDebugging::failWithDebugInfo(
-                "Access granted unexpectedly: User '{$user}' should not be able to '{$action}' resource '{$resource}'",
+                sprintf("Access granted unexpectedly: User '%s' should not be able to '%s' resource '%s'", $user, $action, $resource),
                 [
                     'Expected' => 'Access denied',
                     'Actual' => 'Access allowed',
@@ -327,7 +326,7 @@ final class TestAssertions
      */
     public static function assertValidConfiguration(mixed $config, string $context = ''): void
     {
-        $message = $context ? "Configuration for {$context} should be valid" : 'Configuration should be valid';
+        $message = '' !== $context && '0' !== $context ? sprintf('Configuration for %s should be valid', $context) : 'Configuration should be valid';
 
         expect($config)->not->toBeNull($message);
         expect($config)->toBeArray('Configuration should be an array');

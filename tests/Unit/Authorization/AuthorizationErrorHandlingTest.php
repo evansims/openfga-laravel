@@ -53,7 +53,7 @@ describe('Authorization Error Handling', function (): void {
         foreach ($requiredInterfaces as $interface => $purpose) {
             TestDebugging::assertWithContext(
                 interface_exists($interface),
-                "Interface {$interface} is required: {$purpose}",
+                sprintf('Interface %s is required: %s', $interface, $purpose),
                 [
                     'Interface' => $interface,
                     'Purpose' => $purpose,

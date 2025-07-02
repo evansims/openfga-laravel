@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Http\Controllers;
 
-use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
+use Exception;
+use Illuminate\Http\{JsonResponse, Request};
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Log;
 use OpenFGA\Laravel\Webhooks\WebhookProcessor;
@@ -24,7 +24,7 @@ use function is_string;
 final class WebhookController extends Controller
 {
     public function __construct(
-        private readonly WebhookProcessor $processor
+        private readonly WebhookProcessor $processor,
     ) {
     }
 
@@ -32,7 +32,6 @@ final class WebhookController extends Controller
      * Handle incoming OpenFGA webhook.
      *
      * @param Request $request
-     * @return JsonResponse
      */
     public function handle(Request $request): JsonResponse
     {
@@ -64,9 +63,9 @@ final class WebhookController extends Controller
             $this->processor->process($payload);
 
             return response()->json(['status' => 'success'], Response::HTTP_OK);
-        } catch (\Exception $e) {
+        } catch (Exception $exception) {
             Log::error('OpenFGA webhook processing failed', [
-                'error' => $e->getMessage(),
+                'error' => $exception->getMessage(),
                 'payload' => $payload,
             ]);
 
@@ -75,37 +74,9 @@ final class WebhookController extends Controller
     }
 
     /**
-     * Verify webhook signature.
-     *
-     * @param Request $request
-     * @return bool
-     */
-    private function verifySignature(Request $request): bool
-    {
-        $secret = config('openfga.webhooks.secret');
-
-        // If no secret is configured, skip verification
-        if (! is_string($secret) || '' === $secret) {
-            return true;
-        }
-
-        $signature = $request->header('X-OpenFGA-Signature');
-        
-        if (! is_string($signature)) {
-            return false;
-        }
-
-        $payload = $request->getContent();
-        $expectedSignature = hash_hmac('sha256', $payload, $secret);
-
-        return hash_equals($expectedSignature, $signature);
-    }
-
-    /**
      * Validate webhook payload structure.
      *
      * @param mixed $payload
-     * @return bool
      */
     private function validatePayload(mixed $payload): bool
     {
@@ -118,10 +89,32 @@ final class WebhookController extends Controller
             return false;
         }
 
-        if (! isset($payload['data']) || ! is_array($payload['data'])) {
+        return isset($payload['data']) && is_array($payload['data']);
+    }
+
+    /**
+     * Verify webhook signature.
+     *
+     * @param Request $request
+     */
+    private function verifySignature(Request $request): bool
+    {
+        $secret = config('openfga.webhooks.secret');
+
+        // If no secret is configured, skip verification
+        if (! is_string($secret) || '' === $secret) {
+            return true;
+        }
+
+        $signature = $request->header('X-OpenFGA-Signature');
+
+        if (! is_string($signature)) {
             return false;
         }
 
-        return true;
+        $payload = $request->getContent();
+        $expectedSignature = hash_hmac('sha256', $payload, $secret);
+
+        return hash_equals($expectedSignature, $signature);
     }
 }

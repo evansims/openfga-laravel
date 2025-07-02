@@ -35,6 +35,7 @@ use RuntimeException;
 use stdClass;
 
 use function function_exists;
+use function sprintf;
 
 uses(TestCase::class);
 
@@ -58,7 +59,7 @@ describe('OpenFgaServiceProvider', function (): void {
 
             foreach ($requiredServices as $service => $description) {
                 expect($this->app->bound($service))->toBeTrue(
-                    "{$description} should be registered in the container",
+                    $description . ' should be registered in the container',
                 );
             }
 
@@ -72,7 +73,7 @@ describe('OpenFgaServiceProvider', function (): void {
 
             foreach ($optionalServices as $service => $description) {
                 expect($this->app->bound($service))->toBeTrue(
-                    "{$description} should be available as an optional service",
+                    $description . ' should be available as an optional service',
                 );
             }
         });
@@ -191,7 +192,7 @@ describe('OpenFgaServiceProvider', function (): void {
 
             // Should not throw exception when router is not available
             TestDebugging::assertExecutionTime(
-                fn () => $provider->boot(),
+                static fn () => $provider->boot(),
                 0.1,
                 'Service provider boot without router',
             );
@@ -320,7 +321,7 @@ describe('OpenFgaServiceProvider', function (): void {
             $container = Mockery::mock(Container::class);
             $container->shouldReceive('get')->with(OpenFgaManager::class)->andReturn(null);
 
-            $closure = function ($app) {
+            $closure = function ($app): JavaScriptHelper {
                 $manager = $app->get(OpenFgaManager::class);
 
                 if (! $manager instanceof OpenFgaManager) {
@@ -330,7 +331,7 @@ describe('OpenFgaServiceProvider', function (): void {
                 return new JavaScriptHelper($manager);
             };
 
-            expect(fn () => $closure($container))
+            expect(static fn (): JavaScriptHelper => $closure($container))
                 ->toThrow(RuntimeException::class, 'Failed to resolve OpenFgaManager from container');
         });
 
@@ -339,7 +340,7 @@ describe('OpenFgaServiceProvider', function (): void {
             $container = Mockery::mock(Container::class);
             $container->shouldReceive('get')->with(OpenFgaManager::class)->andReturn(null);
 
-            $closure = function ($app) {
+            $closure = function ($app): MenuBuilder {
                 $manager = $app->get(OpenFgaManager::class);
 
                 if (! $manager instanceof OpenFgaManager) {
@@ -349,7 +350,7 @@ describe('OpenFgaServiceProvider', function (): void {
                 return new MenuBuilder(manager: $manager);
             };
 
-            expect(fn () => $closure($container))
+            expect(static fn (): MenuBuilder => $closure($container))
                 ->toThrow(RuntimeException::class, 'Failed to resolve OpenFgaManager from container');
         });
     });
@@ -366,7 +367,7 @@ describe('OpenFgaServiceProvider', function (): void {
             $provider = new OpenFgaServiceProvider($this->app);
             $provider->register();
 
-            expect(fn () => $provider->boot())
+            expect(static fn () => $provider->boot())
                 ->toThrow(InvalidArgumentException::class, 'Default OpenFGA connection [missing] is not configured.');
         });
 
@@ -380,7 +381,7 @@ describe('OpenFgaServiceProvider', function (): void {
             $provider = new OpenFgaServiceProvider($this->app);
             $provider->register();
 
-            expect(fn () => $provider->boot())
+            expect(static fn () => $provider->boot())
                 ->toThrow(InvalidArgumentException::class, 'Invalid URL configured for OpenFGA connection [main].');
         });
 
@@ -395,7 +396,7 @@ describe('OpenFgaServiceProvider', function (): void {
             $provider = new OpenFgaServiceProvider($this->app);
             $provider->register();
 
-            expect(fn () => $provider->boot())
+            expect(static fn () => $provider->boot())
                 ->toThrow(InvalidArgumentException::class, 'Invalid authentication method [invalid_method] for OpenFGA connection [main].');
         });
 
@@ -411,14 +412,14 @@ describe('OpenFgaServiceProvider', function (): void {
             $provider = new OpenFgaServiceProvider($this->app);
             $provider->register();
 
-            expect(fn () => $provider->boot())
+            expect(static fn () => $provider->boot())
                 ->toThrow(InvalidArgumentException::class, 'API token is required when using api_token authentication for connection [main].');
         });
 
         it('validates client_credentials requires all fields', function (): void {
             $requiredFields = ['client_id', 'client_secret', 'api_token_issuer', 'api_audience'];
 
-            foreach ($requiredFields as $field) {
+            foreach ($requiredFields as $requiredField) {
                 $credentials = [
                     'method' => 'client_credentials',
                     'client_id' => 'test-client',
@@ -427,7 +428,7 @@ describe('OpenFgaServiceProvider', function (): void {
                     'api_audience' => 'https://api.example.com',
                 ];
 
-                unset($credentials[$field]);
+                unset($credentials[$requiredField]);
 
                 $this->app['config']->set('openfga.connections.main', [
                     'url' => 'https://api.example.com',
@@ -437,8 +438,8 @@ describe('OpenFgaServiceProvider', function (): void {
                 $provider = new OpenFgaServiceProvider($this->app);
                 $provider->register();
 
-                expect(fn () => $provider->boot())
-                    ->toThrow(InvalidArgumentException::class, "Field [{$field}] is required when using client_credentials authentication for connection [main].");
+                expect(static fn () => $provider->boot())
+                    ->toThrow(InvalidArgumentException::class, sprintf('Field [%s] is required when using client_credentials authentication for connection [main].', $requiredField));
             }
         });
 
@@ -453,7 +454,7 @@ describe('OpenFgaServiceProvider', function (): void {
             $provider = new OpenFgaServiceProvider($this->app);
             $provider->register();
 
-            expect(fn () => $provider->boot())
+            expect(static fn () => $provider->boot())
                 ->toThrow(InvalidArgumentException::class, 'Invalid max_retries value for OpenFGA connection [main]. Must be a non-negative integer.');
         });
 
@@ -471,8 +472,8 @@ describe('OpenFgaServiceProvider', function (): void {
                 $provider = new OpenFgaServiceProvider($this->app);
                 $provider->register();
 
-                expect(fn () => $provider->boot())
-                    ->toThrow(InvalidArgumentException::class, "Invalid {$option} value for OpenFGA connection [main]. Must be a positive number.");
+                expect(static fn () => $provider->boot())
+                    ->toThrow(InvalidArgumentException::class, sprintf('Invalid %s value for OpenFGA connection [main]. Must be a positive number.', $option));
             }
         });
 
@@ -503,6 +504,7 @@ describe('OpenFgaServiceProvider', function (): void {
             $provider->register();
 
             $provider->boot();
+
             expect(true)->toBeTrue();
         });
 
@@ -517,7 +519,7 @@ describe('OpenFgaServiceProvider', function (): void {
             $provider = new OpenFgaServiceProvider($this->app);
             $provider->register();
 
-            expect(fn () => $provider->boot())
+            expect(static fn () => $provider->boot())
                 ->toThrow(InvalidArgumentException::class, 'Invalid authentication method [integer] for OpenFGA connection [main].');
         });
     });
@@ -594,6 +596,7 @@ describe('OpenFgaServiceProvider', function (): void {
             $provider->register();
 
             $provider->boot();
+
             expect(true)->toBeTrue();
         });
 
@@ -636,6 +639,7 @@ describe('OpenFgaServiceProvider', function (): void {
             $provider->register();
 
             $provider->boot();
+
             expect(true)->toBeTrue();
         });
 

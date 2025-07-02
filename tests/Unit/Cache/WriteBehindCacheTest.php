@@ -134,7 +134,7 @@ describe('WriteBehindCache', function (): void {
         dispatch(new FlushWriteBehindCacheJob)->onQueue('openfga-write-behind');
 
         Queue::assertPushed(FlushWriteBehindCacheJob::class);
-        Queue::assertPushed(fn (FlushWriteBehindCacheJob $job) => 'openfga-write-behind' === $job->queue);
+        Queue::assertPushed(static fn (FlushWriteBehindCacheJob $job): bool => 'openfga-write-behind' === $job->queue);
     });
 
     it('validates error handling patterns', function (): void {
@@ -320,14 +320,14 @@ describe('WriteBehindCache', function (): void {
 
     it('validates exception handling patterns', function (): void {
         // Test exception throwing pattern
-        expect(fn () => throw new Exception('OpenFGA error'))
+        expect(static fn () => throw new Exception('OpenFGA error'))
             ->toThrow(Exception::class, 'OpenFGA error');
 
         // Test exception catching and logging
         try {
             throw new Exception('Test error');
-        } catch (Exception $e) {
-            expect($e->getMessage())->toBe('Test error');
+        } catch (Exception $exception) {
+            expect($exception->getMessage())->toBe('Test error');
         }
     });
 });

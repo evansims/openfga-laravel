@@ -41,7 +41,7 @@ describe('RequiresAllPermissions Middleware', function (): void {
         $this->mockManager = Mockery::mock(ManagerInterface::class);
         $this->middleware = new RequiresAllPermissions($this->mockManager);
         $this->request = Request::create(uri: '/test');
-        $this->next = fn (Request $request): Response => new Response('OK');
+        $this->next = static fn (Request $request): Response => new Response('OK');
     });
 
     it('aborts with 401 when user not authenticated', function (): void {
@@ -56,7 +56,7 @@ describe('RequiresAllPermissions Middleware', function (): void {
         setupRoute($this->request, $routePath, $paramName, $paramValue);
 
         Auth::shouldReceive('check')->andReturn(true);
-        $this->request->setUserResolver(fn () => $user);
+        $this->request->setUserResolver(static fn (): object => $user);
 
         $objectId = routeToObjectId($routePath, $paramName, $paramValue);
 
@@ -84,7 +84,7 @@ describe('RequiresAllPermissions Middleware', function (): void {
         setupRoute($this->request, $routePath, $paramName, $paramValue);
 
         Auth::shouldReceive('check')->andReturn(true);
-        $this->request->setUserResolver(fn () => $user);
+        $this->request->setUserResolver(static fn (): object => $user);
 
         $objectId = routeToObjectId($routePath, $paramName, $paramValue);
 
@@ -109,7 +109,7 @@ describe('RequiresAllPermissions Middleware', function (): void {
         setupRoute($this->request, '/documents/{document}', 'document', '456');
 
         Auth::shouldReceive('check')->andReturn(true);
-        $this->request->setUserResolver(fn () => $user);
+        $this->request->setUserResolver(static fn (): object => $user);
 
         $this->mockManager->shouldReceive('check')
             ->with('user:123', 'read', 'document:456')
@@ -132,7 +132,7 @@ describe('RequiresAllPermissions Middleware', function (): void {
         setupRoute($this->request, '/documents/{document}', 'document', '123');
 
         Auth::shouldReceive('check')->andReturn(true);
-        $this->request->setUserResolver(fn () => $user);
+        $this->request->setUserResolver(static fn (): object => $user);
 
         $this->mockManager->shouldReceive('check')
             ->with('user:admin', 'edit', 'document:123')

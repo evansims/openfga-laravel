@@ -37,11 +37,11 @@ dataset('batch_operations', [
     ],
     'large batch' => [
         'writes' => array_map(
-            callback: fn ($i) => ['user' => "user:{$i}", 'relation' => 'viewer', 'object' => "doc:{$i}"],
+            callback: static fn ($i): array => ['user' => 'user:' . $i, 'relation' => 'viewer', 'object' => 'doc:' . $i],
             array: range(1, 10),
         ),
         'deletes' => array_map(
-            callback: fn ($i) => ['user' => "user:{$i}", 'relation' => 'editor', 'object' => "doc:{$i}"],
+            callback: static fn ($i): array => ['user' => 'user:' . $i, 'relation' => 'editor', 'object' => 'doc:' . $i],
             array: range(11, 15),
         ),
         'total' => 15,
@@ -192,7 +192,7 @@ describe('Events', function (): void {
         });
 
         it('tracks large object lists efficiently', function (): void {
-            $objects = array_map(callback: fn ($i) => "document:{$i}", array: range(start: 1, end: 1000));
+            $objects = array_map(callback: static fn ($i): string => 'document:' . $i, array: range(start: 1, end: 1000));
 
             $result = measurePerformance(function () use ($objects): void {
                 $event = new ObjectsListed(
@@ -311,7 +311,7 @@ describe('Events', function (): void {
                 ->user->toBeOpenFgaIdentifier()
                 ->relation->toBe($relation)
                 ->object->toBeOpenFgaIdentifier()
-                ->toString()->toBe("{$prefix}: user:123#{$relation}@document:456");
+                ->toString()->toBe(sprintf('%s: user:123#%s@document:456', $prefix, $relation));
         })->with('permission_mutations');
 
         it('compares grant and revoke operations', function (): void {

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OpenFGA\Laravel\Tests\Support;
 
 use Exception;
+use GuzzleHttp\ClientInterface;
 use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Contracts\Queue\Queue;
 use Mockery;
@@ -44,7 +45,7 @@ final class MockScenarios
 
         $cache->shouldReceive('get')->andReturn(null);
         $cache->shouldReceive('has')->andReturn(false);
-        $cache->shouldReceive('remember')->andReturnUsing(fn ($key, $ttl, $callback) => $callback());
+        $cache->shouldReceive('remember')->andReturnUsing(static fn ($key, $ttl, $callback) => $callback());
 
         return $cache;
     }
@@ -60,7 +61,7 @@ final class MockScenarios
         $cache->shouldReceive('put')->andReturn(true);
         $cache->shouldReceive('forget')->andReturn(true);
         $cache->shouldReceive('flush')->andReturn(true);
-        $cache->shouldReceive('remember')->andReturnUsing(fn ($key, $ttl, $callback) => $callback());
+        $cache->shouldReceive('remember')->andReturnUsing(static fn ($key, $ttl, $callback) => $callback());
 
         return $cache;
     }
@@ -74,13 +75,13 @@ final class MockScenarios
     {
         $client = TestFactories::createMockClient();
 
-        $client->shouldReceive('check')->andReturnUsing(function () use ($delayMs) {
+        $client->shouldReceive('check')->andReturnUsing(static function () use ($delayMs): true {
             usleep($delayMs * 1000);
 
             return true;
         });
 
-        $client->shouldReceive('batchCheck')->andReturnUsing(function () use ($delayMs) {
+        $client->shouldReceive('batchCheck')->andReturnUsing(static function () use ($delayMs): array {
             usleep($delayMs * 1000);
 
             return [true, true, true];
@@ -123,13 +124,13 @@ final class MockScenarios
      */
     public static function httpClientWithResponses(array $responses = []): MockInterface
     {
-        $client = Mockery::mock(\GuzzleHttp\ClientInterface::class);
+        $client = Mockery::mock(ClientInterface::class);
 
         $defaultResponse = Mockery::mock(ResponseInterface::class);
         $defaultResponse->shouldReceive('getStatusCode')->andReturn(200);
         $defaultResponse->shouldReceive('getBody')->andReturn(json_encode(['status' => 'ok']));
 
-        if (empty($responses)) {
+        if ([] === $responses) {
             $client->shouldReceive('request')->andReturn($defaultResponse);
         } else {
             foreach ($responses as $response) {
@@ -151,19 +152,19 @@ final class MockScenarios
     {
         $logger = Mockery::mock(LoggerInterface::class);
 
-        $logger->shouldReceive('debug')->andReturnUsing(function ($message, $context = []): void {
+        $logger->shouldReceive('debug')->andReturnUsing(static function ($message, $context = []): void {
             // Store for later verification if needed
         });
 
-        $logger->shouldReceive('info')->andReturnUsing(function ($message, $context = []): void {
+        $logger->shouldReceive('info')->andReturnUsing(static function ($message, $context = []): void {
             // Store for later verification if needed
         });
 
-        $logger->shouldReceive('warning')->andReturnUsing(function ($message, $context = []): void {
+        $logger->shouldReceive('warning')->andReturnUsing(static function ($message, $context = []): void {
             // Store for later verification if needed
         });
 
-        $logger->shouldReceive('error')->andReturnUsing(function ($message, $context = []): void {
+        $logger->shouldReceive('error')->andReturnUsing(static function ($message, $context = []): void {
             // Store for later verification if needed
         });
 
@@ -275,16 +276,16 @@ final class MockScenarios
         $manager = TestFactories::createMockManager();
 
         // Simulate realistic response times
-        $manager->shouldReceive('check')->andReturnUsing(function () {
+        $manager->shouldReceive('check')->andReturnUsing(static function (): bool {
             usleep(random_int(10, 50) * 1000); // 10-50ms
 
             return 1 === random_int(0, 1); // Random true/false
         });
 
-        $manager->shouldReceive('batchCheck')->andReturnUsing(function ($requests) {
+        $manager->shouldReceive('batchCheck')->andReturnUsing(static function ($requests): array {
             usleep(count($requests) * random_int(5, 15) * 1000); // 5-15ms per request
 
-            return array_map(fn () => 1 === random_int(0, 1), $requests);
+            return array_map(static fn (): bool => 1 === random_int(0, 1), $requests);
         });
 
         return $manager;

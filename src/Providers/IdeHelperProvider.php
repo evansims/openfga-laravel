@@ -9,6 +9,8 @@ use Illuminate\Support\ServiceProvider;
 use OpenFGA\Laravel\Facades\OpenFga;
 use Override;
 
+use function is_array;
+
 /**
  * IDE Helper provider for OpenFGA Laravel package.
  *
@@ -20,22 +22,11 @@ use Override;
 final class IdeHelperProvider extends ServiceProvider
 {
     /**
-     * Register the service provider.
-     */
-    #[Override]
-    public function register(): void
-    {
-        if ($this->app->environment() === 'local' && class_exists(IdeHelperServiceProvider::class)) {
-            $this->app->register(IdeHelperServiceProvider::class);
-        }
-    }
-
-    /**
      * Bootstrap the service provider.
      */
     public function boot(): void
     {
-        if ($this->app->environment() !== 'local' || ! class_exists(IdeHelperServiceProvider::class)) {
+        if ('local' !== $this->app->environment() || ! class_exists(IdeHelperServiceProvider::class)) {
             return;
         }
 
@@ -45,9 +36,10 @@ final class IdeHelperProvider extends ServiceProvider
         ]);
 
         // Add OpenFGA specific model cast types
+        /** @var mixed $existingTypes */
         $existingTypes = config('ide-helper.custom_db_types', []);
         $customTypes = is_array($existingTypes) ? $existingTypes : [];
-        
+
         config()->set('ide-helper.custom_db_types', array_merge(
             $customTypes,
             [
@@ -56,5 +48,16 @@ final class IdeHelperProvider extends ServiceProvider
                 'openfga_relation' => 'string',
             ],
         ));
+    }
+
+    /**
+     * Register the service provider.
+     */
+    #[Override]
+    public function register(): void
+    {
+        if ('local' === $this->app->environment() && class_exists(IdeHelperServiceProvider::class)) {
+            $this->app->register(IdeHelperServiceProvider::class);
+        }
     }
 }

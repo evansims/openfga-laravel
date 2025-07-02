@@ -169,7 +169,8 @@ describe('ProfileEntry', function (): void {
             $startTimeReflection = new ReflectionProperty($entry, 'startTime');
             $startTime = $startTimeReflection->getValue($entry);
             $endTimeReflection = new ReflectionProperty($entry, 'endTime');
-            $endTimeReflection->setValue($entry, $startTime + 0.01); // 10ms
+            $endTimeReflection->setValue($entry, $startTime + 0.01);
+            // 10ms
             $successReflection = new ReflectionProperty($entry, 'success');
             $successReflection->setValue($entry, true);
 

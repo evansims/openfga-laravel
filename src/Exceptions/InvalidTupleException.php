@@ -4,19 +4,16 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Exceptions;
 
-/**
- * Exception thrown when a tuple is invalid or malformed
- */
-final class InvalidTupleException extends OpenFgaException
-{
-    public static function missingUser(): self
-    {
-        return new self('Tuple is missing required user field');
-    }
+use function sprintf;
 
-    public static function missingRelation(): self
+/**
+ * Exception thrown when a tuple is invalid or malformed.
+ */
+final class InvalidTupleException extends AbstractOpenFgaException
+{
+    public static function invalidFormat(string $field, string $value): self
     {
-        return new self('Tuple is missing required relation field');
+        return new self(sprintf("Invalid format for %s: '%s'", $field, $value));
     }
 
     public static function missingObject(): self
@@ -24,8 +21,13 @@ final class InvalidTupleException extends OpenFgaException
         return new self('Tuple is missing required object field');
     }
 
-    public static function invalidFormat(string $field, string $value): self
+    public static function missingRelation(): self
     {
-        return new self("Invalid format for {$field}: '{$value}'");
+        return new self('Tuple is missing required relation field');
+    }
+
+    public static function missingUser(): self
+    {
+        return new self('Tuple is missing required user field');
     }
 }

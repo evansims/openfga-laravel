@@ -6,6 +6,8 @@ namespace OpenFGA\Laravel\Tests\Support;
 
 use Illuminate\Database\Eloquent\Model;
 
+use function sprintf;
+
 final class User extends Model
 {
     protected $fillable = ['id', 'name', 'email'];
@@ -23,7 +25,7 @@ final class User extends Model
      */
     public function authorizationObject(): string
     {
-        return "user:{$this->id}";
+        return 'user:' . $this->id;
     }
 
     /**
@@ -31,7 +33,7 @@ final class User extends Model
      */
     public function authorizationUser(): string
     {
-        return "user:{$this->id}";
+        return 'user:' . $this->id;
     }
 }
 
@@ -42,14 +44,12 @@ final class UserFactory
 {
     private static int $counter = 0;
 
-    private array $attributes = [];
-
     public function create(array $attributes = []): User
     {
         $user = new User;
         $user->id = $attributes['id'] ?? $this->generateId();
         $user->name = $attributes['name'] ?? 'Test User';
-        $user->email = $attributes['email'] ?? "test{$user->id}@example.com";
+        $user->email = $attributes['email'] ?? sprintf('test%s@example.com', $user->id);
 
         // Simulate saving
         $user->exists = true;
@@ -62,14 +62,14 @@ final class UserFactory
         $user = new User;
         $user->id = $attributes['id'] ?? $this->generateId();
         $user->name = $attributes['name'] ?? 'Test User';
-        $user->email = $attributes['email'] ?? "test{$user->id}@example.com";
+        $user->email = $attributes['email'] ?? sprintf('test%s@example.com', $user->id);
 
         return $user;
     }
 
     private function generateId(): int
     {
-        self::$counter++;
+        ++self::$counter;
 
         return getmypid() * 10000 + self::$counter;
     }

@@ -10,19 +10,21 @@ use Illuminate\Queue\SerializesModels;
 /**
  * Event dispatched when a webhook is received from OpenFGA.
  */
-final class WebhookReceived
+final readonly class WebhookReceived
 {
-    use Dispatchable, SerializesModels;
+    use Dispatchable;
+
+    use SerializesModels;
 
     /**
      * Create a new event instance.
      *
-     * @param string $type
+     * @param string               $type
      * @param array<string, mixed> $data
      */
     public function __construct(
-        public readonly string $type,
-        public readonly array $data
+        public string $type,
+        public array $data,
     ) {
     }
 }

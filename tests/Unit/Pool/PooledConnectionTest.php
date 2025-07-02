@@ -80,7 +80,7 @@ describe('PooledConnection', function (): void {
         // Do some work to ensure time passes
         $sum = 0;
 
-        for ($i = 0; 10000 > $i; $i++) {
+        for ($i = 0; 10000 > $i; ++$i) {
             $sum += sqrt($i);
         }
 

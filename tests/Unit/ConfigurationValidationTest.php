@@ -21,7 +21,7 @@ describe('Configuration Validation', function (): void {
 
         $provider = new OpenFgaServiceProvider($this->app);
 
-        expect(fn () => $provider->boot())
+        expect(static fn () => $provider->boot())
             ->toThrow(InvalidArgumentException::class, 'Default OpenFGA connection [non-existent] is not configured.');
     });
 
@@ -30,7 +30,7 @@ describe('Configuration Validation', function (): void {
 
         $provider = new OpenFgaServiceProvider($this->app);
 
-        expect(fn () => $provider->boot())
+        expect(static fn () => $provider->boot())
             ->toThrow(InvalidArgumentException::class, 'Invalid URL configured for OpenFGA connection [main].');
     });
 
@@ -39,7 +39,7 @@ describe('Configuration Validation', function (): void {
 
         $provider = new OpenFgaServiceProvider($this->app);
 
-        expect(fn () => $provider->boot())
+        expect(static fn () => $provider->boot())
             ->toThrow(InvalidArgumentException::class, 'Invalid authentication method [invalid-method]');
     });
 
@@ -51,7 +51,7 @@ describe('Configuration Validation', function (): void {
 
         $provider = new OpenFgaServiceProvider($this->app);
 
-        expect(fn () => $provider->boot())
+        expect(static fn () => $provider->boot())
             ->toThrow(InvalidArgumentException::class, 'API token is required when using api_token authentication');
     });
 
@@ -64,7 +64,7 @@ describe('Configuration Validation', function (): void {
 
         $provider = new OpenFgaServiceProvider($this->app);
 
-        expect(fn () => $provider->boot())
+        expect(static fn () => $provider->boot())
             ->toThrow(InvalidArgumentException::class);
     });
 
@@ -73,7 +73,7 @@ describe('Configuration Validation', function (): void {
 
         $provider = new OpenFgaServiceProvider($this->app);
 
-        expect(fn () => $provider->boot())
+        expect(static fn () => $provider->boot())
             ->toThrow(InvalidArgumentException::class, 'Invalid max_retries value');
     });
 
@@ -82,7 +82,7 @@ describe('Configuration Validation', function (): void {
 
         $provider = new OpenFgaServiceProvider($this->app);
 
-        expect(fn () => $provider->boot())
+        expect(static fn () => $provider->boot())
             ->toThrow(InvalidArgumentException::class, 'Invalid timeout value');
     });
 
@@ -108,6 +108,6 @@ describe('Configuration Validation', function (): void {
 
         $provider = new OpenFgaServiceProvider($this->app);
 
-        expect(fn () => $provider->boot())->not->toThrow(InvalidArgumentException::class);
+        expect(static fn () => $provider->boot())->not->toThrow(InvalidArgumentException::class);
     });
 });

@@ -21,7 +21,7 @@ describe('RequiresAnyPermission', function (): void {
         $this->mockManager = Mockery::mock(ManagerInterface::class);
         $this->middleware = new RequiresAnyPermission($this->mockManager);
         $this->request = Request::create(uri: '/test');
-        $this->next = fn (Request $request): Response => new Response('OK');
+        $this->next = static fn (Request $request): Response => new Response('OK');
     });
 
     describe('authentication checks', function (): void {
@@ -34,7 +34,7 @@ describe('RequiresAnyPermission', function (): void {
 
         it('throws exception when no authenticated user', function (): void {
             Auth::shouldReceive('check')->once()->andReturnTrue();
-            $this->request->setUserResolver(fn () => null);
+            $this->request->setUserResolver(static fn (): null => null);
 
             expect(fn () => $this->middleware->handle($this->request, $this->next, 'view', 'document:123'))
                 ->toThrow(InvalidArgumentException::class, 'No authenticated user found');
@@ -59,10 +59,11 @@ describe('RequiresAnyPermission', function (): void {
             );
             $route->bind($this->request);
             $route->setParameter('document', '456');
-            $this->request->setRouteResolver(fn () => $route);
+
+            $this->request->setRouteResolver(static fn (): Route => $route);
 
             Auth::shouldReceive('check')->once()->andReturnTrue();
-            $this->request->setUserResolver(fn () => $user);
+            $this->request->setUserResolver(static fn (): object => $user);
 
             $this->mockManager->shouldReceive('check')
                 ->with('user:123', 'read', 'document:456')
@@ -93,10 +94,11 @@ describe('RequiresAnyPermission', function (): void {
             );
             $route->bind($this->request);
             $route->setParameter('document', '456');
-            $this->request->setRouteResolver(fn () => $route);
+
+            $this->request->setRouteResolver(static fn (): Route => $route);
 
             Auth::shouldReceive('check')->once()->andReturnTrue();
-            $this->request->setUserResolver(fn () => $user);
+            $this->request->setUserResolver(static fn (): object => $user);
 
             $this->mockManager->shouldReceive('check')
                 ->with('user:123', 'read', 'document:456')
@@ -123,10 +125,11 @@ describe('RequiresAnyPermission', function (): void {
             );
             $route->bind($this->request);
             $route->setParameter('document', '456');
-            $this->request->setRouteResolver(fn () => $route);
+
+            $this->request->setRouteResolver(static fn (): Route => $route);
 
             Auth::shouldReceive('check')->once()->andReturnTrue();
-            $this->request->setUserResolver(fn () => $user);
+            $this->request->setUserResolver(static fn (): object => $user);
 
             $this->mockManager->shouldReceive('check')
                 ->with('user:123', 'read', 'document:456')
@@ -159,10 +162,11 @@ describe('RequiresAnyPermission', function (): void {
             );
             $route->bind($this->request);
             $route->setParameter('document', '456');
-            $this->request->setRouteResolver(fn () => $route);
+
+            $this->request->setRouteResolver(static fn (): Route => $route);
 
             Auth::shouldReceive('check')->once()->andReturnTrue();
-            $this->request->setUserResolver(fn () => $user);
+            $this->request->setUserResolver(static fn (): object => $user);
 
             $this->mockManager->shouldReceive('check')
                 ->with('user:123', 'read', 'document:456')
@@ -194,10 +198,11 @@ describe('RequiresAnyPermission', function (): void {
             );
             $route->bind($this->request);
             $route->setParameter('document', '456');
-            $this->request->setRouteResolver(fn () => $route);
+
+            $this->request->setRouteResolver(static fn (): Route => $route);
 
             Auth::shouldReceive('check')->once()->andReturnTrue();
-            $this->request->setUserResolver(fn () => $user);
+            $this->request->setUserResolver(static fn (): object => $user);
 
             // Simulate checking permissions in order: viewer (fail), editor (fail), admin (succeed)
             $this->mockManager->shouldReceive('check')
@@ -235,10 +240,11 @@ describe('RequiresAnyPermission', function (): void {
             );
             $route->bind($this->request);
             $route->setParameter('system', 'global');
-            $this->request->setRouteResolver(fn () => $route);
+
+            $this->request->setRouteResolver(static fn (): Route => $route);
 
             Auth::shouldReceive('check')->once()->andReturnTrue();
-            $this->request->setUserResolver(fn () => $user);
+            $this->request->setUserResolver(static fn (): object => $user);
 
             $this->mockManager->shouldReceive('check')
                 ->with('user:123', 'admin', 'system:global')
@@ -259,10 +265,11 @@ describe('RequiresAnyPermission', function (): void {
             );
             $route->bind($this->request);
             $route->setParameter('system', 'global');
-            $this->request->setRouteResolver(fn () => $route);
+
+            $this->request->setRouteResolver(static fn (): Route => $route);
 
             Auth::shouldReceive('check')->once()->andReturnTrue();
-            $this->request->setUserResolver(fn () => $user);
+            $this->request->setUserResolver(static fn (): object => $user);
 
             $this->mockManager->shouldReceive('check')
                 ->with('user:123', 'admin', 'system:global')
@@ -288,10 +295,11 @@ describe('RequiresAnyPermission', function (): void {
             $route->bind($this->request);
             $route->setParameter('projectId', '100');
             $route->setParameter('task_id', '200');
-            $this->request->setRouteResolver(fn () => $route);
+
+            $this->request->setRouteResolver(static fn (): Route => $route);
 
             Auth::shouldReceive('check')->once()->andReturnTrue();
-            $this->request->setUserResolver(fn () => $user);
+            $this->request->setUserResolver(static fn (): object => $user);
 
             // Should use the first parameter found (projectId -> project:100)
             $this->mockManager->shouldReceive('check')
@@ -316,10 +324,11 @@ describe('RequiresAnyPermission', function (): void {
             );
             $route->bind($this->request);
             $route->setParameter('document', $document);
-            $this->request->setRouteResolver(fn () => $route);
+
+            $this->request->setRouteResolver(static fn (): Route => $route);
 
             Auth::shouldReceive('check')->once()->andReturnTrue();
-            $this->request->setUserResolver(fn () => $user);
+            $this->request->setUserResolver(static fn (): object => $user);
 
             $this->mockManager->shouldReceive('check')
                 ->with('user:123', 'edit', 'document:789')
@@ -347,10 +356,11 @@ describe('RequiresAnyPermission', function (): void {
             );
             $route->bind($this->request);
             $route->setParameter('folderId', '789');
-            $this->request->setRouteResolver(fn () => $route);
+
+            $this->request->setRouteResolver(static fn (): Route => $route);
 
             Auth::shouldReceive('check')->once()->andReturnTrue();
-            $this->request->setUserResolver(fn () => $user);
+            $this->request->setUserResolver(static fn (): object => $user);
 
             $this->mockManager->shouldReceive('check')
                 ->with('user:123', 'access', 'folder:789')
@@ -378,10 +388,11 @@ describe('RequiresAnyPermission', function (): void {
             );
             $route->bind($this->request);
             $route->setParameter('document_id', '456');
-            $this->request->setRouteResolver(fn () => $route);
+
+            $this->request->setRouteResolver(static fn (): Route => $route);
 
             Auth::shouldReceive('check')->once()->andReturnTrue();
-            $this->request->setUserResolver(fn () => $user);
+            $this->request->setUserResolver(static fn (): object => $user);
 
             $this->mockManager->shouldReceive('check')
                 ->with('user:123', 'view', 'document:456')
@@ -405,10 +416,11 @@ describe('RequiresAnyPermission', function (): void {
                 );
                 $route->bind($this->request);
                 $route->setParameter('document', '123');
-                $this->request->setRouteResolver(fn () => $route);
+
+                $this->request->setRouteResolver(static fn (): Route => $route);
 
                 Auth::shouldReceive('check')->once()->andReturnTrue();
-                $this->request->setUserResolver(fn () => $user);
+                $this->request->setUserResolver(static fn (): object => $user);
 
                 $this->mockManager->shouldReceive('check')
                     ->with('user:456', 'view', 'document:123')
@@ -432,10 +444,11 @@ describe('RequiresAnyPermission', function (): void {
                     action: [],
                 );
                 $route->bind($this->request);
-                $this->request->setRouteResolver(fn () => $route);
+
+                $this->request->setRouteResolver(static fn (): Route => $route);
 
                 Auth::shouldReceive('check')->once()->andReturnTrue();
-                $this->request->setUserResolver(fn () => $user);
+                $this->request->setUserResolver(static fn (): object => $user);
 
                 expect(fn () => $this->middleware->handle($this->request, $this->next, 'access', 'manage'))
                     ->toThrow(InvalidArgumentException::class, 'Could not resolve authorization object from route parameters');
@@ -445,8 +458,8 @@ describe('RequiresAnyPermission', function (): void {
                 $user = createAuthUser('user:123');
 
                 Auth::shouldReceive('check')->once()->andReturnTrue();
-                $this->request->setUserResolver(fn () => $user);
-                $this->request->setRouteResolver(fn () => null);
+                $this->request->setUserResolver(static fn (): object => $user);
+                $this->request->setRouteResolver(static fn (): null => null);
 
                 expect(fn () => $this->middleware->handle($this->request, $this->next, 'read', 'write'))
                     ->toThrow(InvalidArgumentException::class, 'No route found for object resolution');
@@ -463,10 +476,11 @@ describe('RequiresAnyPermission', function (): void {
             );
             $route->bind($this->request);
             $route->setParameter('post', '999');
-            $this->request->setRouteResolver(fn () => $route);
+
+            $this->request->setRouteResolver(static fn (): Route => $route);
 
             Auth::shouldReceive('check')->once()->andReturnTrue();
-            $this->request->setUserResolver(fn () => $user);
+            $this->request->setUserResolver(static fn (): object => $user);
 
             $this->mockManager->shouldReceive('check')
                 ->with('user:123', 'read', 'post:999')

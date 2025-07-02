@@ -7,6 +7,7 @@ namespace OpenFGA\Laravel\Console\Commands;
 use Exception;
 use Illuminate\Console\Command;
 use InvalidArgumentException;
+use OpenFGA\Laravel\Exceptions\ConnectionException;
 use OpenFGA\Laravel\OpenFgaManager;
 
 use function is_array;
@@ -51,6 +52,7 @@ final class AnalyzePermissionsCommand extends Command
      *
      * @param OpenFgaManager $manager
      *
+     * @throws ConnectionException
      * @throws InvalidArgumentException
      */
     public function handle(OpenFgaManager $manager): int

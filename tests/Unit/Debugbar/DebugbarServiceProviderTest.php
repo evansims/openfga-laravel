@@ -74,7 +74,7 @@ describe('DebugbarServiceProvider', function (): void {
 
     it('extends OpenFgaManager when wrapping', function (): void {
         // Register a mock OpenFgaManager first
-        $this->app->singleton(OpenFgaManager::class, function () {
+        $this->app->singleton(OpenFgaManager::class, function (): stdClass {
             // We can't instantiate it directly due to final class,
             // but we can verify the extend call is made
             return new stdClass; // Placeholder

@@ -40,7 +40,7 @@ describe('ProfilingMiddleware', function (): void {
             $request = Request::create(uri: '/api/test');
             $response = new Response('test content');
 
-            $next = fn () => $response;
+            $next = static fn (): Response => $response;
 
             $result = $this->middleware->handle($request, $next);
 
@@ -62,7 +62,7 @@ describe('ProfilingMiddleware', function (): void {
             $response = new Response('<html><body>Test</body></html>');
             $response->headers->set('Content-Type', 'text/html');
 
-            $next = fn () => $response;
+            $next = static fn (): Response => $response;
 
             $result = $this->middleware->handle($request, $next);
 
@@ -78,7 +78,7 @@ describe('ProfilingMiddleware', function (): void {
             );
             $response = new Response('<html><body>Test</body></html>');
 
-            $next = fn () => $response;
+            $next = static fn (): Response => $response;
 
             $result = $this->middleware->handle($request, $next);
 
@@ -98,7 +98,7 @@ describe('ProfilingMiddleware', function (): void {
             $response = new Response('<html><body>Test</body></html>');
             $response->headers->set('Content-Type', 'text/html');
 
-            $next = fn () => $response;
+            $next = static fn (): Response => $response;
 
             $result = $this->middleware->handle($request, $next);
 
@@ -118,7 +118,7 @@ describe('ProfilingMiddleware', function (): void {
             $response = new Response('<html><body>Test</body></html>');
             $response->headers->set('Content-Type', 'text/html');
 
-            $next = fn () => $response;
+            $next = static fn (): Response => $response;
 
             $result = $this->middleware->handle($request, $next);
 
@@ -137,7 +137,7 @@ describe('ProfilingMiddleware', function (): void {
             $response = new Response('<html><body>Test</body></html>');
             $response->headers->set('Content-Type', 'text/html');
 
-            $next = fn () => $response;
+            $next = static fn (): Response => $response;
 
             $result = $this->middleware->handle($request, $next);
 
@@ -156,7 +156,7 @@ describe('ProfilingMiddleware', function (): void {
             $response = new Response('{"key": "value"}');
             $response->headers->set('Content-Type', 'application/json');
 
-            $next = fn () => $response;
+            $next = static fn (): Response => $response;
 
             $result = $this->middleware->handle($request, $next);
 
@@ -175,7 +175,7 @@ describe('ProfilingMiddleware', function (): void {
             $response = new Response('<html>No body tag here</html>');
             $response->headers->set('Content-Type', 'text/html');
 
-            $next = fn () => $response;
+            $next = static fn (): Response => $response;
 
             $result = $this->middleware->handle($request, $next);
 
@@ -201,7 +201,7 @@ describe('ProfilingMiddleware', function (): void {
             $response = new Response('<html><body>Test</body></html>');
             $response->headers->set('Content-Type', 'text/html');
 
-            $next = fn () => $response;
+            $next = static fn (): Response => $response;
 
             $result = $this->middleware->handle($request, $next);
 
@@ -220,7 +220,7 @@ describe('ProfilingMiddleware', function (): void {
             $response = new JsonResponse(['data' => 'test']);
             $response->headers->set('Content-Type', 'text/html'); // Unusual but testing the condition
 
-            $next = fn () => $response;
+            $next = static fn (): JsonResponse => $response;
 
             $result = $this->middleware->handle($request, $next);
 
@@ -233,7 +233,7 @@ describe('ProfilingMiddleware', function (): void {
                 method: 'GET',
             );
 
-            $next = fn () => 'not a response';
+            $next = static fn (): string => 'not a response';
 
             $result = $this->middleware->handle($request, $next);
 
@@ -254,7 +254,7 @@ describe('ProfilingMiddleware', function (): void {
             $response = new Response('<html><body>Test</body></html>');
             // No Content-Type header set
 
-            $next = fn () => $response;
+            $next = static fn (): Response => $response;
 
             $result = $this->middleware->handle($request, $next);
 
@@ -280,7 +280,7 @@ describe('ProfilingMiddleware', function (): void {
             $response = new Response('<html><body>First</body><body>Second</body></html>');
             $response->headers->set('Content-Type', 'text/html');
 
-            $next = fn () => $response;
+            $next = static fn (): Response => $response;
 
             $result = $this->middleware->handle($request, $next);
 

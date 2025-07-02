@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Exceptions;
 
-use RuntimeException;
-
 use function sprintf;
 
 /**
@@ -16,7 +14,7 @@ use function sprintf;
  * available connections. It helps diagnose and handle connection resource
  * exhaustion scenarios in high-concurrency environments.
  */
-final class ConnectionPoolException extends RuntimeException
+final class ConnectionPoolException extends AbstractOpenFgaException
 {
     /**
      * Create an initialization exception.

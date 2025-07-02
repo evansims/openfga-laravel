@@ -152,7 +152,7 @@ final class TestDatasets
         ];
 
         if (! isset($scenarios[$scenario])) {
-            throw new InvalidArgumentException("Unknown permission scenario: {$scenario}");
+            throw new InvalidArgumentException('Unknown permission scenario: ' . $scenario);
         }
 
         return array_merge($scenarios[$scenario], $overrides);
@@ -208,7 +208,7 @@ final class TestDatasets
         ];
 
         if (! isset($datasets[$datasetName])) {
-            throw new InvalidArgumentException("Unknown dataset: {$datasetName}");
+            throw new InvalidArgumentException('Unknown dataset: ' . $datasetName);
         }
 
         return $datasets[$datasetName];

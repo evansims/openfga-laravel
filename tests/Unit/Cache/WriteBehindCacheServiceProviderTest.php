@@ -37,9 +37,9 @@ describe('WriteBehindCacheServiceProvider', function (): void {
             'openfga.cache.write_behind_flush_on_shutdown',
         ];
 
-        foreach ($configKeys as $key) {
-            $this->setConfigWithRestore($key, 'test_value');
-            expect(config($key))->toBe('test_value');
+        foreach ($configKeys as $configKey) {
+            $this->setConfigWithRestore($configKey, 'test_value');
+            expect(config($configKey))->toBe('test_value');
         }
     });
 
@@ -107,12 +107,12 @@ describe('WriteBehindCacheServiceProvider', function (): void {
         // Test shutdown flush is registered when enabled
         $this->setConfigWithRestore('openfga.cache.write_behind_flush_on_shutdown', true);
         $provider1 = new WriteBehindCacheServiceProvider($this->app);
-        expect(fn () => $provider1->boot())->not->toThrow(Exception::class);
+        expect(static fn () => $provider1->boot())->not->toThrow(Exception::class);
 
         // Test shutdown flush is not registered when disabled
         $this->setConfigWithRestore('openfga.cache.write_behind_flush_on_shutdown', false);
         $provider2 = new WriteBehindCacheServiceProvider($this->app);
-        expect(fn () => $provider2->boot())->not->toThrow(Exception::class);
+        expect(static fn () => $provider2->boot())->not->toThrow(Exception::class);
 
         // Reset to default (disabled for tests)
         $this->setConfigWithRestore('openfga.cache.write_behind_flush_on_shutdown', false);
@@ -121,7 +121,7 @@ describe('WriteBehindCacheServiceProvider', function (): void {
     it('validates error logging during shutdown', function (): void {
         // Simply test that we can call Log::error without errors
         // This validates the logging call signature used in the provider
-        expect(fn () => Log::error('Failed to flush write-behind cache on shutdown', [
+        expect(static fn () => Log::error('Failed to flush write-behind cache on shutdown', [
             'error' => 'Test error message',
         ]))->not->toThrow(Exception::class);
     });
@@ -239,11 +239,11 @@ describe('WriteBehindCacheServiceProvider', function (): void {
         expect(method_exists($provider, 'boot'))->toBeTrue();
 
         // Test that register can be called without errors
-        expect(fn () => $provider->register())->not->toThrow(Exception::class);
+        expect(static fn () => $provider->register())->not->toThrow(Exception::class);
 
         // Test that boot can be called without errors
         $this->setConfigWithRestore('openfga.cache.write_behind_periodic_flush', false);
         $this->setConfigWithRestore('openfga.cache.write_behind_flush_on_shutdown', false);
-        expect(fn () => $provider->boot())->not->toThrow(Exception::class);
+        expect(static fn () => $provider->boot())->not->toThrow(Exception::class);
     });
 });

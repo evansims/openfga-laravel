@@ -13,8 +13,8 @@ function createAuthUser(string $authId, mixed $identifier = 123): object
 {
     return new class($authId, $identifier) extends Model implements Authenticatable, AuthorizationUser {
         public function __construct(
-            private string $authId,
-            private mixed $identifier,
+            private readonly string $authId,
+            private readonly mixed $identifier,
         ) {
         }
 
@@ -64,7 +64,7 @@ function createAuthObject(string $objectId): object
 {
     return new class($objectId) extends Model implements AuthorizationObject {
         public function __construct(
-            private string $objectId,
+            private readonly string $objectId,
         ) {
         }
 
@@ -80,7 +80,7 @@ function createRegularAuthenticatable(mixed $identifier = 456): object
 {
     return new class($identifier) extends Model implements Authenticatable {
         public function __construct(
-            private mixed $identifier,
+            private readonly mixed $identifier,
         ) {
         }
 
@@ -125,8 +125,8 @@ function createPlainModel(string $table, mixed $key): object
 {
     return new class($table, $key) extends Model {
         public function __construct(
-            private string $tableName,
-            private mixed $keyValue,
+            private readonly string $tableName,
+            private readonly mixed $keyValue,
         ) {
         }
 

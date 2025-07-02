@@ -118,7 +118,7 @@ describe('OpenFgaGate Edge Cases', function (): void {
             $this->manager
                 ->expects($this->exactly(2))
                 ->method('check')
-                ->willReturnCallback(function ($user, $ability, $object) {
+                ->willReturnCallback(function ($user, $ability, $object): bool {
                     if ('user:123' === $user && 'view_document' === $ability && 'document:123' === $object) {
                         return true;
                     }
@@ -502,7 +502,7 @@ describe('OpenFgaGate Edge Cases', function (): void {
     describe('Boundary Conditions', function (): void {
         it('handles very long object identifiers', function (): void {
             $longId = str_repeat('a', 1000);
-            $objectId = "document:{$longId}";
+            $objectId = 'document:' . $longId;
 
             $this->manager
                 ->expects($this->once())

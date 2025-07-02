@@ -11,6 +11,7 @@ use RuntimeException;
 use function array_slice;
 use function count;
 use function func_get_args;
+use function sprintf;
 
 /**
  * Mock implementation of OpenFgaManager methods for testing
@@ -44,7 +45,7 @@ final class MockOpenFgaManager
             }
         }
 
-        throw new RuntimeException("No expectation set for {$method} with args: " . json_encode($args));
+        throw new RuntimeException(sprintf('No expectation set for %s with args: ', $method) . json_encode($args));
     }
 
     public function grant(
@@ -149,11 +150,7 @@ final class MockOpenFgaManager
  */
 final class MockExpectation
 {
-    private string $method;
-
-    private MockOpenFgaManager $mock;
-
-    private $returnValue = null;
+    private $returnValue;
 
     private bool $shouldVerifyTimes = false;
 
@@ -161,10 +158,8 @@ final class MockExpectation
 
     private ?array $withArgs = null;
 
-    public function __construct(string $method, MockOpenFgaManager $mock)
+    public function __construct(private readonly string $method, private readonly MockOpenFgaManager $mock)
     {
-        $this->method = $method;
-        $this->mock = $mock;
     }
 
     public function andReturn($value): self
@@ -227,17 +222,20 @@ final class MockExpectation
         $matchingCalls = 0;
 
         foreach ($calls as $call) {
-            if ($call['method'] === $this->method) {
-                if (null === $this->withArgs || $this->matches($this->method, $call['args'])) {
-                    $matchingCalls++;
-                }
+            if ($call['method'] !== $this->method) {
+                continue;
             }
+
+            if (null !== $this->withArgs && ! $this->matches($this->method, $call['args'])) {
+                continue;
+            }
+            ++$matchingCalls;
         }
 
         Assert::assertEquals(
             $this->times,
             $matchingCalls,
-            "Expected {$this->method} to be called {$this->times} times, but was called {$matchingCalls} times",
+            sprintf('Expected %s to be called %d times, but was called %d times', $this->method, $this->times, $matchingCalls),
         );
     }
 

@@ -26,6 +26,7 @@ describe('EventServiceProvider', function (): void {
         $reflection = new ReflectionClass($this->provider);
         $property = $reflection->getProperty('listen');
         $property->setAccessible(true);
+
         $listeners = $property->getValue($this->provider);
 
         expect($listeners)->toBeArray();
@@ -42,6 +43,7 @@ describe('EventServiceProvider', function (): void {
         $reflection = new ReflectionClass($this->provider);
         $property = $reflection->getProperty('listen');
         $property->setAccessible(true);
+
         $listeners = $property->getValue($this->provider);
 
         // PermissionChecked should have AuditPermissionChanges and MonitorPerformance
@@ -70,6 +72,7 @@ describe('EventServiceProvider', function (): void {
         $reflection = new ReflectionClass($this->provider);
         $property = $reflection->getProperty('subscribe');
         $property->setAccessible(true);
+
         $subscribers = $property->getValue($this->provider);
 
         expect($subscribers)->toBeArray();

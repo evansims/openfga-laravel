@@ -200,7 +200,7 @@ describe('OpenFgaProfiler', function (): void {
 
             Log::shouldReceive('warning')
                 ->once()
-                ->with('Slow OpenFGA query detected', Mockery::on(fn ($context) => 'slowCheck' === $context['operation']
+                ->with('Slow OpenFGA query detected', Mockery::on(static fn ($context): bool => 'slowCheck' === $context['operation']
                         && 100 < $context['duration']
                         && $context['parameters'] === ['user' => 'user:123']
                         && $context['metadata'] === ['test' => 123]));
@@ -299,7 +299,7 @@ describe('OpenFgaProfiler', function (): void {
 
     describe('profile tracking scenarios', function (): void {
         it('tracks multiple operations of same type', function (): void {
-            for ($i = 0; 5 > $i; $i++) {
+            for ($i = 0; 5 > $i; ++$i) {
                 $this->profiler->startProfile('check')->end();
             }
 

@@ -14,19 +14,19 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 // Custom expectation to check if a value is a valid OpenFGA identifier
 expect()->extend('toBeOpenFgaIdentifier', function (): void {
     $this->toBeString()
-        ->toMatch('/^[a-zA-Z0-9_]+:[a-zA-Z0-9._\-@+]+$/');
+        ->toMatch('/^\w+:[a-zA-Z0-9._\-@+]+$/');
 });
 
 // Custom expectation to check if a value is a valid OpenFGA relation
 expect()->extend('toBeOpenFgaRelation', function (): void {
     $this->toBeString()
-        ->toMatch('/^[a-zA-Z][a-zA-Z0-9_]*$/');
+        ->toMatch('/^[a-zA-Z]\w*$/');
 });
 
 // Custom expectation to check if a value is a valid OpenFGA type
 expect()->extend('toBeOpenFgaType', function (): void {
     $this->toBeString()
-        ->toMatch('/^[a-zA-Z][a-zA-Z0-9_]*$/');
+        ->toMatch('/^[a-zA-Z]\w*$/');
 });
 
 // Custom expectation for permission tuples
@@ -74,7 +74,7 @@ expect()->extend('toNotHavePermission', function (string $relation, string $obje
 // Custom expectation for collections of tuples
 expect()->extend('toBeValidTupleCollection', function (): void {
     $this->toBeArray()
-        ->each(fn ($tuple) => $tuple->toBePermissionTuple());
+        ->each(static fn ($tuple) => $tuple->toBePermissionTuple());
 });
 
 // Custom expectation for response times
@@ -178,14 +178,14 @@ use function OpenFGA\Laravel\Tests\Support\{
 
 // Ensure facades are reset after each test
 // Global before each hook
-beforeEach(function (): void {
+beforeEach(static function (): void {
     // Reset any global state
     if (app()->bound('openfga.test.scenario')) {
         app()->forgetInstance('openfga.test.scenario');
     }
 });
 
-afterEach(function (): void {
+afterEach(static function (): void {
     // Clear all resolved facade instances
     Facade::clearResolvedInstances();
 
@@ -195,7 +195,7 @@ afterEach(function (): void {
     }
 
     // Clean up any test resources
-    defer(fn () => clearTestResources());
+    defer(static fn () => clearTestResources());
 });
 
 /*
@@ -231,7 +231,7 @@ dataset('relations', [
     'member',
 ]);
 
-dataset('permission_tuples', fn () => [
+dataset('permission_tuples', static fn (): array => [
     ['user:123', 'owner', 'document:456'],
     ['user:123', 'editor', 'document:456'],
     ['user:456', 'viewer', 'project:789'],
@@ -247,7 +247,7 @@ dataset('performance_scenarios', [
     'large' => ['tuples' => 1000, 'max_ms' => 1000],
 ]);
 
-dataset('authorization_models', function () {
+dataset('authorization_models', static function () {
     yield 'simple' => createTestAuthorizationModel();
 
     yield 'complex' => createTestAuthorizationModel([

@@ -10,6 +10,8 @@ use OpenFGA\Laravel\OpenFgaClient;
 use OpenFGA\Models\Collections\TupleKeysInterface;
 use RuntimeException;
 
+use function sprintf;
+
 /**
  * Testable version of manager interface.
  */
@@ -31,7 +33,7 @@ final class TestableOpenFgaManager implements ManagerInterface
 
         foreach ($checks as $index => $check) {
             [$user, $relation, $object] = $check;
-            $key = "{$user}:{$relation}:{$object}";
+            $key = sprintf('%s:%s:%s', $user, $relation, $object);
             $results[$index] = $this->checkResults[$key] ?? false;
         }
 
@@ -46,13 +48,13 @@ final class TestableOpenFgaManager implements ManagerInterface
         array $context = [],
         ?string $connection = null,
     ): bool {
-        $this->checkCount++;
+        ++$this->checkCount;
 
-        if ($this->shouldThrow) {
+        if ($this->shouldThrow instanceof Exception) {
             throw $this->shouldThrow;
         }
 
-        $key = "{$user}:{$relation}:{$object}";
+        $key = sprintf('%s:%s:%s', $user, $relation, $object);
 
         return $this->checkResults[$key] ?? false;
     }
@@ -60,18 +62,6 @@ final class TestableOpenFgaManager implements ManagerInterface
     public function connection(?string $name = null): OpenFgaClient
     {
         throw new RuntimeException('Not implemented');
-    }
-
-    public function disconnect(?string $name = null): void
-    {
-    }
-
-    public function disconnectAll(): void
-    {
-    }
-
-    public function enableExceptions(bool $enable = true): void
-    {
     }
 
     public function expand(
@@ -129,13 +119,13 @@ final class TestableOpenFgaManager implements ManagerInterface
         array $context = [],
         ?string $connection = null,
     ): array {
-        $this->listObjectsCount++;
+        ++$this->listObjectsCount;
 
-        if ($this->shouldThrow) {
+        if ($this->shouldThrow instanceof Exception) {
             throw $this->shouldThrow;
         }
 
-        $key = "{$user}:{$relation}:{$type}";
+        $key = sprintf('%s:%s:%s', $user, $relation, $type);
 
         return $this->listResults[$key] ?? [];
     }
@@ -178,16 +168,12 @@ final class TestableOpenFgaManager implements ManagerInterface
 
     public function setCheckResult(string $user, string $relation, string $object, bool $result): void
     {
-        $this->checkResults["{$user}:{$relation}:{$object}"] = $result;
-    }
-
-    public function setDefaultConnection(string $name): void
-    {
+        $this->checkResults[sprintf('%s:%s:%s', $user, $relation, $object)] = $result;
     }
 
     public function setListObjectsResult(string $user, string $relation, string $type, array $result): void
     {
-        $this->listResults["{$user}:{$relation}:{$type}"] = $result;
+        $this->listResults[sprintf('%s:%s:%s', $user, $relation, $type)] = $result;
     }
 
     public function setShouldThrow(?Exception $exception): void

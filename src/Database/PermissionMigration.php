@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\App;
 use InvalidArgumentException;
 use OpenFGA\ClientInterface;
 use OpenFGA\Exceptions\ClientThrowable;
+use OpenFGA\Laravel\Exceptions\ConnectionException;
 use OpenFGA\Laravel\OpenFgaManager;
 use OpenFGA\Models\Collections\TupleKeys;
 use OpenFGA\Models\TupleKey;
@@ -238,6 +239,7 @@ abstract class PermissionMigration extends Migration
      * @param string                         $connection The connection name
      * @param Closure(ClientInterface): void $callback   The callback to execute
      *
+     * @throws ConnectionException
      * @throws InvalidArgumentException
      */
     protected function usingConnection(string $connection, Closure $callback): void

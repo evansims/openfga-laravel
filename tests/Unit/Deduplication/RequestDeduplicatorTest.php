@@ -43,7 +43,7 @@ describe('RequestDeduplicator', function (): void {
             $config = ['enabled' => false];
             $deduplicator = new RequestDeduplicator($this->cache, $config);
 
-            $result = $deduplicator->execute('operation', ['param' => 'value'], fn () => 'direct_result');
+            $result = $deduplicator->execute('operation', ['param' => 'value'], static fn (): string => 'direct_result');
 
             expect($result)->toBe('direct_result');
         });
@@ -57,7 +57,7 @@ describe('RequestDeduplicator', function (): void {
             $result = $this->deduplicator->execute(
                 'operation',
                 ['param' => 'value'],
-                function () use (&$callbackExecuted) {
+                function () use (&$callbackExecuted): string {
                     $callbackExecuted = true;
 
                     return 'new_result';
@@ -90,7 +90,7 @@ describe('RequestDeduplicator', function (): void {
                 ->with(Mockery::pattern('/:inflight$/'))
                 ->once();
 
-            $result = $this->deduplicator->execute('operation', ['param' => 'value'], fn () => 'new_result');
+            $result = $this->deduplicator->execute('operation', ['param' => 'value'], static fn (): string => 'new_result');
 
             expect($result)->toBe('new_result');
         });
@@ -110,7 +110,7 @@ describe('RequestDeduplicator', function (): void {
             $this->cache->shouldReceive('get')
                 ->andReturn(null, serialize('completed_result')); // First: still processing, second: completed
 
-            $result = $this->deduplicator->execute('operation', ['param' => 'value'], fn () => 'should_not_execute');
+            $result = $this->deduplicator->execute('operation', ['param' => 'value'], static fn (): string => 'should_not_execute');
 
             expect($result)->toBe('completed_result');
         });
@@ -136,7 +136,7 @@ describe('RequestDeduplicator', function (): void {
             expect(fn () => $this->deduplicator->execute(
                 'operation',
                 ['param' => 'value'],
-                fn () => throw new Exception('Test exception'),
+                static fn () => throw new Exception('Test exception'),
             ))->toThrow(Exception::class, 'Test exception');
         });
     });
@@ -189,8 +189,8 @@ describe('RequestDeduplicator', function (): void {
             $this->cache->shouldReceive('put')->andReturnNull();
             $this->cache->shouldReceive('forget')->andReturnNull();
 
-            $this->deduplicator->execute('op1', [], fn () => 'result1');
-            $this->deduplicator->execute('op2', [], fn () => 'result2');
+            $this->deduplicator->execute('op1', [], static fn (): string => 'result1');
+            $this->deduplicator->execute('op2', [], static fn (): string => 'result2');
 
             $stats = $this->deduplicator->getStats();
             expect($stats['total_requests'])->toBe(2);
@@ -200,8 +200,8 @@ describe('RequestDeduplicator', function (): void {
             $this->cache->shouldReceive('get')
                 ->andReturn(serialize('cached'), serialize('cached'));
 
-            $this->deduplicator->execute('op', [], fn () => 'new');
-            $this->deduplicator->execute('op', [], fn () => 'new');
+            $this->deduplicator->execute('op', [], static fn (): string => 'new');
+            $this->deduplicator->execute('op', [], static fn (): string => 'new');
 
             $stats = $this->deduplicator->getStats();
             expect($stats['cache_hits'])->toBe(2);
@@ -214,7 +214,7 @@ describe('RequestDeduplicator', function (): void {
             $this->cache->shouldReceive('put')->andReturnNull();
             $this->cache->shouldReceive('forget')->andReturnNull();
 
-            $this->deduplicator->execute('op', [], fn () => 'result');
+            $this->deduplicator->execute('op', [], static fn (): string => 'result');
 
             $stats = $this->deduplicator->getStats();
             expect($stats['cache_misses'])->toBe(1);
@@ -244,7 +244,7 @@ describe('RequestDeduplicator', function (): void {
                 ->with(Mockery::pattern('/:inflight$/'))
                 ->andReturn(true); // Still in-flight during first loop
 
-            $result = $this->deduplicator->execute('op', [], fn () => 'should_not_execute');
+            $result = $this->deduplicator->execute('op', [], static fn (): string => 'should_not_execute');
 
             expect($result)->toBe('result');
 
@@ -260,9 +260,9 @@ describe('RequestDeduplicator', function (): void {
             $this->cache->shouldReceive('forget')->andReturnNull();
 
             // 2 hits, 1 miss
-            $this->deduplicator->execute('op1', [], fn () => 'result');
-            $this->deduplicator->execute('op2', [], fn () => 'result');
-            $this->deduplicator->execute('op3', [], fn () => 'result');
+            $this->deduplicator->execute('op1', [], static fn (): string => 'result');
+            $this->deduplicator->execute('op2', [], static fn (): string => 'result');
+            $this->deduplicator->execute('op3', [], static fn (): string => 'result');
 
             $stats = $this->deduplicator->getStats();
             expect($stats['hit_rate'])->toBe(66.67);
@@ -275,7 +275,7 @@ describe('RequestDeduplicator', function (): void {
                 ->once()
                 ->andReturn(serialize('cached_result'));
 
-            $this->deduplicator->execute('op1', [], fn () => 'result');
+            $this->deduplicator->execute('op1', [], static fn (): string => 'result');
 
             // Second request - deduplicated (in-flight)
             $this->cache->shouldReceive('get')
@@ -297,7 +297,7 @@ describe('RequestDeduplicator', function (): void {
                 ->with(Mockery::pattern('/:inflight$/'))
                 ->andReturn(true);
 
-            $this->deduplicator->execute('op2', [], fn () => 'result');
+            $this->deduplicator->execute('op2', [], static fn (): string => 'result');
 
             $stats = $this->deduplicator->getStats();
             expect($stats['total_requests'])->toBe(2);
@@ -318,7 +318,7 @@ describe('RequestDeduplicator', function (): void {
         it('resets all statistics to zero', function (): void {
             // Generate some stats
             $this->cache->shouldReceive('get')->andReturn(serialize('cached'));
-            $this->deduplicator->execute('op', [], fn () => 'result');
+            $this->deduplicator->execute('op', [], static fn (): string => 'result');
 
             // Verify stats exist
             $stats = $this->deduplicator->getStats();
@@ -370,7 +370,7 @@ describe('RequestDeduplicator', function (): void {
 
             $this->cache->shouldReceive('forget')->once();
 
-            $deduplicator->execute('op', [], fn () => 'result');
+            $deduplicator->execute('op', [], static fn (): string => 'result');
         });
 
         it('uses custom prefix', function (): void {
@@ -397,7 +397,7 @@ describe('RequestDeduplicator', function (): void {
                 ->with(Mockery::pattern('/:inflight$/'))
                 ->andReturn(true); // Always in-flight
 
-            expect(fn () => $deduplicator->execute('op', [], fn () => 'result'))
+            expect(static fn () => $deduplicator->execute('op', [], static fn (): string => 'result'))
                 ->toThrow(RuntimeException::class, 'Timeout waiting for in-flight request');
         });
 
@@ -410,7 +410,7 @@ describe('RequestDeduplicator', function (): void {
             // After in-flight is gone, cache check still returns null
             $this->cache->shouldReceive('get')->andReturn(null);
 
-            expect(fn () => $this->deduplicator->execute('op', [], fn () => 'result'))
+            expect(fn () => $this->deduplicator->execute('op', [], static fn (): string => 'result'))
                 ->toThrow(RuntimeException::class, 'In-flight request failed or timed out');
         });
     });

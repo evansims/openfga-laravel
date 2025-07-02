@@ -8,10 +8,12 @@ use Exception;
 use Mockery;
 use OpenFGA\ClientInterface;
 use OpenFGA\Laravel\Abstracts\AbstractOpenFgaManager;
+use OpenFGA\Laravel\Exceptions\ConnectionException;
 use OpenFGA\Laravel\{OpenFgaManager, OpenFgaServiceProvider};
 use OpenFGA\Laravel\Testing\IntegrationTestCase;
 use OpenFGA\Laravel\Tests\Support\ConfigRestoration;
 use OpenFGA\Laravel\Tests\TestCase;
+use Override;
 use ReflectionMethod;
 use ReflectionProperty;
 use RuntimeException;
@@ -87,7 +89,7 @@ describe('IntegrationTestCase', function (): void {
             $method = new ReflectionMethod(objectOrMethod: $this->testCase, method: 'assertEventuallyAllowed');
             $method->setAccessible(true);
 
-            expect(fn () => $method->invoke($this->testCase, 'user:123', 'viewer', 'document:456'))
+            expect(fn (): mixed => $method->invoke($this->testCase, 'user:123', 'viewer', 'document:456'))
                 ->toThrow(RuntimeException::class, 'OpenFGA client is not initialized');
         });
     });
@@ -107,7 +109,7 @@ describe('IntegrationTestCase', function (): void {
             $method = new ReflectionMethod(objectOrMethod: $this->testCase, method: 'grantPermission');
             $method->setAccessible(true);
 
-            expect(fn () => $method->invoke($this->testCase, 'user:123', 'viewer', 'document:456'))
+            expect(fn (): mixed => $method->invoke($this->testCase, 'user:123', 'viewer', 'document:456'))
                 ->not->toThrow(Exception::class);
         });
 
@@ -126,7 +128,7 @@ describe('IntegrationTestCase', function (): void {
             $method = new ReflectionMethod(objectOrMethod: $this->testCase, method: 'grantPermissions');
             $method->setAccessible(true);
 
-            expect(fn () => $method->invoke($this->testCase, $tuples))
+            expect(fn (): mixed => $method->invoke($this->testCase, $tuples))
                 ->not->toThrow(Exception::class);
         })->with('permission_tuples');
 
@@ -144,7 +146,7 @@ describe('IntegrationTestCase', function (): void {
             $method = new ReflectionMethod(objectOrMethod: $this->testCase, method: 'revokePermission');
             $method->setAccessible(true);
 
-            expect(fn () => $method->invoke($this->testCase, 'user:123', 'viewer', 'document:456'))
+            expect(fn (): mixed => $method->invoke($this->testCase, 'user:123', 'viewer', 'document:456'))
                 ->not->toThrow(Exception::class);
         });
 
@@ -152,7 +154,7 @@ describe('IntegrationTestCase', function (): void {
             $method = new ReflectionMethod(objectOrMethod: $this->testCase, method: 'grantPermission');
             $method->setAccessible(true);
 
-            expect(fn () => $method->invoke($this->testCase, 'user:123', 'viewer', 'document:456'))
+            expect(fn (): mixed => $method->invoke($this->testCase, 'user:123', 'viewer', 'document:456'))
                 ->toThrow(RuntimeException::class, 'OpenFGA manager is not initialized');
         });
 
@@ -162,7 +164,7 @@ describe('IntegrationTestCase', function (): void {
             $method = new ReflectionMethod(objectOrMethod: $this->testCase, method: 'grantPermission');
             $method->setAccessible(true);
 
-            expect(fn () => $method->invoke($this->testCase, 'user:123', 'viewer', 'document:456'))
+            expect(fn (): mixed => $method->invoke($this->testCase, 'user:123', 'viewer', 'document:456'))
                 ->toThrow(RuntimeException::class, 'Store ID or Model ID is not set');
         });
     });
@@ -206,7 +208,7 @@ describe('IntegrationTestCase', function (): void {
             $method = new ReflectionMethod(objectOrMethod: $this->testCase, method: 'createStore');
             $method->setAccessible(true);
 
-            expect(fn () => $method->invoke($this->testCase, 'test_store'))
+            expect(fn (): mixed => $method->invoke($this->testCase, 'test_store'))
                 ->toThrow(Exception::class);
         });
 
@@ -214,7 +216,7 @@ describe('IntegrationTestCase', function (): void {
             $method = new ReflectionMethod(objectOrMethod: $this->testCase, method: 'deleteStore');
             $method->setAccessible(true);
 
-            expect(fn () => $method->invoke($this->testCase, 'store_123'))
+            expect(fn (): mixed => $method->invoke($this->testCase, 'store_123'))
                 ->toThrow(Exception::class);
         });
 
@@ -224,7 +226,7 @@ describe('IntegrationTestCase', function (): void {
             $method = new ReflectionMethod(objectOrMethod: $this->testCase, method: 'createAuthorizationModel');
             $method->setAccessible(true);
 
-            expect(fn () => $method->invoke($this->testCase, ['test' => 'model']))
+            expect(fn (): mixed => $method->invoke($this->testCase, ['test' => 'model']))
                 ->toThrow(Exception::class);
         });
 
@@ -235,7 +237,7 @@ describe('IntegrationTestCase', function (): void {
             $method = new ReflectionMethod(objectOrMethod: $this->testCase, method: 'getCurrentModel');
             $method->setAccessible(true);
 
-            expect(fn () => $method->invoke($this->testCase))
+            expect(fn (): mixed => $method->invoke($this->testCase))
                 ->toThrow(Exception::class);
         });
 
@@ -243,7 +245,7 @@ describe('IntegrationTestCase', function (): void {
             $method = new ReflectionMethod(objectOrMethod: $this->testCase, method: 'createAuthorizationModel');
             $method->setAccessible(true);
 
-            expect(fn () => $method->invoke($this->testCase, ['test' => 'model']))
+            expect(fn (): mixed => $method->invoke($this->testCase, ['test' => 'model']))
                 ->toThrow(RuntimeException::class, 'Test store ID is not set');
         });
 
@@ -251,7 +253,7 @@ describe('IntegrationTestCase', function (): void {
             $method = new ReflectionMethod(objectOrMethod: $this->testCase, method: 'getCurrentModel');
             $method->setAccessible(true);
 
-            expect(fn () => $method->invoke($this->testCase))
+            expect(fn (): mixed => $method->invoke($this->testCase))
                 ->toThrow(RuntimeException::class, 'Test store ID or model ID is not set');
         });
     });
@@ -275,11 +277,11 @@ describe('IntegrationTestCase', function (): void {
             $method->setAccessible(true);
 
             // Test with a fast operation
-            $result = $method->invoke($this->testCase, function () {
+            $result = $method->invoke($this->testCase, function (): string {
                 // Do some minimal work instead of sleeping
                 $sum = 0;
 
-                for ($i = 0; 100 > $i; $i++) {
+                for ($i = 0; 100 > $i; ++$i) {
                     $sum += $i;
                 }
 
@@ -319,7 +321,7 @@ describe('IntegrationTestCase', function (): void {
             $method = new ReflectionMethod(objectOrMethod: $this->testCase, method: 'clearAllTuples');
             $method->setAccessible(true);
 
-            expect(fn () => $method->invoke($this->testCase))->not->toThrow(Exception::class);
+            expect(fn (): mixed => $method->invoke($this->testCase))->not->toThrow(Exception::class);
         });
 
         it('lists empty tuples by default', function (): void {
@@ -392,7 +394,7 @@ describe('IntegrationTestCase', function (): void {
     describe('api requests', function (): void {
         it('handles api request failure', function (): void {
             // Suppress warnings for file_get_contents
-            set_error_handler(callback: fn () => null, error_levels: E_WARNING);
+            set_error_handler(callback: static fn (): null => null, error_levels: E_WARNING);
 
             $this->setConfigWithRestore('openfga.connections.integration_test.url', 'http://invalid-host-that-does-not-exist');
 
@@ -402,8 +404,8 @@ describe('IntegrationTestCase', function (): void {
             try {
                 $result = $method->invoke($this->testCase, 'GET', '/stores');
                 expect(false)->toBeTrue(); // Should not reach here
-            } catch (RuntimeException $e) {
-                expect($e->getMessage())->toContain('Failed to make API request');
+            } catch (RuntimeException $runtimeException) {
+                expect($runtimeException->getMessage())->toContain('Failed to make API request');
             } finally {
                 restore_error_handler();
             }
@@ -448,7 +450,7 @@ describe('IntegrationTestCase', function (): void {
             $method->setAccessible(true);
 
             // First test it throws when manager is null
-            expect(fn () => $method->invoke($this->testCase))
+            expect(fn (): mixed => $method->invoke($this->testCase))
                 ->toThrow(RuntimeException::class, 'OpenFGA manager is not initialized');
         });
 
@@ -467,7 +469,7 @@ describe('IntegrationTestCase', function (): void {
             $method = new ReflectionMethod(objectOrMethod: $this->testCase, method: 'getManager');
             $method->setAccessible(true);
 
-            expect(fn () => $method->invoke($this->testCase))
+            expect(fn (): mixed => $method->invoke($this->testCase))
                 ->toThrow(RuntimeException::class, 'OpenFGA manager is not initialized');
         });
 
@@ -475,7 +477,7 @@ describe('IntegrationTestCase', function (): void {
             $method = new ReflectionMethod(objectOrMethod: $this->testCase, method: 'getClient');
             $method->setAccessible(true);
 
-            expect(fn () => $method->invoke($this->testCase))
+            expect(fn (): mixed => $method->invoke($this->testCase))
                 ->toThrow(RuntimeException::class, 'OpenFGA client is not initialized');
         });
     });
@@ -487,8 +489,8 @@ describe('IntegrationTestCase', function (): void {
             $method->setAccessible(true);
 
             // Should throw because app doesn't have OpenFgaManager bound
-            expect(fn () => $method->invoke($this->testCase))
-                ->toThrow(Exception::class);
+            expect(fn (): mixed => $method->invoke($this->testCase))
+                ->toThrow(ConnectionException::class);
         });
 
         it('sets up test store', function (): void {
@@ -497,7 +499,7 @@ describe('IntegrationTestCase', function (): void {
             $method->setAccessible(true);
 
             // Should throw because makeApiRequest will fail
-            expect(fn () => $method->invoke($this->testCase))
+            expect(fn (): mixed => $method->invoke($this->testCase))
                 ->toThrow(Exception::class);
         });
 
@@ -542,11 +544,13 @@ describe('IntegrationTestCase', function (): void {
 final class IntegrationTestCaseTest extends IntegrationTestCase
 {
     // Override setUp and tearDown to prevent automatic connections
+    #[Override]
     protected function setUp(): void
     {
         // Do nothing - prevent parent setUp
     }
 
+    #[Override]
     protected function tearDown(): void
     {
         // Do nothing - prevent parent tearDown

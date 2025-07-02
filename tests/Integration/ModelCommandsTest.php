@@ -29,7 +29,7 @@ describe('Model Commands', function (): void {
         file_put_contents($filename, 'existing content');
 
         $this->artisan('openfga:model:create', ['name' => 'existing'])
-            ->expectsOutput("Model file already exists: {$filename}")
+            ->expectsOutput('Model file already exists: ' . $filename)
             ->assertFailed();
     });
 

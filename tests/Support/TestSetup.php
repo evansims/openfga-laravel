@@ -17,6 +17,7 @@ use OpenFGA\Laravel\Contracts\ManagerInterface;
 use OpenFGA\Laravel\{OpenFgaManager, OpenFgaServiceProvider};
 
 use function is_array;
+use function sprintf;
 
 /**
  * Helper for common test setup patterns.
@@ -35,14 +36,14 @@ final class TestSetup
         try {
             $closure();
 
-            throw new AssertionError("Expected {$expectedClass} to be thrown");
-        } catch (Exception $e) {
-            if (! $e instanceof $expectedClass) {
-                throw new AssertionError("Expected {$expectedClass}, got " . $e::class);
+            throw new AssertionError(sprintf('Expected %s to be thrown', $expectedClass));
+        } catch (Exception $exception) {
+            if (! $exception instanceof $expectedClass) {
+                throw new AssertionError(sprintf('Expected %s, got ', $expectedClass) . $exception::class, $exception->getCode(), $exception);
             }
 
-            if ($expectedMessage && ! str_contains($e->getMessage(), $expectedMessage)) {
-                throw new AssertionError("Expected message to contain '{$expectedMessage}', got: {$e->getMessage()}");
+            if ($expectedMessage && ! str_contains($exception->getMessage(), $expectedMessage)) {
+                throw new AssertionError(sprintf("Expected message to contain '%s', got: %s", $expectedMessage, $exception->getMessage()), $exception->getCode(), $exception);
             }
         }
     }
@@ -93,7 +94,7 @@ final class TestSetup
     {
         config(['cache.default' => $driver]);
 
-        if (! empty($config)) {
+        if ([] !== $config) {
             config(['cache.stores.' . $driver => $config]);
         }
 
@@ -116,7 +117,7 @@ final class TestSetup
             );
         }
 
-        if (! empty($connections)) {
+        if ([] !== $connections) {
             $configArray['default'] = array_key_first($connections);
         }
 
@@ -161,11 +162,11 @@ final class TestSetup
     {
         $data = [];
 
-        for ($i = 1; $i <= $size; $i++) {
+        for ($i = 1; $i <= $size; ++$i) {
             $data[] = [
-                'user' => "user:{$i}",
+                'user' => 'user:' . $i,
                 'relation' => 'viewer',
-                'object' => "document:{$i}",
+                'object' => 'document:' . $i,
             ];
         }
 
@@ -180,7 +181,7 @@ final class TestSetup
         $container = new Container;
 
         // Register config repository
-        $container->singleton('config', fn () => new Repository);
+        $container->singleton('config', static fn (): Repository => new Repository);
 
         return $container;
     }
@@ -197,8 +198,8 @@ final class TestSetup
             $mock = MockScenarios::managerAlwaysAllows();
         }
 
-        $app->singleton(ManagerInterface::class, fn () => $mock);
-        $app->singleton(OpenFgaManager::class, fn () => $mock);
+        $app->singleton(ManagerInterface::class, static fn () => $mock);
+        $app->singleton(OpenFgaManager::class, static fn () => $mock);
     }
 
     /**
@@ -242,8 +243,8 @@ final class TestSetup
             if (! is_array($health) || ($health['status'] ?? '') !== 'SERVING') {
                 throw new Exception('OpenFGA server not ready');
             }
-        } catch (Exception $e) {
-            test()->markTestSkipped('OpenFGA server is not available: ' . $e->getMessage());
+        } catch (Exception $exception) {
+            test()->markTestSkipped('OpenFGA server is not available: ' . $exception->getMessage());
         }
 
         // Configure for integration testing
@@ -300,7 +301,7 @@ final class TestSetup
             $route->setParameter($name, $value);
         }
 
-        $request->setRouteResolver(fn () => $route);
+        $request->setRouteResolver(static fn (): Route => $route);
     }
 
     /**
@@ -315,8 +316,8 @@ final class TestSetup
             if (false === @file_get_contents($url . '/stores', false, $context)) {
                 test()->markTestSkipped('OpenFGA server is not available');
             }
-        } catch (Exception $e) {
-            test()->markTestSkipped('OpenFGA server is not available: ' . $e->getMessage());
+        } catch (Exception $exception) {
+            test()->markTestSkipped('OpenFGA server is not available: ' . $exception->getMessage());
         }
     }
 

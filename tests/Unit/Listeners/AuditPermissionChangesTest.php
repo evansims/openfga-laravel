@@ -82,13 +82,13 @@ describe('AuditPermissionChanges', function (): void {
 
         $writes = [];
 
-        for ($i = 0; 50 > $i; $i++) {
+        for ($i = 0; 50 > $i; ++$i) {
             $writes[] = ['user' => 'user:' . $i, 'relation' => 'viewer', 'object' => 'document:' . $i];
         }
 
         $deletes = [];
 
-        for ($i = 0; 10 > $i; $i++) {
+        for ($i = 0; 10 > $i; ++$i) {
             $deletes[] = ['user' => 'user:' . $i, 'relation' => 'editor', 'object' => 'document:' . $i];
         }
 
@@ -121,13 +121,13 @@ describe('AuditPermissionChanges', function (): void {
 
         $writes = [];
 
-        for ($i = 0; 100 > $i; $i++) {
+        for ($i = 0; 100 > $i; ++$i) {
             $writes[] = ['user' => 'user:' . $i, 'relation' => 'viewer', 'object' => 'document:' . $i];
         }
 
         $deletes = [];
 
-        for ($i = 0; 20 > $i; $i++) {
+        for ($i = 0; 20 > $i; ++$i) {
             $deletes[] = ['user' => 'user:' . $i, 'relation' => 'editor', 'object' => 'document:' . $i];
         }
 
@@ -144,7 +144,7 @@ describe('AuditPermissionChanges', function (): void {
             ->once()
             ->with(
                 'OpenFGA batch write failed',
-                Mockery::on(fn ($context) => 100 === $context['writes']
+                Mockery::on(static fn ($context): bool => 100 === $context['writes']
                            && 20 === $context['deletes']
                            && 120 === $context['total']
                            && 'Connection timeout' === $context['error']

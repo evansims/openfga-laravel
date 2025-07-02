@@ -253,7 +253,7 @@ describe('Can component', function (): void {
 
             $component = new Can(relation: 'read', object: ['invalid']);
 
-            expect(fn () => $component->hasPermission())
+            expect(static fn (): bool => $component->hasPermission())
                 ->toThrow(InvalidArgumentException::class, 'Cannot resolve object identifier for: array');
         });
 
@@ -272,7 +272,7 @@ describe('Can component', function (): void {
 
             $component = new Can(relation: 'read', object: $object);
 
-            expect(fn () => $component->hasPermission())
+            expect(static fn (): bool => $component->hasPermission())
                 ->toThrow(InvalidArgumentException::class, 'authorizationObject() must return a string or stringable value');
         });
     });
@@ -448,7 +448,7 @@ describe('Can component', function (): void {
 
             $component = new Can(relation: 'read', object: 'doc:123');
 
-            expect(fn () => $component->hasPermission())
+            expect(static fn (): bool => $component->hasPermission())
                 ->toThrow(InvalidArgumentException::class, 'authorizationUser() must return a string or numeric value');
         });
 
@@ -460,7 +460,7 @@ describe('Can component', function (): void {
 
             $component = new Can(relation: 'read', object: 'doc:123');
 
-            expect(fn () => $component->hasPermission())
+            expect(static fn (): bool => $component->hasPermission())
                 ->toThrow(InvalidArgumentException::class, 'User identifier must be scalar');
         });
     });

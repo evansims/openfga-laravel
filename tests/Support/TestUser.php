@@ -6,6 +6,7 @@ namespace OpenFGA\Laravel\Tests\Support;
 
 use Illuminate\Database\Eloquent\Model;
 use OpenFGA\Laravel\Traits\HasAuthorization;
+use Override;
 
 // Test user model
 final class TestUser extends Model
@@ -24,6 +25,7 @@ final class TestUser extends Model
         $this->fill($attributes);
     }
 
+    #[Override]
     public function getKey()
     {
         return $this->id ?? 456;

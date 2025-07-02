@@ -6,8 +6,7 @@ use Illuminate\Container\Container;
 use OpenFGA\ClientInterface;
 use OpenFGA\Laravel\Abstracts\AbstractOpenFgaManager;
 use OpenFGA\Laravel\Contracts\ManagerInterface;
-use OpenFGA\Laravel\Exceptions\ConnectionException;
-use OpenFGA\Laravel\Exceptions\StoreNotFoundException;
+use OpenFGA\Laravel\Exceptions\{ConnectionException, StoreNotFoundException};
 use OpenFGA\Laravel\Query\AuthorizationQuery;
 use OpenFGA\Laravel\Tests\Support\ConfigRestoration;
 use OpenFGA\Laravel\Tests\TestCase;
@@ -155,6 +154,7 @@ describe('AbstractOpenFgaManager', function (): void {
         it('disconnects from connection', function (): void {
             $this->manager->connection(); // Create connection
             $this->manager->disconnect();
+
             $connections = $this->manager->getConnections();
             expect($connections)->toBeEmpty();
         });
@@ -162,6 +162,7 @@ describe('AbstractOpenFgaManager', function (): void {
         it('disconnects from all connections', function (): void {
             $this->manager->connection('main');
             $this->manager->disconnectAll();
+
             $connections = $this->manager->getConnections();
             expect($connections)->toBeEmpty();
         });
@@ -213,6 +214,7 @@ describe('AbstractOpenFgaManager', function (): void {
 
             // Test successful health check
             $manager->setShouldSucceed(true);
+
             $healthy = $manager->healthCheck();
             expect($healthy)->toBeTrue();
 

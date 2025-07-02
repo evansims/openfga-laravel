@@ -23,7 +23,7 @@ describe('OpenFgaMiddleware', function (): void {
         $this->mockManager = Mockery::mock(ManagerInterface::class);
         $this->middleware = new OpenFgaMiddleware($this->mockManager);
         $this->request = Request::create(uri: '/test');
-        $this->next = fn (Request $request): Response => new Response('OK');
+        $this->next = static fn (Request $request): Response => new Response('OK');
     });
 
     describe('authentication checks', function (): void {
@@ -36,7 +36,7 @@ describe('OpenFgaMiddleware', function (): void {
 
         it('throws exception when no authenticated user', function (): void {
             Auth::shouldReceive('check')->once()->andReturnTrue();
-            $this->request->setUserResolver(fn () => null);
+            $this->request->setUserResolver(static fn (): null => null);
 
             expect(fn () => $this->middleware->handle($this->request, $this->next, 'view', 'document:123'))
                 ->toThrow(InvalidArgumentException::class, 'No authenticated user found');
@@ -48,7 +48,7 @@ describe('OpenFgaMiddleware', function (): void {
             $user = createAuthUser('user:123');
 
             Auth::shouldReceive('check')->once()->andReturnTrue();
-            $this->request->setUserResolver(fn () => $user);
+            $this->request->setUserResolver(static fn (): object => $user);
 
             $this->mockManager->shouldReceive('check')
                 ->once()
@@ -63,7 +63,7 @@ describe('OpenFgaMiddleware', function (): void {
             $user = createAuthUser('user:123');
 
             Auth::shouldReceive('check')->once()->andReturnTrue();
-            $this->request->setUserResolver(fn () => $user);
+            $this->request->setUserResolver(static fn (): object => $user);
 
             $this->mockManager->shouldReceive('check')
                 ->once()
@@ -80,7 +80,7 @@ describe('OpenFgaMiddleware', function (): void {
             $user = createAuthUser('user:123');
 
             Auth::shouldReceive('check')->once()->andReturnTrue();
-            $this->request->setUserResolver(fn () => $user);
+            $this->request->setUserResolver(static fn (): object => $user);
 
             $this->mockManager->shouldReceive('check')
                 ->once()
@@ -106,10 +106,11 @@ describe('OpenFgaMiddleware', function (): void {
             );
             $route->bind($this->request);
             $route->setParameter('document', $document);
-            $this->request->setRouteResolver(fn () => $route);
+
+            $this->request->setRouteResolver(static fn (): Route => $route);
 
             Auth::shouldReceive('check')->once()->andReturnTrue();
-            $this->request->setUserResolver(fn () => $user);
+            $this->request->setUserResolver(static fn (): object => $user);
 
             $this->mockManager->shouldReceive('check')
                 ->once()
@@ -133,10 +134,11 @@ describe('OpenFgaMiddleware', function (): void {
             );
             $route->bind($this->request);
             $route->setParameter('document', $document);
-            $this->request->setRouteResolver(fn () => $route);
+
+            $this->request->setRouteResolver(static fn (): Route => $route);
 
             Auth::shouldReceive('check')->once()->andReturnTrue();
-            $this->request->setUserResolver(fn () => $user);
+            $this->request->setUserResolver(static fn (): object => $user);
 
             $this->mockManager->shouldReceive('check')
                 ->once()
@@ -159,10 +161,11 @@ describe('OpenFgaMiddleware', function (): void {
             );
             $route->bind($this->request);
             $route->setParameter('folderId', '789');
-            $this->request->setRouteResolver(fn () => $route);
+
+            $this->request->setRouteResolver(static fn (): Route => $route);
 
             Auth::shouldReceive('check')->once()->andReturnTrue();
-            $this->request->setUserResolver(fn () => $user);
+            $this->request->setUserResolver(static fn (): object => $user);
 
             $this->mockManager->shouldReceive('check')
                 ->once()
@@ -185,10 +188,11 @@ describe('OpenFgaMiddleware', function (): void {
             );
             $route->bind($this->request);
             $route->setParameter('document_id', '456');
-            $this->request->setRouteResolver(fn () => $route);
+
+            $this->request->setRouteResolver(static fn (): Route => $route);
 
             Auth::shouldReceive('check')->once()->andReturnTrue();
-            $this->request->setUserResolver(fn () => $user);
+            $this->request->setUserResolver(static fn (): object => $user);
 
             $this->mockManager->shouldReceive('check')
                 ->once()
@@ -211,10 +215,11 @@ describe('OpenFgaMiddleware', function (): void {
             );
             $route->bind($this->request);
             $route->setParameter('post', '999');
-            $this->request->setRouteResolver(fn () => $route);
+
+            $this->request->setRouteResolver(static fn (): Route => $route);
 
             Auth::shouldReceive('check')->once()->andReturnTrue();
-            $this->request->setUserResolver(fn () => $user);
+            $this->request->setUserResolver(static fn (): object => $user);
 
             $this->mockManager->shouldReceive('check')
                 ->once()
@@ -236,10 +241,11 @@ describe('OpenFgaMiddleware', function (): void {
                 action: [],
             );
             $route->bind($this->request);
-            $this->request->setRouteResolver(fn () => $route);
+
+            $this->request->setRouteResolver(static fn (): Route => $route);
 
             Auth::shouldReceive('check')->once()->andReturnTrue();
-            $this->request->setUserResolver(fn () => $user);
+            $this->request->setUserResolver(static fn (): object => $user);
 
             expect(fn () => $this->middleware->handle($this->request, $this->next, 'access'))
                 ->toThrow(InvalidArgumentException::class, 'Could not resolve authorization object from route parameters');
@@ -249,8 +255,8 @@ describe('OpenFgaMiddleware', function (): void {
             $user = createAuthUser('user:123');
 
             Auth::shouldReceive('check')->once()->andReturnTrue();
-            $this->request->setUserResolver(fn () => $user);
-            $this->request->setRouteResolver(fn () => null);
+            $this->request->setUserResolver(static fn (): object => $user);
+            $this->request->setRouteResolver(static fn (): null => null);
 
             expect(fn () => $this->middleware->handle($this->request, $this->next, 'read'))
                 ->toThrow(InvalidArgumentException::class, 'No route found for object resolution');
@@ -296,7 +302,7 @@ describe('OpenFgaMiddleware', function (): void {
             };
 
             Auth::shouldReceive('check')->once()->andReturnTrue();
-            $this->request->setUserResolver(fn () => $user);
+            $this->request->setUserResolver(static fn (): object => $user);
 
             $this->mockManager->shouldReceive('check')
                 ->once()

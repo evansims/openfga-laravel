@@ -27,7 +27,7 @@ describe('Snapshot Testing', function (): void {
         $fake->grant('user:2', 'viewer', 'document:2');
 
         // Capture and assert snapshot
-        $this->assertPermissionsMatchSnapshot('basic_permissions', function ($snapshot): void {
+        $this->assertPermissionsMatchSnapshot('basic_permissions', static function ($snapshot): void {
             $snapshot->captureUserPermissions(
                 'user:1',
                 ['document:1', 'document:2'],
@@ -50,6 +50,7 @@ describe('Snapshot Testing', function (): void {
 
         // Create first snapshot
         $fake->grant('user:1', 'editor', 'document:1');
+
         $snapshot1 = $this->snapshot();
         $snapshot1->captureUserPermissions('user:1', ['document:1'], ['editor']);
         $snapshot1->saveSnapshot('state1');
@@ -88,7 +89,7 @@ describe('Snapshot Testing', function (): void {
         $fake->grant('user:dev1', 'viewer', 'document:roadmap');
 
         // Capture comprehensive snapshot
-        $this->assertPermissionsMatchSnapshot('complex_organization', function ($snapshot): void {
+        $this->assertPermissionsMatchSnapshot('complex_organization', static function ($snapshot): void {
             // Capture different aspects of the permission system
             $snapshot->captureMatrix(
                 ['user:ceo', 'user:manager1', 'user:manager2'],
@@ -165,7 +166,7 @@ describe('Snapshot Testing', function (): void {
         $fake->grant('user:1', 'editor', 'document:1');
 
         // Capture initial snapshot
-        $this->assertPermissionsMatchSnapshot('initial_state', function ($snapshot): void {
+        $this->assertPermissionsMatchSnapshot('initial_state', static function ($snapshot): void {
             $snapshot->captureUserPermissions('user:1', ['document:1'], ['editor', 'viewer']);
         });
 
@@ -173,7 +174,7 @@ describe('Snapshot Testing', function (): void {
         // $fake->grant('user:1', 'owner', 'document:1');
 
         // This assertion would fail if permissions changed
-        $this->assertPermissionsMatchSnapshot('initial_state', function ($snapshot): void {
+        $this->assertPermissionsMatchSnapshot('initial_state', static function ($snapshot): void {
             $snapshot->captureUserPermissions('user:1', ['document:1'], ['editor', 'viewer']);
         });
 
@@ -189,7 +190,7 @@ describe('Snapshot Testing', function (): void {
         $fake->grant('user:1', 'editor', 'document:1');
 
         // This will create/update the snapshot instead of asserting
-        $this->assertPermissionsMatchSnapshot('updatable_snapshot', function ($snapshot): void {
+        $this->assertPermissionsMatchSnapshot('updatable_snapshot', static function ($snapshot): void {
             $snapshot->captureUserPermissions('user:1', ['document:1'], ['editor']);
         });
 

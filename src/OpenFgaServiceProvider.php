@@ -224,6 +224,16 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
     }
 
     /**
+     * Register IDE helper integration.
+     */
+    private function registerIdeHelper(): void
+    {
+        if ('local' === $this->app->environment()) {
+            $this->app->register(Providers\IdeHelperProvider::class);
+        }
+    }
+
+    /**
      * Register import/export services.
      */
     private function registerImportExport(): void
@@ -277,16 +287,6 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
         $router->aliasMiddleware('openfga.any', Http\Middleware\RequiresAnyPermission::class);
         $router->aliasMiddleware('openfga.all', Http\Middleware\RequiresAllPermissions::class);
         $router->aliasMiddleware('openfga.load', Http\Middleware\LoadPermissions::class);
-    }
-
-    /**
-     * Register IDE helper integration.
-     */
-    private function registerIdeHelper(): void
-    {
-        if ($this->app->environment() === 'local') {
-            $this->app->register(Providers\IdeHelperProvider::class);
-        }
     }
 
     /**

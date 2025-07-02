@@ -51,7 +51,7 @@ describe('ModelKeyHelper', function (): void {
         $model = mock(Model::class);
         $model->shouldReceive('getKey')->andReturn(null);
 
-        expect(fn () => ModelKeyHelper::stringId($model))
+        expect(static fn (): string => ModelKeyHelper::stringId($model))
             ->toThrow(InvalidArgumentException::class, 'Model key must be int or string, got: NULL');
     });
 
@@ -59,7 +59,7 @@ describe('ModelKeyHelper', function (): void {
         $model = mock(Model::class);
         $model->shouldReceive('getKey')->andReturn(['key' => 'value']);
 
-        expect(fn () => ModelKeyHelper::stringId($model))
+        expect(static fn (): string => ModelKeyHelper::stringId($model))
             ->toThrow(InvalidArgumentException::class, 'Model key must be int or string, got: array');
     });
 
@@ -67,7 +67,7 @@ describe('ModelKeyHelper', function (): void {
         $model = mock(Model::class);
         $model->shouldReceive('getKey')->andReturn(new stdClass);
 
-        expect(fn () => ModelKeyHelper::stringId($model))
+        expect(static fn (): string => ModelKeyHelper::stringId($model))
             ->toThrow(InvalidArgumentException::class, 'Model key must be int or string, got: object');
     });
 
@@ -75,7 +75,7 @@ describe('ModelKeyHelper', function (): void {
         $model = mock(Model::class);
         $model->shouldReceive('getKey')->andReturn(true);
 
-        expect(fn () => ModelKeyHelper::stringId($model))
+        expect(static fn (): string => ModelKeyHelper::stringId($model))
             ->toThrow(InvalidArgumentException::class, 'Model key must be int or string, got: boolean');
     });
 
@@ -83,7 +83,7 @@ describe('ModelKeyHelper', function (): void {
         $model = mock(Model::class);
         $model->shouldReceive('getKey')->andReturn(3.14);
 
-        expect(fn () => ModelKeyHelper::stringId($model))
+        expect(static fn (): string => ModelKeyHelper::stringId($model))
             ->toThrow(InvalidArgumentException::class, 'Model key must be int or string, got: double');
     });
 

@@ -58,7 +58,7 @@ describe('AuthorizationServiceProvider', function (): void {
     it('replaces Laravel Gate with OpenFgaGate during registration', function (): void {
         // Mock the OpenFgaManager dependency
         $mockManager = mock(ManagerInterface::class);
-        $this->app->singleton(OpenFgaManager::class, fn () => $mockManager);
+        $this->app->singleton(OpenFgaManager::class, static fn () => $mockManager);
 
         $this->provider->register();
 
@@ -73,7 +73,7 @@ describe('AuthorizationServiceProvider', function (): void {
     it('registers OpenFgaGate as singleton', function (): void {
         // Mock the OpenFgaManager dependency
         $mockManager = mock(ManagerInterface::class);
-        $this->app->singleton(OpenFgaManager::class, fn () => $mockManager);
+        $this->app->singleton(OpenFgaManager::class, static fn () => $mockManager);
 
         $this->provider->register();
 
@@ -88,7 +88,7 @@ describe('AuthorizationServiceProvider', function (): void {
     it('boots without errors', function (): void {
         // Mock the OpenFgaManager dependency
         $mockManager = mock(ManagerInterface::class);
-        $this->app->singleton(OpenFgaManager::class, fn () => $mockManager);
+        $this->app->singleton(OpenFgaManager::class, static fn () => $mockManager);
 
         // Need to register first for dependencies
         $this->provider->register();
@@ -121,7 +121,7 @@ describe('AuthorizationServiceProvider', function (): void {
     it('creates OpenFgaGate instance through Gate contract', function (): void {
         // Mock the OpenFgaManager dependency
         $mockManager = mock(ManagerInterface::class);
-        $this->app->singleton(OpenFgaManager::class, fn () => $mockManager);
+        $this->app->singleton(OpenFgaManager::class, static fn () => $mockManager);
 
         $this->provider->register();
 
@@ -134,7 +134,7 @@ describe('AuthorizationServiceProvider', function (): void {
     it('creates OpenFgaGate with proper dependencies', function (): void {
         // Register OpenFgaManager dependency
         $mockManager = mock(ManagerInterface::class);
-        $this->app->singleton(OpenFgaManager::class, fn () => $mockManager);
+        $this->app->singleton(OpenFgaManager::class, static fn () => $mockManager);
 
         $this->provider->register();
 
@@ -146,7 +146,7 @@ describe('AuthorizationServiceProvider', function (): void {
     it('uses Auth::userResolver for user resolution', function (): void {
         // Mock the OpenFgaManager dependency
         $mockManager = mock(ManagerInterface::class);
-        $this->app->singleton(OpenFgaManager::class, fn () => $mockManager);
+        $this->app->singleton(OpenFgaManager::class, static fn () => $mockManager);
 
         $this->provider->register();
 
@@ -158,7 +158,7 @@ describe('AuthorizationServiceProvider', function (): void {
     it('registers gate helpers during boot', function (): void {
         // Mock the OpenFgaManager dependency first
         $mockManager = mock(ManagerInterface::class);
-        $this->app->singleton(OpenFgaManager::class, fn () => $mockManager);
+        $this->app->singleton(OpenFgaManager::class, static fn () => $mockManager);
 
         $this->provider->register();
 

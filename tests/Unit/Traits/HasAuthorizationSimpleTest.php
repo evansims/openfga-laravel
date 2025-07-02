@@ -94,7 +94,7 @@ describe('HasAuthorization Trait Simple Tests', function (): void {
             $method = $reflection->getMethod('resolveUserId');
             $method->setAccessible(true);
 
-            expect(fn () => $method->invoke($this->document, []))
+            expect(fn (): mixed => $method->invoke($this->document, []))
                 ->toThrow(InvalidArgumentException::class, 'User must be a Model, string, or integer');
         });
     });

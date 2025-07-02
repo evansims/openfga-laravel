@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\App;
 use OpenFGA\Laravel\Database\PermissionMigration;
 use OpenFGA\Laravel\OpenFgaManager;
 use OpenFGA\Laravel\Tests\TestCase;
+use Override;
 
 uses(TestCase::class);
 
@@ -24,11 +25,13 @@ final class PermissionMigrationTest extends PermissionMigration
         parent::__construct($manager);
     }
 
+    #[Override]
     protected function applyPermissions(): void
     {
         $this->appliedPermissions = $this->permissions;
     }
 
+    #[Override]
     protected function applyRollback(): void
     {
         $this->appliedRollback = $this->rollbackPermissions;
@@ -211,7 +214,7 @@ describe('PermissionMigration', function (): void {
             $usedConnection = null;
 
             $migration = new class($this->manager) extends PermissionMigration {
-                public $usedConnection = null;
+                public $usedConnection;
 
                 protected function applyPermissions(): void
                 {

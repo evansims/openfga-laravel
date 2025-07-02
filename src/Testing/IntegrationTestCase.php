@@ -14,6 +14,7 @@ use InvalidArgumentException;
 use OpenFGA\ClientInterface;
 use OpenFGA\Exceptions\ClientThrowable;
 use OpenFGA\Laravel\Abstracts\AbstractOpenFgaManager;
+use OpenFGA\Laravel\Exceptions\ConnectionException;
 use OpenFGA\Laravel\{OpenFgaManager, OpenFgaServiceProvider};
 use Orchestra\Testbench\TestCase as BaseTestCase;
 use Override;
@@ -758,6 +759,7 @@ abstract class IntegrationTestCase extends BaseTestCase
     /**
      * Set up integration test environment.
      *
+     * @throws ConnectionException
      * @throws InvalidArgumentException
      * @throws RuntimeException
      */
@@ -774,6 +776,7 @@ abstract class IntegrationTestCase extends BaseTestCase
     /**
      * Set up test store and model.
      *
+     * @throws ConnectionException
      * @throws InvalidArgumentException
      * @throws RuntimeException
      */

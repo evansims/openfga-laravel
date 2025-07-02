@@ -32,20 +32,15 @@ describe('ReadThroughCache', function (): void {
         $this->cacheRepository = new TestCacheRepository(new ArrayStore);
 
         // Override the cache store resolution
-        $this->app->singleton('cache', function () {
-            return new class($this->cacheRepository) {
-                private $store;
+        $this->app->singleton('cache', fn (): object => new class($this->cacheRepository) {
+            public function __construct(private $store)
+            {
+            }
 
-                public function __construct($store)
-                {
-                    $this->store = $store;
-                }
-
-                public function store($name = null)
-                {
-                    return $this->store;
-                }
-            };
+            public function store($name = null)
+            {
+                return $this->store;
+            }
         });
 
         $this->manager = new TestableOpenFgaManager;
@@ -109,7 +104,7 @@ describe('ReadThroughCache', function (): void {
 
             $this->manager->setShouldThrow(new RuntimeException('OpenFGA error'));
 
-            expect(fn () => $this->cache->check('user:123', 'viewer', 'document:456'))
+            expect(fn (): bool => $this->cache->check('user:123', 'viewer', 'document:456'))
                 ->toThrow(RuntimeException::class, 'OpenFGA error');
 
             // Verify error was cached with short TTL
@@ -139,7 +134,7 @@ describe('ReadThroughCache', function (): void {
 
         it('logs misses when enabled', function (): void {
             $logger = new TestLogger;
-            $this->app->singleton(LoggerInterface::class, fn () => $logger);
+            $this->app->singleton(LoggerInterface::class, static fn (): TestLogger => $logger);
 
             $this->cache = new ReadThroughCache(
                 manager: $this->manager,

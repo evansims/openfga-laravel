@@ -316,7 +316,7 @@ describe('PerformanceMonitor', function (): void {
             $fixedTimestamp = 1234567890; // Fixed timestamp for deterministic behavior
             $metrics = [];
 
-            for ($i = 0; 1100 > $i; $i++) {
+            for ($i = 0; 1100 > $i; ++$i) {
                 $metrics[] = [
                     'allowed' => true,
                     'cached' => false,
@@ -347,7 +347,7 @@ describe('PerformanceMonitor', function (): void {
             $fixedTimestamp = 1234567890; // Fixed timestamp for deterministic behavior
             $histogram = [];
 
-            for ($i = 0; 1100 > $i; $i++) {
+            for ($i = 0; 1100 > $i; ++$i) {
                 $histogram[] = [
                     'value' => 10,
                     'timestamp' => $fixedTimestamp + $i, // Unique timestamps

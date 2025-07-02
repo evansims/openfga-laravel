@@ -16,7 +16,7 @@ use OpenFGA\{Client, ClientInterface};
 use OpenFGA\Exceptions\ClientThrowable;
 use OpenFGA\Laravel\Cache\{ReadThroughCache, TaggedCache};
 use OpenFGA\Laravel\Contracts\ManagerInterface;
-use OpenFGA\Laravel\Exceptions\{AuthorizationException, ConnectionException, InvalidTupleException, ModelNotFoundException, OpenFgaException, StoreNotFoundException};
+use OpenFGA\Laravel\Exceptions\{ConnectionException, InvalidTupleException, ModelNotFoundException, OpenFgaException, StoreNotFoundException};
 use OpenFGA\Laravel\Query\AuthorizationQuery;
 use OpenFGA\Laravel\Traits\ManagerOperations;
 use OpenFGA\Models\{BatchCheckItem, TupleKey, UserTypeFilter};
@@ -24,10 +24,12 @@ use OpenFGA\Models\Collections\{BatchCheckItems, TupleKeys, TupleKeysInterface, 
 use OpenFGA\Results\{FailureInterface, SuccessInterface};
 use Override;
 use Psr\Http\Message\{RequestFactoryInterface, ResponseFactoryInterface, StreamFactoryInterface};
+use ReflectionException;
 use RuntimeException;
 use Throwable;
 
 use function count;
+use function gettype;
 use function is_array;
 use function is_int;
 use function is_object;
@@ -89,6 +91,7 @@ abstract class AbstractOpenFgaManager implements ManagerInterface
      * @param string       $method
      * @param array<mixed> $parameters
      *
+     * @throws ConnectionException
      * @throws InvalidArgumentException
      *
      * @return mixed
@@ -253,10 +256,13 @@ abstract class AbstractOpenFgaManager implements ManagerInterface
      * @throws \Psr\SimpleCache\InvalidArgumentException
      * @throws BindingResolutionException
      * @throws ClientThrowable
-     * @throws ConnectionException                        If connection configuration is invalid
+     * @throws ConnectionException                       If connection configuration is invalid
+     * @throws Exception                                 If general errors occur
+     * @throws InvalidArgumentException                  If arguments are invalid
      * @throws InvalidTupleException                     If user, relation, or object is invalid
      * @throws ModelNotFoundException                    If authorization model is not found
      * @throws OpenFgaException                          If OpenFGA operation fails
+     * @throws ReflectionException                       If reflection operations fail
      * @throws StoreNotFoundException                    If store is not configured
      */
     #[Override]
@@ -398,6 +404,7 @@ abstract class AbstractOpenFgaManager implements ManagerInterface
      *
      * @param string|null $name
      *
+     * @throws ConnectionException
      * @throws InvalidArgumentException
      */
     public function connection(?string $name = null): ClientInterface
@@ -900,6 +907,21 @@ abstract class AbstractOpenFgaManager implements ManagerInterface
     }
 
     /**
+     * Set the connection to use for subsequent operations.
+     *
+     * This is an alias for setDefaultConnection for better developer experience.
+     *
+     * @param  string $name The connection name
+     * @return $this  For method chaining
+     */
+    public function setConnection(string $name): self
+    {
+        $this->setDefaultConnection($name);
+
+        return $this;
+    }
+
+    /**
      * Set the default connection name.
      *
      * @param string $name
@@ -907,20 +929,6 @@ abstract class AbstractOpenFgaManager implements ManagerInterface
     public function setDefaultConnection(string $name): void
     {
         $this->config['default'] = $name;
-    }
-
-    /**
-     * Set the connection to use for subsequent operations.
-     *
-     * This is an alias for setDefaultConnection for better developer experience.
-     *
-     * @param string $name The connection name
-     * @return $this For method chaining
-     */
-    public function setConnection(string $name): self
-    {
-        $this->setDefaultConnection($name);
-        return $this;
     }
 
     /**
@@ -1565,6 +1573,7 @@ abstract class AbstractOpenFgaManager implements ManagerInterface
      *
      * @param string $name
      *
+     * @throws ConnectionException
      * @throws InvalidArgumentException
      */
     protected function makeConnection(string $name): ClientInterface
@@ -1585,6 +1594,7 @@ abstract class AbstractOpenFgaManager implements ManagerInterface
      *
      * @throws BindingResolutionException
      * @throws InvalidArgumentException
+     * @throws InvalidTupleException
      */
     protected function resolveUserId(string $user): string
     {
@@ -1601,6 +1611,7 @@ abstract class AbstractOpenFgaManager implements ManagerInterface
 
             if (! is_string($identifier) && ! is_int($identifier)) {
                 $identifierType = gettype($identifier);
+
                 throw InvalidTupleException::invalidFormat('user', 'type: ' . $identifierType);
             }
 

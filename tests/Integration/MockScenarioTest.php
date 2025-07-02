@@ -105,7 +105,7 @@ describe('Mock Scenario', function (): void {
     });
 
     it('custom scenario', function (): void {
-        $this->customScenario(function ($fake): void {
+        $this->customScenario(static function ($fake): void {
             // Set up a custom blog scenario
             $fake->grant('user:author', 'author', 'blog:tech');
             $fake->grant('user:editor', 'editor', 'blog:tech');

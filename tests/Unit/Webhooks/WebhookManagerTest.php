@@ -168,7 +168,7 @@ describe('WebhookManager', function (): void {
             $mockRequest->shouldReceive('post')
                 ->with(
                     'https://example.com/webhook',
-                    Mockery::on(fn ($payload) => isset($payload['event'], $payload['timestamp'], $payload['data'])
+                    Mockery::on(static fn ($payload): bool => isset($payload['event'], $payload['timestamp'], $payload['data'])
                                && 'user:123' === $payload['data']['user']
                                && 'viewer' === $payload['data']['relation']
                                && 'document:1' === $payload['data']['object']

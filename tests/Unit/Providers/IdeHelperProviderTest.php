@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Barryvdh\LaravelIdeHelper\IdeHelperServiceProvider;
+use Illuminate\Support\ServiceProvider;
 use OpenFGA\Laravel\Facades\OpenFga;
 use OpenFGA\Laravel\Providers\IdeHelperProvider;
 use OpenFGA\Laravel\Tests\TestCase;
@@ -17,7 +18,7 @@ describe('IdeHelperProvider', function (): void {
     });
 
     it('extends Laravel ServiceProvider', function (): void {
-        expect(IdeHelperProvider::class)->toExtend(Illuminate\Support\ServiceProvider::class);
+        expect(IdeHelperProvider::class)->toExtend(ServiceProvider::class);
     });
 
     it('is marked as final', function (): void {
@@ -111,7 +112,7 @@ describe('IdeHelperProvider', function (): void {
         $provider = new IdeHelperProvider($this->app);
         $provider->register();
         $provider->boot();
-        
+
         // If we got here without exceptions, the test passes
         expect(true)->toBeTrue();
     });

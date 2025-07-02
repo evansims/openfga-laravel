@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-use OpenFGA\Laravel\Exceptions\ConnectionPoolException;
+use OpenFGA\Laravel\Exceptions\{AbstractOpenFgaException, ConnectionPoolException};
 use OpenFGA\Laravel\Tests\TestCase;
 
 uses(TestCase::class);
 
 describe('ConnectionPoolException', function (): void {
-    it('extends RuntimeException', function (): void {
+    it('extends AbstractOpenFgaException', function (): void {
         $exception = new ConnectionPoolException('Test message');
 
-        expect($exception)->toBeInstanceOf(RuntimeException::class);
+        expect($exception)->toBeInstanceOf(AbstractOpenFgaException::class);
         expect($exception->getMessage())->toBe('Test message');
     });
 

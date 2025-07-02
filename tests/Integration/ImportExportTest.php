@@ -22,14 +22,14 @@ describe('Import Export', function (): void {
 
     afterEach(function (): void {
         // Clean up temp files
-        array_map(callback: 'unlink', array: glob(pattern: "{$this->tempDir}/*"));
+        array_map(callback: 'unlink', array: glob(pattern: $this->tempDir . '/*'));
         rmdir($this->tempDir);
     });
 
     it('export command', function (): void {
         // For now, skip the command test and use the exporter directly
 
-        $file = "{$this->tempDir}/cmd_export.json";
+        $file = $this->tempDir . '/cmd_export.json';
         $count = $this->exporter->exportToFile($file, ['user' => 'user:123']);
 
         expect($file)->toBeFile();
@@ -37,7 +37,7 @@ describe('Import Export', function (): void {
     });
 
     it('export to csv', function (): void {
-        $file = "{$this->tempDir}/export.csv";
+        $file = $this->tempDir . '/export.csv';
         $count = $this->exporter->exportToFile($file, ['object' => 'document:1']);
 
         expect($file)->toBeFile();
@@ -48,7 +48,7 @@ describe('Import Export', function (): void {
     });
 
     it('export to json', function (): void {
-        $file = "{$this->tempDir}/export.json";
+        $file = $this->tempDir . '/export.json';
         $count = $this->exporter->exportToFile($file, ['user' => 'user:123']);
 
         expect($file)->toBeFile();
@@ -65,7 +65,7 @@ describe('Import Export', function (): void {
         $data = ['permissions' => [
             ['user' => 'user:1', 'relation' => 'owner', 'object' => 'document:1'],
         ]];
-        $file = "{$this->tempDir}/cmd_import.json";
+        $file = $this->tempDir . '/cmd_import.json';
         file_put_contents(filename: $file, data: json_encode($data));
 
         // For now, skip the command test and use the importer directly
@@ -91,7 +91,7 @@ describe('Import Export', function (): void {
             ],
         ];
 
-        $file = "{$this->tempDir}/dryrun.json";
+        $file = $this->tempDir . '/dryrun.json';
         file_put_contents(filename: $file, data: json_encode($data));
 
         $stats = $this->importer->importFromFile($file, ['dry_run' => true]);
@@ -106,7 +106,7 @@ describe('Import Export', function (): void {
         $csv .= "user:1,owner,document:1\n";
         $csv .= "user:2,editor,document:1\n";
 
-        $file = "{$this->tempDir}/import.csv";
+        $file = $this->tempDir . '/import.csv';
         file_put_contents(filename: $file, data: $csv);
 
         $stats = $this->importer->importFromFile($file);
@@ -123,7 +123,7 @@ describe('Import Export', function (): void {
             ],
         ];
 
-        $file = "{$this->tempDir}/import.json";
+        $file = $this->tempDir . '/import.json';
         file_put_contents(filename: $file, data: json_encode($data));
 
         $stats = $this->importer->importFromFile($file);
@@ -141,7 +141,7 @@ describe('Import Export', function (): void {
             ],
         ];
 
-        $file = "{$this->tempDir}/invalid.json";
+        $file = $this->tempDir . '/invalid.json';
         file_put_contents(filename: $file, data: json_encode($data));
 
         $stats = $this->importer->importFromFile($file, ['skip_errors' => true]);

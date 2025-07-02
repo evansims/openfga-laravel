@@ -52,15 +52,15 @@ final class TestDebugging
         if ($missing || $extra || $different) {
             $context = [];
 
-            if ($missing) {
+            if ([] !== $missing) {
                 $context['Missing keys'] = array_keys($missing);
             }
 
-            if ($extra) {
+            if ([] !== $extra) {
                 $context['Extra keys'] = array_keys($extra);
             }
 
-            if ($different) {
+            if ([] !== $different) {
                 $context['Different values'] = $different;
             }
 
@@ -94,16 +94,16 @@ final class TestDebugging
         if ($duration > $maxSeconds) {
             self::assertWithContext(
                 false,
-                "{$operationName} took too long",
+                $operationName . ' took too long',
                 [
-                    'Maximum allowed' => "{$maxSeconds}s",
+                    'Maximum allowed' => $maxSeconds . 's',
                     'Actual duration' => sprintf('%.3fs', $duration),
                     'Exceeded by' => sprintf('%.3fs', $duration - $maxSeconds),
                 ],
             );
         }
 
-        self::log("{$operationName} execution time", sprintf('%.3fs', $duration));
+        self::log($operationName . ' execution time', sprintf('%.3fs', $duration));
 
         return $result;
     }
@@ -126,7 +126,7 @@ final class TestDebugging
             $mock->shouldHaveReceived($method)
                 ->with(...$expectedArgs)
                 ->once();
-        } catch (Exception $e) {
+        } catch (Exception $exception) {
             $debugInfo = [
                 'Expected method' => $method,
                 'Expected arguments' => $expectedArgs,
@@ -134,7 +134,7 @@ final class TestDebugging
                 'Mock' => $mock::class,
             ];
 
-            throw new AssertionFailedError('Mock expectation failed' . self::captureContext($debugInfo) . "\n" . $e->getMessage());
+            throw new AssertionFailedError('Mock expectation failed' . self::captureContext($debugInfo) . "\n" . $exception->getMessage());
         }
     }
 
@@ -153,7 +153,7 @@ final class TestDebugging
         if (! $condition) {
             $fullMessage = $message;
 
-            if (! empty($context)) {
+            if ([] !== $context) {
                 $fullMessage .= self::captureContext($context);
             }
 
@@ -188,7 +188,7 @@ final class TestDebugging
      */
     public static function checkpoint(string $name): void
     {
-        self::log("Checkpoint reached: {$name}");
+        self::log('Checkpoint reached: ' . $name);
     }
 
     /**
@@ -202,7 +202,7 @@ final class TestDebugging
         $expectation = expect($value);
 
         // Store description for use in custom matchers
-        if ($description) {
+        if ('' !== $description && '0' !== $description) {
             $expectation->description = $description;
         }
 
@@ -236,7 +236,7 @@ final class TestDebugging
     ): never {
         $fullMessage = $message;
 
-        if (! empty($debugInfo)) {
+        if ([] !== $debugInfo) {
             $fullMessage .= "\n\nDebug Information:";
             $fullMessage .= self::captureContext($debugInfo);
         }
@@ -256,7 +256,7 @@ final class TestDebugging
         return match (true) {
             null === $value => 'null',
             is_bool($value) => $value ? 'true' : 'false',
-            is_string($value) => "'{$value}'",
+            is_string($value) => sprintf("'%s'", $value),
             is_array($value) => json_encode($value, JSON_PRETTY_PRINT),
             is_object($value) => self::formatObject($value),
             default => (string) $value,
@@ -272,7 +272,8 @@ final class TestDebugging
     public static function log(string $message, mixed $data = null): void
     {
         if (getenv('PEST_VERBOSE') || getenv('DEBUG_TESTS')) {
-            echo "\n[DEBUG] {$message}";
+            echo '
+[DEBUG] ' . $message;
 
             if (null !== $data) {
                 echo ': ' . self::formatValue($data);
@@ -292,8 +293,8 @@ final class TestDebugging
     {
         try {
             $test();
-        } catch (Exception $e) {
-            throw new AssertionFailedError("Scenario failed: {$description}\n\n" . $e->getMessage(), $e->getCode(), $e);
+        } catch (Exception $exception) {
+            throw new AssertionFailedError("Scenario failed: {$description}\n\n" . $exception->getMessage(), $exception->getCode(), $exception);
         }
     }
 

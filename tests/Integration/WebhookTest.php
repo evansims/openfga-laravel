@@ -25,7 +25,7 @@ describe('Webhook', function (): void {
         // Create webhook manager with HTTP mock for this test
         $httpMock = Mockery::mock(Http::class);
         $webhookManager = new WebhookManager($httpMock);
-        $this->app->singleton(WebhookManager::class, fn () => $webhookManager);
+        $this->app->singleton(WebhookManager::class, static fn (): WebhookManager => $webhookManager);
 
         $webhookManager->register('test1', 'https://example.com/1');
         $webhookManager->register('test2', 'https://example.com/2', ['permission.granted']);
@@ -39,7 +39,7 @@ describe('Webhook', function (): void {
         // Create webhook manager with HTTP mock for this test
         $httpMock = Mockery::mock(Http::class);
         $webhookManager = new WebhookManager($httpMock);
-        $this->app->singleton(WebhookManager::class, fn () => $webhookManager);
+        $this->app->singleton(WebhookManager::class, static fn (): WebhookManager => $webhookManager);
 
         // Set up Mockery expectations for the HTTP test
         $pendingRequest = Mockery::mock(PendingRequest::class);
@@ -73,7 +73,7 @@ describe('Webhook', function (): void {
             ->assertSuccessful();
     });
 
-    it('webhook enable disable', function (): void {
+    it('webhook enable disable', static function (): void {
         // Create webhook manager with HTTP mock for this test
         $httpMock = Mockery::mock(Http::class);
         $webhookManager = new WebhookManager($httpMock);
@@ -82,6 +82,7 @@ describe('Webhook', function (): void {
 
         // Disable
         $webhookManager->disable('test');
+
         $webhooks = $webhookManager->getWebhooks();
         expect($webhooks['test']['active'])->toBeFalse();
 
@@ -91,7 +92,7 @@ describe('Webhook', function (): void {
         expect($webhooks['test']['active'])->toBeTrue();
     });
 
-    it('webhook filters by event type', function (): void {
+    it('webhook filters by event type', static function (): void {
         // Test that webhook is NOT called for non-matching event
         $httpMock = Mockery::mock(Http::class);
         $webhookManager = new WebhookManager($httpMock);
@@ -195,7 +196,7 @@ describe('Webhook', function (): void {
         expect(true)->toBeTrue();
     });
 
-    it('webhook notification sent', function (): void {
+    it('webhook notification sent', static function (): void {
         // Create a fresh webhook manager for this test to avoid interference
         $httpMock = Mockery::mock(Http::class);
         $webhookManager = new WebhookManager($httpMock);
@@ -230,7 +231,7 @@ describe('Webhook', function (): void {
             ->andReturn($pendingRequest);
 
         $pendingRequest->shouldReceive('post')
-            ->with('https://example.com/webhook', Mockery::on(fn ($data) => isset($data['event']) && 'permission.granted' === $data['event']
+            ->with('https://example.com/webhook', Mockery::on(static fn ($data): bool => isset($data['event']) && 'permission.granted' === $data['event']
                     && isset($data['data']['user']) && 'user:123' === $data['data']['user']))
             ->andReturn($response);
 
@@ -243,7 +244,7 @@ describe('Webhook', function (): void {
         expect(true)->toBeTrue();
     });
 
-    it('webhook registration', function (): void {
+    it('webhook registration', static function (): void {
         // Create webhook manager with HTTP mock for this test
         $httpMock = Mockery::mock(Http::class);
         $webhookManager = new WebhookManager($httpMock);
@@ -263,12 +264,13 @@ describe('Webhook', function (): void {
         expect($webhooks['test']['active'])->toBeTrue();
     });
 
-    it('webhook unregister', function (): void {
+    it('webhook unregister', static function (): void {
         // Create webhook manager with HTTP mock for this test
         $httpMock = Mockery::mock(Http::class);
         $webhookManager = new WebhookManager($httpMock);
 
         $webhookManager->register('test', 'https://example.com/webhook');
+
         expect($webhookManager->getWebhooks())->toHaveKey('test');
 
         $webhookManager->unregister('test');

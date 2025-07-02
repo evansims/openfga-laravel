@@ -64,6 +64,7 @@ describe('MenuBuilder', function (): void {
             $reflection = new ReflectionClass($this->builder);
             $itemsProperty = $reflection->getProperty('items');
             $itemsProperty->setAccessible(true);
+
             $items = $itemsProperty->getValue($this->builder);
 
             expect($items)->toHaveCount(1);
@@ -99,6 +100,7 @@ describe('MenuBuilder', function (): void {
             $reflection = new ReflectionClass($this->builder);
             $itemsProperty = $reflection->getProperty('items');
             $itemsProperty->setAccessible(true);
+
             $items = $itemsProperty->getValue($this->builder);
 
             expect($items)->toHaveCount(1);
@@ -156,6 +158,7 @@ describe('MenuBuilder', function (): void {
             $reflection = new ReflectionClass($this->builder);
             $itemsProperty = $reflection->getProperty('items');
             $itemsProperty->setAccessible(true);
+
             $items = $itemsProperty->getValue($this->builder);
 
             expect($items[0]['relation'])->toBe('admin');
@@ -163,7 +166,7 @@ describe('MenuBuilder', function (): void {
         });
 
         it('returns self for method chaining', function (): void {
-            $result = $this->builder->submenu('Admin', fn () => null);
+            $result = $this->builder->submenu('Admin', static fn (): null => null);
 
             expect($result)->toBe($this->builder);
         });
@@ -432,8 +435,8 @@ describe('MenuBuilder', function (): void {
                 }
             };
 
-            $object = new class($stringable) {
-                public function __construct(private readonly object $stringable)
+            $object = new readonly class($stringable) {
+                public function __construct(private object $stringable)
                 {
                 }
 
@@ -616,7 +619,7 @@ describe('MenuBuilder', function (): void {
             $viewObject->shouldReceive('render')->once()->andReturn('<nav>Menu HTML</nav>');
 
             View::shouldReceive('make')
-                ->with('custom::menu', Mockery::on(fn ($data) => isset($data['extra']) && 'data' === $data['extra'] && isset($data['items']) && $data['items'] instanceof Collection), [])
+                ->with('custom::menu', Mockery::on(static fn ($data): bool => isset($data['extra']) && 'data' === $data['extra'] && isset($data['items']) && $data['items'] instanceof Collection), [])
                 ->once()
                 ->andReturn($viewObject);
 
@@ -632,7 +635,7 @@ describe('MenuBuilder', function (): void {
             $viewObject->shouldReceive('render')->once()->andReturn('<nav>Default Menu</nav>');
 
             View::shouldReceive('make')
-                ->with('openfga::menu', Mockery::on(fn ($data) => isset($data['items']) && $data['items'] instanceof Collection), [])
+                ->with('openfga::menu', Mockery::on(static fn ($data): bool => isset($data['items']) && $data['items'] instanceof Collection), [])
                 ->once()
                 ->andReturn($viewObject);
 

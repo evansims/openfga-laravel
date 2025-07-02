@@ -11,13 +11,13 @@ use Override;
 /**
  * @api
  *
- * @method static \OpenFGA\Results\Success|\OpenFGA\Results\Failure check(string $user, string $relation, string $object, array<int, mixed> $contextualTuples = [], array<string, mixed> $context = [], ?string $authorizationModelId = null)
+ * @method static bool                                              check(string $user, string $relation, string $object, array<int, mixed> $contextualTuples = [], array<string, mixed> $context = [], ?string $authorizationModelId = null)
  * @method static \OpenFGA\Results\Success|\OpenFGA\Results\Failure batchCheck(array<int, mixed> $requests, ?string $authorizationModelId = null)
  * @method static \OpenFGA\Results\Success|\OpenFGA\Results\Failure expand(string $relation, string $object, ?string $authorizationModelId = null)
  * @method static \OpenFGA\Results\Success|\OpenFGA\Results\Failure listObjects(string $user, string $relation, string $type, array<int, mixed> $contextualTuples = [], array<string, mixed> $context = [], ?string $authorizationModelId = null)
  * @method static \OpenFGA\Results\Success|\OpenFGA\Results\Failure listRelations(string $user, string $object, array<int, string> $relations = [], array<int, mixed> $contextualTuples = [], array<string, mixed> $context = [], ?string $authorizationModelId = null)
  * @method static \OpenFGA\Results\Success|\OpenFGA\Results\Failure listUsers(string $object, string $relation, array<int, mixed> $userFilters = [], array<int, mixed> $contextualTuples = [], array<string, mixed> $context = [], ?string $authorizationModelId = null)
- * @method static \OpenFGA\Results\Success|\OpenFGA\Results\Failure write(array<int, mixed> $writes = [], array<int, mixed> $deletes = [], ?string $authorizationModelId = null)
+ * @method static bool                                              write(array<int, mixed> $writes = [], array<int, mixed> $deletes = [], ?string $authorizationModelId = null)
  * @method static bool                                              writeBatch(array<int, array{user: string, relation: string, object: string}> $writes = [], array<int, array{user: string, relation: string, object: string}> $deletes = [], ?string $connection = null)
  * @method static \OpenFGA\Results\Success|\OpenFGA\Results\Failure writeTuples(array<int, mixed> $tuples, ?string $authorizationModelId = null)
  * @method static \OpenFGA\Results\Success|\OpenFGA\Results\Failure deleteTuples(array<int, mixed> $tuples, ?string $authorizationModelId = null)

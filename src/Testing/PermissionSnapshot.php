@@ -29,10 +29,10 @@ final class PermissionSnapshot
     /**
      * @var array{
      *   inheritance_trees?: array<string, array<string, mixed>>,
-     *   permission_matrix?: array<string, \OpenFGA\Results\Success|\OpenFGA\Results\Failure>,
+     *   permission_matrix?: array<string, bool>,
      *   object_relationships?: array<string, array<string, mixed>>,
      *   user_accessible_objects?: array<string, array<string, array<string, mixed>>>,
-     *   user_permissions?: array<string, array<int, array{user: string, relation: string, object: string, allowed: \OpenFGA\Results\Success|\OpenFGA\Results\Failure}>>
+     *   user_permissions?: array<string, array<int, array{user: string, relation: string, object: string, allowed: bool}>>
      * }
      */
     private array $currentSnapshot = [];

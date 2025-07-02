@@ -9,6 +9,7 @@ use Illuminate\Contracts\Container\BindingResolutionException;
 use InvalidArgumentException;
 use OpenFGA\ClientInterface;
 use OpenFGA\Exceptions\ClientThrowable;
+use OpenFGA\Laravel\Exceptions\ConnectionException;
 use OpenFGA\Laravel\OpenFgaManager;
 use OpenFGA\Laravel\Profiling\OpenFgaProfiler;
 
@@ -117,6 +118,7 @@ final readonly class DebugbarOpenFgaManager
      *
      * @param ?string $name
      *
+     * @throws ConnectionException
      * @throws InvalidArgumentException
      */
     public function connection(?string $name = null): ClientInterface

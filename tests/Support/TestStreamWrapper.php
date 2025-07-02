@@ -24,12 +24,12 @@ final class TestStreamWrapper
         self::$data = [];
     }
 
-    public function stream_eof()
+    public function stream_eof(): bool
     {
         return $this->position >= strlen(string: $this->content);
     }
 
-    public function stream_open($path, $mode, $options, &$opened_path)
+    public function stream_open($path, $mode, $options, &$opened_path): bool
     {
         if ('php://stdin' === $path) {
             $this->content = self::$data['stdin'] ?? '';
@@ -41,7 +41,7 @@ final class TestStreamWrapper
         return false;
     }
 
-    public function stream_read($count)
+    public function stream_read($count): string
     {
         $ret = substr(string: $this->content, offset: $this->position, length: $count);
         $this->position += strlen(string: $ret);
@@ -49,17 +49,17 @@ final class TestStreamWrapper
         return $ret;
     }
 
-    public function stream_stat()
+    public function stream_stat(): array
     {
         return [];
     }
 
-    public function stream_tell()
+    public function stream_tell(): int
     {
         return $this->position;
     }
 
-    public function stream_write($data)
+    public function stream_write(string $data): int
     {
         if (! isset(self::$data['stdin'])) {
             self::$data['stdin'] = '';
@@ -69,7 +69,7 @@ final class TestStreamWrapper
         return strlen(string: $data);
     }
 
-    public function url_stat($path, $flags)
+    public function url_stat($path, $flags): array
     {
         return [];
     }

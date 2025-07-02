@@ -22,14 +22,14 @@ describe('Performance Testing', function (): void {
 
         // Direct check should be faster than checking with non-existent permission
         $this->assertFasterThan(
-            function () use ($fake): void {
+            static function () use ($fake): void {
                 // This returns false immediately as permission doesn't exist
                 $fake->check('user:1', 'admin', 'system:main');
             },
-            function () use ($fake): void {
+            static function () use ($fake): void {
                 // Add many permissions then check
-                for ($i = 1; 100 >= $i; $i++) {
-                    $fake->grant("user:{$i}", 'viewer', "doc:{$i}");
+                for ($i = 1; 100 >= $i; ++$i) {
+                    $fake->grant('user:' . $i, 'viewer', 'doc:' . $i);
                 }
                 $fake->check('user:50', 'viewer', 'doc:50');
             },
@@ -45,14 +45,14 @@ describe('Performance Testing', function (): void {
         $fake = $this->getFakeOpenFga();
 
         // Benchmark batch writes
-        $results = $this->benchmark('batch-write-100', function () use ($fake): void {
+        $results = $this->benchmark('batch-write-100', static function () use ($fake): void {
             $writes = [];
 
-            for ($i = 1; 100 >= $i; $i++) {
+            for ($i = 1; 100 >= $i; ++$i) {
                 $writes[] = [
-                    'user' => "user:{$i}",
+                    'user' => 'user:' . $i,
                     'relation' => 'viewer',
-                    'object' => "document:{$i}",
+                    'object' => 'document:' . $i,
                 ];
             }
             $fake->writeBatch($writes);
@@ -70,27 +70,27 @@ describe('Performance Testing', function (): void {
         $fake = $this->getFakeOpenFga();
 
         // Set up permissions
-        for ($i = 1; 10 >= $i; $i++) {
-            $fake->grant('user:1', 'viewer', "document:{$i}");
+        for ($i = 1; 10 >= $i; ++$i) {
+            $fake->grant('user:1', 'viewer', 'document:' . $i);
         }
 
         // Compare single checks vs batch check
         $comparison = $this->comparePerformance(
             'single-checks',
-            function () use ($fake): void {
-                for ($i = 1; 10 >= $i; $i++) {
-                    $fake->check('user:1', 'viewer', "document:{$i}");
+            static function () use ($fake): void {
+                for ($i = 1; 10 >= $i; ++$i) {
+                    $fake->check('user:1', 'viewer', 'document:' . $i);
                 }
             },
             'batch-check',
-            function () use ($fake): void {
+            static function () use ($fake): void {
                 $checks = [];
 
-                for ($i = 1; 10 >= $i; $i++) {
+                for ($i = 1; 10 >= $i; ++$i) {
                     $checks[] = [
                         'user' => 'user:1',
                         'relation' => 'viewer',
-                        'object' => "document:{$i}",
+                        'object' => 'document:' . $i,
                     ];
                 }
 
@@ -123,9 +123,9 @@ describe('Performance Testing', function (): void {
             'Add team member',
         );
 
-        $perf->benchmark('bulk-checks', function () use ($fake): void {
-            for ($i = 1; 5 >= $i; $i++) {
-                $fake->check("user:{$i}", 'member', 'organization:acme');
+        $perf->benchmark('bulk-checks', static function () use ($fake): void {
+            for ($i = 1; 5 >= $i; ++$i) {
+                $fake->check('user:' . $i, 'member', 'organization:acme');
             }
         }, 20);
 
@@ -143,10 +143,10 @@ describe('Performance Testing', function (): void {
         $fake = $this->getFakeOpenFga();
 
         // Assert memory usage stays below 1MB
-        $this->assertMemoryUsageBelow(1024 * 1024, function () use ($fake): void {
+        $this->assertMemoryUsageBelow(1024 * 1024, static function () use ($fake): void {
             // Create 1000 permissions
-            for ($i = 1; 1000 >= $i; $i++) {
-                $fake->grant("user:{$i}", 'viewer', "document:{$i}");
+            for ($i = 1; 1000 >= $i; ++$i) {
+                $fake->grant('user:' . $i, 'viewer', 'document:' . $i);
             }
         });
 
@@ -182,12 +182,12 @@ describe('Performance Testing', function (): void {
         // Test with different data sizes
         foreach ([10, 50, 100, 500, 1000] as $size) {
             // Add permissions
-            for ($i = 1; $i <= $size; $i++) {
-                $fake->grant('user:1', 'viewer', "document:{$i}");
+            for ($i = 1; $i <= $size; ++$i) {
+                $fake->grant('user:1', 'viewer', 'document:' . $i);
             }
 
             // Measure check performance
-            $metrics = $this->measure("check-with-{$size}-permissions", fn () => $fake->check('user:1', 'viewer', 'document:1'));
+            $metrics = $this->measure(sprintf('check-with-%s-permissions', $size), static fn () => $fake->check('user:1', 'viewer', 'document:1'));
 
             $results[$size] = $metrics['duration'];
         }
@@ -204,22 +204,22 @@ describe('Performance Testing', function (): void {
         $fake = $this->getFakeOpenFga();
 
         // Set up some initial data
-        for ($i = 1; 10 >= $i; $i++) {
-            $fake->grant("user:{$i}", 'editor', "post:{$i}");
+        for ($i = 1; 10 >= $i; ++$i) {
+            $fake->grant('user:' . $i, 'editor', 'post:' . $i);
         }
 
         // Measure baseline performance
-        $baselineCallable = function () use ($fake): void {
+        $baselineCallable = static function () use ($fake): void {
             $fake->check('user:1', 'editor', 'post:1');
         };
 
         // Add more data before measuring
-        for ($i = 11; 20 >= $i; $i++) {
-            $fake->grant("user:{$i}", 'editor', "post:{$i}");
+        for ($i = 11; 20 >= $i; ++$i) {
+            $fake->grant('user:' . $i, 'editor', 'post:' . $i);
         }
 
         // Measure performance with more data
-        $operationCallable = function () use ($fake): void {
+        $operationCallable = static function () use ($fake): void {
             $fake->check('user:1', 'editor', 'post:1');
         };
 
@@ -240,7 +240,7 @@ describe('Performance Testing', function (): void {
         $fake->grant('user:1', 'viewer', 'post:1');
 
         // Assert operation completes within 10ms
-        $this->assertCompletesWithin(10, function () use ($fake): void {
+        $this->assertCompletesWithin(10, static function () use ($fake): void {
             $fake->check('user:1', 'viewer', 'post:1');
         });
 
@@ -253,7 +253,7 @@ describe('Performance Testing', function (): void {
         $fake->grant('user:1', 'editor', 'document:1');
 
         // Measure a single check
-        $metrics = $this->measure('single-check', fn () => $fake->check('user:1', 'editor', 'document:1'));
+        $metrics = $this->measure('single-check', static fn () => $fake->check('user:1', 'editor', 'document:1'));
 
         expect($metrics)->toBeArray();
         expect($metrics)->toHaveKey('duration');

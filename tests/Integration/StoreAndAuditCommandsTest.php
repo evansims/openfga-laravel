@@ -104,7 +104,7 @@ describe('Store And Audit Commands', function (): void {
 
     it('store create command', function (): void {
         $this->artisan('openfga:store:create', ['name' => 'TestStore'])
-            ->expectsOutputToContain('Creating store \'TestStore\'...')
+            ->expectsOutputToContain("Creating store 'TestStore'...")
             ->expectsOutputToContain('Store created successfully!')
             ->expectsOutputToContain('Store ID: store_')
             ->expectsOutputToContain('Next steps:')

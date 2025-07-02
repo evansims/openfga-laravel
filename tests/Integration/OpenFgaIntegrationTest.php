@@ -61,11 +61,11 @@ describe('OpenFGA Integration', function (): void {
             $permissions = [];
 
             // Create 100 permission tuples
-            for ($i = 1; 100 >= $i; $i++) {
+            for ($i = 1; 100 >= $i; ++$i) {
                 $permissions[] = [
-                    'user' => $this->createTestUser("user{$i}"),
+                    'user' => $this->createTestUser('user' . $i),
                     'relation' => 'viewer',
-                    'object' => $this->createTestDocument("doc{$i}"),
+                    'object' => $this->createTestDocument('doc' . $i),
                 ];
             }
 
@@ -174,10 +174,10 @@ describe('OpenFGA Integration', function (): void {
             $operations = [];
 
             // Create concurrent grant operations
-            for ($i = 1; 10 >= $i; $i++) {
+            for ($i = 1; 10 >= $i; ++$i) {
                 $operations[] = [
                     'type' => 'grant',
-                    'user' => $this->createTestUser("concurrent{$i}"),
+                    'user' => $this->createTestUser('concurrent' . $i),
                     'relation' => 'viewer',
                     'object' => $this->createTestDocument('shared'),
                     'finalState' => true,
@@ -253,8 +253,8 @@ describe('OpenFGA Integration', function (): void {
             $docs = [];
 
             // Create documents and grant permissions
-            for ($i = 1; 5 >= $i; $i++) {
-                $doc = $this->createTestDocument("list-doc-{$i}");
+            for ($i = 1; 5 >= $i; ++$i) {
+                $doc = $this->createTestDocument('list-doc-' . $i);
                 $docs[] = $doc;
                 $this->grantPermission($user, 'viewer', $doc);
             }
@@ -300,26 +300,26 @@ describe('OpenFGA Integration', function (): void {
             $this->waitForConsistency();
 
             // Test multiple permission checks work correctly
-            for ($i = 0; 10 > $i; $i++) {
+            for ($i = 0; 10 > $i; ++$i) {
                 $result = $this->getManager()->check($user, 'viewer', $document, [], [], 'integration_test');
                 expect($result)->toBeTrue();
             }
 
             // Test multiple write operations
-            for ($i = 0; 5 > $i; $i++) {
+            for ($i = 0; 5 > $i; ++$i) {
                 $this->grantPermission(
-                    $this->createTestUser("write-test-user-{$i}"),
+                    $this->createTestUser('write-test-user-' . $i),
                     'viewer',
-                    $this->createTestDocument("write-test-doc-{$i}"),
+                    $this->createTestDocument('write-test-doc-' . $i),
                 );
             }
 
             // Verify writes succeeded
-            for ($i = 0; 5 > $i; $i++) {
+            for ($i = 0; 5 > $i; ++$i) {
                 $this->assertEventuallyAllowed(
-                    $this->createTestUser("write-test-user-{$i}"),
+                    $this->createTestUser('write-test-user-' . $i),
                     'viewer',
-                    $this->createTestDocument("write-test-doc-{$i}"),
+                    $this->createTestDocument('write-test-doc-' . $i),
                 );
             }
         });

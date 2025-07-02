@@ -77,7 +77,7 @@ describe('ResolvesAuthorizationObject', function (): void {
             $model = new class extends Model {
                 protected $table = 'test_models';
 
-                private object $stringable;
+                private readonly object $stringable;
 
                 public function __construct(array $attributes = [])
                 {

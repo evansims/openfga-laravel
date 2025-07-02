@@ -95,7 +95,7 @@ describe('ConnectionPool', function (): void {
         expect($stats['available'])->toBe(0);
 
         // Try to acquire another connection - should timeout
-        expect(fn () => $pool->acquire())
+        expect(static fn (): PooledConnection => $pool->acquire())
             ->toThrow(ConnectionPoolException::class, 'Timeout waiting for available connection');
     });
 

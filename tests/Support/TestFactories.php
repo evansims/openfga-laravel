@@ -13,6 +13,8 @@ use OpenFGA\Laravel\Abstracts\AbstractOpenFgaManager;
 use OpenFGA\Laravel\Contracts\{AuthorizationObject, AuthorizationUser};
 use stdClass;
 
+use function sprintf;
+
 /**
  * Factory for creating test objects consistently across the test suite.
  */
@@ -54,7 +56,7 @@ final class TestFactories
 
         return [
             'schema_version' => '1.1',
-            'type_definitions' => empty($customTypes) ? $defaultTypes : $customTypes,
+            'type_definitions' => [] === $customTypes ? $defaultTypes : $customTypes,
         ];
     }
 
@@ -103,12 +105,12 @@ final class TestFactories
     {
         $tuples = [];
 
-        for ($i = 1; $i <= $count; $i++) {
-            $suffix = $prefix ? "_{$prefix}_{$i}" : "_{$i}";
+        for ($i = 1; $i <= $count; ++$i) {
+            $suffix = '' !== $prefix && '0' !== $prefix ? sprintf('_%s_%d', $prefix, $i) : '_' . $i;
             $tuples[] = self::createPermissionTuple(
-                user: "user{$suffix}",
+                user: 'user' . $suffix,
                 relation: 'viewer',
-                object: "document{$suffix}",
+                object: 'document' . $suffix,
             );
         }
 
@@ -229,11 +231,11 @@ final class TestFactories
         mixed $identifier = 123,
         array $customAttributes = [],
     ): object {
-        return new class($authId, $identifier, $customAttributes) implements Authenticatable, AuthorizationUser {
+        return new readonly class($authId, $identifier, $customAttributes) implements Authenticatable, AuthorizationUser {
             public function __construct(
-                private readonly string $authId,
-                private readonly mixed $identifier,
-                private readonly array $customAttributes = [],
+                private string $authId,
+                private mixed $identifier,
+                private array $customAttributes = [],
             ) {
             }
 

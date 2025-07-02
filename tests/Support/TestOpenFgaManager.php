@@ -7,10 +7,12 @@ namespace OpenFGA\Laravel\Tests\Support;
 use OpenFGA\ClientInterface;
 use OpenFGA\Laravel\OpenFgaManager;
 use OpenFGA\Laravel\Query\AuthorizationQuery;
+use Override;
 use PHPUnit\Framework\AssertionFailedError;
 use RuntimeException;
 
 use function func_get_args;
+use function sprintf;
 
 /**
  * Test double for OpenFgaManager to work around final class limitation.
@@ -31,19 +33,19 @@ final class TestOpenFgaManager extends OpenFgaManager
 
     public $revokeCalls = [];
 
-    protected $checkResults = [];
+    private array $checkResults = [];
 
-    protected $grantResults = [];
+    private array $grantResults = [];
 
-    protected $listObjectsResults = [];
+    private array $listObjectsResults = [];
 
-    protected $listRelationsResults = [];
+    private array $listRelationsResults = [];
 
-    protected $listUsersResults = [];
+    private array $listUsersResults = [];
 
-    protected $queryResult = null;
+    private $queryResult;
 
-    protected $revokeResults = [];
+    private array $revokeResults = [];
 
     public function __construct()
     {
@@ -52,37 +54,38 @@ final class TestOpenFgaManager extends OpenFgaManager
 
     public function assertCheckCalled(string $user, string $relation, string $object): void
     {
-        foreach ($this->checkCalls as $call) {
-            if ($call[0] === $user && $call[1] === $relation && $call[2] === $object) {
+        foreach ($this->checkCalls as $checkCall) {
+            if ($checkCall[0] === $user && $checkCall[1] === $relation && $checkCall[2] === $object) {
                 return;
             }
         }
 
-        throw new AssertionFailedError(message: "Expected check('{$user}', '{$relation}', '{$object}') to be called");
+        throw new AssertionFailedError(message: sprintf("Expected check('%s', '%s', '%s') to be called", $user, $relation, $object));
     }
 
     public function assertGrantCalled(string $user, string $relation, string $object): void
     {
-        foreach ($this->grantCalls as $call) {
-            if ($call[0] === $user && $call[1] === $relation && $call[2] === $object) {
+        foreach ($this->grantCalls as $grantCall) {
+            if ($grantCall[0] === $user && $grantCall[1] === $relation && $grantCall[2] === $object) {
                 return;
             }
         }
 
-        throw new AssertionFailedError(message: "Expected grant('{$user}', '{$relation}', '{$object}') to be called");
+        throw new AssertionFailedError(message: sprintf("Expected grant('%s', '%s', '%s') to be called", $user, $relation, $object));
     }
 
     public function assertRevokeCalled(string $user, string $relation, string $object): void
     {
-        foreach ($this->revokeCalls as $call) {
-            if ($call[0] === $user && $call[1] === $relation && $call[2] === $object) {
+        foreach ($this->revokeCalls as $revokeCall) {
+            if ($revokeCall[0] === $user && $revokeCall[1] === $relation && $revokeCall[2] === $object) {
                 return;
             }
         }
 
-        throw new AssertionFailedError(message: "Expected revoke('{$user}', '{$relation}', '{$object}') to be called");
+        throw new AssertionFailedError(message: sprintf("Expected revoke('%s', '%s', '%s') to be called", $user, $relation, $object));
     }
 
+    #[Override]
     public function check(
         string $user,
         string $relation,
@@ -93,20 +96,22 @@ final class TestOpenFgaManager extends OpenFgaManager
     ): bool {
         $this->checkCalls[] = func_get_args();
 
-        foreach ($this->checkResults as $expected) {
-            if ($expected['args'] === [$user, $relation, $object]) {
-                return $expected['result'];
+        foreach ($this->checkResults as $checkResult) {
+            if ($checkResult['args'] === [$user, $relation, $object]) {
+                return $checkResult['result'];
             }
         }
 
         return false;
     }
 
+    #[Override]
     public function connection(?string $name = null): ClientInterface
     {
         throw new RuntimeException('Not implemented for testing');
     }
 
+    #[Override]
     public function grant(
         string $user,
         string $relation,
@@ -116,15 +121,16 @@ final class TestOpenFgaManager extends OpenFgaManager
     ): bool {
         $this->grantCalls[] = func_get_args();
 
-        foreach ($this->grantResults as $expected) {
-            if ($expected['args'] === [$user, $relation, $object]) {
-                return $expected['result'];
+        foreach ($this->grantResults as $grantResult) {
+            if ($grantResult['args'] === [$user, $relation, $object]) {
+                return $grantResult['result'];
             }
         }
 
         return false;
     }
 
+    #[Override]
     public function listObjects(
         string $user,
         string $relation,
@@ -135,15 +141,16 @@ final class TestOpenFgaManager extends OpenFgaManager
     ): array {
         $this->listObjectsCalls[] = func_get_args();
 
-        foreach ($this->listObjectsResults as $expected) {
-            if ($expected['args'] === [$user, $relation, $type]) {
-                return $expected['result'];
+        foreach ($this->listObjectsResults as $listObjectResult) {
+            if ($listObjectResult['args'] === [$user, $relation, $type]) {
+                return $listObjectResult['result'];
             }
         }
 
         return [];
     }
 
+    #[Override]
     public function listRelations(
         string $user,
         string $object,
@@ -154,15 +161,16 @@ final class TestOpenFgaManager extends OpenFgaManager
     ): array {
         $this->listRelationsCalls[] = func_get_args();
 
-        foreach ($this->listRelationsResults as $expected) {
-            if ($expected['args'] === [$user, $object, $relations]) {
-                return $expected['result'];
+        foreach ($this->listRelationsResults as $listRelationResult) {
+            if ($listRelationResult['args'] === [$user, $object, $relations]) {
+                return $listRelationResult['result'];
             }
         }
 
         return [];
     }
 
+    #[Override]
     public function listUsers(
         string $object,
         string $relation,
@@ -173,15 +181,16 @@ final class TestOpenFgaManager extends OpenFgaManager
     ): array {
         $this->listUsersCalls[] = func_get_args();
 
-        foreach ($this->listUsersResults as $expected) {
-            if ($expected['args'] === [$object, $relation, $userTypes]) {
-                return $expected['result'];
+        foreach ($this->listUsersResults as $listUserResult) {
+            if ($listUserResult['args'] === [$object, $relation, $userTypes]) {
+                return $listUserResult['result'];
             }
         }
 
         return [];
     }
 
+    #[Override]
     public function query(?string $connection = null): AuthorizationQuery
     {
         $this->queryCalls[] = func_get_args();
@@ -193,6 +202,7 @@ final class TestOpenFgaManager extends OpenFgaManager
         throw new RuntimeException('No query result configured');
     }
 
+    #[Override]
     public function revoke(
         string $user,
         string $relation,
@@ -202,9 +212,9 @@ final class TestOpenFgaManager extends OpenFgaManager
     ): bool {
         $this->revokeCalls[] = func_get_args();
 
-        foreach ($this->revokeResults as $expected) {
-            if ($expected['args'] === [$user, $relation, $object]) {
-                return $expected['result'];
+        foreach ($this->revokeResults as $revokeResult) {
+            if ($revokeResult['args'] === [$user, $relation, $object]) {
+                return $revokeResult['result'];
             }
         }
 

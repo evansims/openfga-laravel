@@ -40,8 +40,8 @@ describe('Middleware structure and composition', function (): void {
             LoadPermissions::class,
         ];
 
-        foreach ($middlewareWithTraits as $middleware) {
-            $traits = class_uses($middleware);
+        foreach ($middlewareWithTraits as $middlewareWithTrait) {
+            $traits = class_uses($middlewareWithTrait);
             expect($traits)->toContain(ResolvesAuthorizationObject::class);
             expect($traits)->toContain(ResolvesAuthorizationUser::class);
         }
@@ -150,8 +150,8 @@ describe('Middleware structure and composition', function (): void {
             LoadPermissions::class,
         ];
 
-        foreach ($middlewareWithTraits as $middleware) {
-            $traits = class_uses($middleware);
+        foreach ($middlewareWithTraits as $middlewareWithTrait) {
+            $traits = class_uses($middlewareWithTrait);
             expect($traits)->toContain(ResolvesAuthorizationObject::class);
             expect($traits)->toContain(ResolvesAuthorizationUser::class);
 
@@ -169,8 +169,8 @@ describe('Middleware structure and composition', function (): void {
             LoadPermissions::class,
         ];
 
-        foreach ($readonlyClasses as $class) {
-            $reflection = new ReflectionClass($class);
+        foreach ($readonlyClasses as $readonlyClass) {
+            $reflection = new ReflectionClass($readonlyClass);
 
             // PHP 8.2+ readonly classes
             if (method_exists($reflection, 'isReadOnly')) {

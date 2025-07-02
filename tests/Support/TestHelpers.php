@@ -13,22 +13,24 @@ use Mockery;
 use Mockery\MockInterface;
 use OpenFGA\Laravel\Contracts\{ManagerInterface};
 
+use function sprintf;
+
 // Helper function to create test store ID
 function createTestStoreId(string $suffix = ''): string
 {
     static $counter = 0;
-    $counter++;
+    ++$counter;
 
-    return 'store_' . getmypid() . '_' . $counter . ($suffix ? '_' . $suffix : '');
+    return 'store_' . getmypid() . '_' . $counter . ('' !== $suffix && '0' !== $suffix ? '_' . $suffix : '');
 }
 
 // Helper function to create test model ID
 function createTestModelId(string $suffix = ''): string
 {
     static $counter = 0;
-    $counter++;
+    ++$counter;
 
-    return 'model_' . getmypid() . '_' . $counter . ($suffix ? '_' . $suffix : '');
+    return 'model_' . getmypid() . '_' . $counter . ('' !== $suffix && '0' !== $suffix ? '_' . $suffix : '');
 }
 
 // Helper function to create permission tuples
@@ -45,7 +47,7 @@ function createPermissionTuple(string $user, string $relation, string $object): 
 function createPermissionTuples(array $tuples): array
 {
     return array_map(
-        callback: fn (array $tuple) => createPermissionTuple(user: $tuple[0], relation: $tuple[1], object: $tuple[2]),
+        callback: static fn (array $tuple): array => createPermissionTuple(user: $tuple[0], relation: $tuple[1], object: $tuple[2]),
         array: $tuples,
     );
 }
@@ -103,7 +105,7 @@ function createWriteTuple(string $user, string $relation, string $object): array
 function createBatchWriteOperations(array $tuples): array
 {
     return array_map(
-        callback: fn ($tuple) => [
+        callback: static fn ($tuple): array => [
             'write' => $tuple,
         ],
         array: $tuples,
@@ -113,7 +115,7 @@ function createBatchWriteOperations(array $tuples): array
 // Higher-order testing helper
 function itChecksPermission(string $user, string $relation, string $object, bool $expected = true): void
 {
-    test("user {$user} " . ($expected ? 'has' : 'does not have') . " {$relation} permission on {$object}")
+    test(sprintf('user %s ', $user) . ($expected ? 'has' : 'does not have') . sprintf(' %s permission on %s', $relation, $object))
         ->expect($user)
         ->{$expected ? 'toHavePermission' : 'toNotHavePermission'}($relation, $object);
 }
@@ -141,8 +143,8 @@ function skipIfOpenFgaUnavailable(): void
         if (false === @file_get_contents(filename: $url . '/stores', use_include_path: false, context: $context)) {
             test()->markTestSkipped('OpenFGA server is not available');
         }
-    } catch (Exception $e) {
-        test()->markTestSkipped('OpenFGA server is not available: ' . $e->getMessage());
+    } catch (Exception $exception) {
+        test()->markTestSkipped('OpenFGA server is not available: ' . $exception->getMessage());
     }
 }
 
@@ -165,14 +167,6 @@ function clearTestResources(): void
     // Clear any test stores created
     if (app()->bound('test.created_stores')) {
         $stores = app('test.created_stores');
-
-        foreach ($stores as $storeId) {
-            try {
-                // Clean up test store
-            } catch (Exception $e) {
-                // Ignore cleanup errors
-            }
-        }
         app()->forgetInstance('test.created_stores');
     }
 }
@@ -180,15 +174,11 @@ function clearTestResources(): void
 // Chain helper for better readability
 function chain(...$expectations): Closure
 {
-    return function ($value) use ($expectations) {
+    return static function ($value) use ($expectations) {
         $expectation = expect($value);
 
         foreach ($expectations as $method => $args) {
-            if (is_numeric($method)) {
-                $expectation = $expectation->{$args}();
-            } else {
-                $expectation = $expectation->{$method}(...(array) $args);
-            }
+            $expectation = is_numeric($method) ? $expectation->{$args}() : $expectation->{$method}(...(array) $args);
         }
 
         return $expectation;
@@ -217,7 +207,8 @@ function setupRoute(Request $request, string $path, string $paramName, mixed $pa
     );
     $route->bind($request);
     $route->setParameter($paramName, $paramValue);
-    $request->setRouteResolver(fn () => $route);
+
+    $request->setRouteResolver(static fn (): Route => $route);
 }
 
 // Helper to convert route to object ID
@@ -225,7 +216,7 @@ function routeToObjectId(string $routePath, string $paramName, string $paramValu
 {
     $type = str_replace(['{', '}'], '', $paramName);
 
-    return "{$type}:{$paramValue}";
+    return sprintf('%s:%s', $type, $paramValue);
 }
 
 // Helper to generate batch operations
@@ -233,11 +224,11 @@ function generateBatchOperations(int $count): array
 {
     $operations = [];
 
-    for ($i = 1; $i <= $count; $i++) {
+    for ($i = 1; $i <= $count; ++$i) {
         $operations[] = [
-            'user' => "user:{$i}",
+            'user' => 'user:' . $i,
             'relation' => 'viewer',
-            'object' => "document:{$i}",
+            'object' => 'document:' . $i,
         ];
     }
 
