@@ -52,13 +52,16 @@ final class WriteTupleToFgaJob implements ShouldQueue
 
     /**
      * Execute the job.
+     *
+     * @throws \Throwable
      */
     public function handle(): void
     {
         try {
+            /** @var \OpenFGA\Laravel\OpenFgaManager $manager */
             $manager = OpenFga::getFacadeRoot();
             
-            if ($this->openfgaConnection) {
+            if ($this->openfgaConnection !== null) {
                 $manager->setConnection($this->openfgaConnection);
             }
 

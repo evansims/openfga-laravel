@@ -126,6 +126,7 @@ class DocumentController extends Controller
 - [Performance & Optimization](docs/performance.md)
 - [Testing](docs/testing.md)
 - [API Reference](docs/api-reference.md)
+- **[Cookbook & Recipes](docs/cookbook/README.md)** - Real-world implementation patterns
 
 <p><br /></p>
 

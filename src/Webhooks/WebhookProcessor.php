@@ -19,6 +19,9 @@ use function is_string;
  * This service handles the logic of parsing webhook payloads and
  * taking appropriate actions such as invalidating caches and
  * dispatching events.
+ *
+ * @internal
+ * @psalm-suppress ClassMustBeFinal
  */
 class WebhookProcessor
 {
@@ -37,7 +40,9 @@ class WebhookProcessor
      */
     public function process(array $payload): void
     {
+        /** @var string $type */
         $type = $payload['type'] ?? '';
+        /** @var array<string, mixed> $data */
         $data = $payload['data'] ?? [];
 
         Log::info('Processing OpenFGA webhook', [
@@ -62,16 +67,23 @@ class WebhookProcessor
      *
      * @param array<string, mixed> $data
      * @return void
+     *
+     * @psalm-suppress UnusedParam
      */
     private function handleAuthorizationModelWrite(array $data): void
     {
         // Clear all caches when the authorization model changes
-        if (config('openfga.cache.enabled')) {
+        /** @var bool $cacheEnabled */
+        $cacheEnabled = config('openfga.cache.enabled');
+        if ($cacheEnabled) {
+            /** @var string $prefix */
             $prefix = config('openfga.cache.prefix', 'openfga');
             
             // If the cache store supports tags, clear by tag
             if (method_exists($this->cache, 'tags')) {
-                $this->cache->tags([$prefix])->flush();
+                /** @var \Illuminate\Cache\TaggedCache $taggedCache */
+                $taggedCache = $this->cache->tags([$prefix]);
+                $taggedCache->flush();
                 Log::info('Cleared OpenFGA cache due to authorization model change');
             } else {
                 // Otherwise, we need to clear the entire cache (less ideal)
@@ -110,7 +122,9 @@ class WebhookProcessor
      */
     private function invalidateTupleCache(array $data): void
     {
-        if (! config('openfga.cache.enabled')) {
+        /** @var bool $cacheEnabled */
+        $cacheEnabled = config('openfga.cache.enabled');
+        if (!$cacheEnabled) {
             return;
         }
 
@@ -118,11 +132,12 @@ class WebhookProcessor
         $relation = $data['relation'] ?? null;
         $object = $data['object'] ?? null;
 
-        if (! is_string($user) || ! is_string($relation) || ! is_string($object)) {
+        if (!is_string($user) || !is_string($relation) || !is_string($object)) {
             Log::warning('Invalid tuple data in webhook', ['data' => $data]);
             return;
         }
 
+        /** @var string $prefix */
         $prefix = config('openfga.cache.prefix', 'openfga');
         
         // Build cache keys to invalidate

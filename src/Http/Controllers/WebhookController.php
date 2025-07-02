@@ -47,6 +47,7 @@ final class WebhookController extends Controller
         }
 
         // Get the webhook payload
+        /** @var array<string, mixed> $payload */
         $payload = $request->all();
 
         // Validate payload structure
