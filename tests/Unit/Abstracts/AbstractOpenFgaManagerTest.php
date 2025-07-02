@@ -6,6 +6,8 @@ use Illuminate\Container\Container;
 use OpenFGA\ClientInterface;
 use OpenFGA\Laravel\Abstracts\AbstractOpenFgaManager;
 use OpenFGA\Laravel\Contracts\ManagerInterface;
+use OpenFGA\Laravel\Exceptions\ConnectionException;
+use OpenFGA\Laravel\Exceptions\StoreNotFoundException;
 use OpenFGA\Laravel\Query\AuthorizationQuery;
 use OpenFGA\Laravel\Tests\Support\ConfigRestoration;
 use OpenFGA\Laravel\Tests\TestCase;
@@ -173,7 +175,7 @@ describe('AbstractOpenFgaManager', function (): void {
 
         it('throws exception for non-existent connection', function (): void {
             expect(fn () => $this->manager->connection('non-existent'))
-                ->toThrow(InvalidArgumentException::class, 'OpenFGA connection [non-existent] not configured.');
+                ->toThrow(ConnectionException::class, 'Invalid connection configuration: OpenFGA connection [non-existent] not configured.');
         });
     });
 
@@ -459,7 +461,7 @@ describe('AbstractOpenFgaManager', function (): void {
             $this->manager->updateConfig(['connections' => []]);
 
             expect(fn () => $this->manager->connection())
-                ->toThrow(InvalidArgumentException::class);
+                ->toThrow(ConnectionException::class);
         });
 
         it('validates store_id configuration', function (): void {
@@ -473,7 +475,7 @@ describe('AbstractOpenFgaManager', function (): void {
             ]);
 
             expect(fn () => $this->manager->check('user:123', 'read', 'doc:456'))
-                ->toThrow(InvalidArgumentException::class, 'store_id not configured');
+                ->toThrow(StoreNotFoundException::class, 'No store ID specified in configuration');
         });
     });
 });

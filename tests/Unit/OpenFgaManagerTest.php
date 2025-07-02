@@ -6,6 +6,7 @@ namespace OpenFGA\Laravel\Tests\Unit;
 
 use Illuminate\Container\Container;
 use InvalidArgumentException;
+use OpenFGA\Laravel\Exceptions\ConnectionException;
 use OpenFGA\ClientInterface;
 use OpenFGA\Laravel\OpenFgaManager;
 use OpenFGA\Laravel\Tests\TestCase;
@@ -82,7 +83,7 @@ describe('OpenFgaManager', function (): void {
 
         it('throws exception for non-existent connection', function (): void {
             expect(fn () => $this->manager->connection('non-existent'))
-                ->toThrow(InvalidArgumentException::class, 'OpenFGA connection [non-existent] not configured.');
+                ->toThrow(ConnectionException::class, 'Invalid connection configuration: OpenFGA connection [non-existent] not configured.');
         });
 
         it('creates connections with different auth methods', function (array $config): void {
@@ -144,7 +145,7 @@ describe('OpenFgaManager', function (): void {
             // Setting invalid default connection is allowed - it will fail when trying to use it
             $this->manager->setDefaultConnection('invalid');
             expect(fn () => $this->manager->connection())
-                ->toThrow(InvalidArgumentException::class, 'OpenFGA connection [invalid] not configured.');
+                ->toThrow(ConnectionException::class, 'Invalid connection configuration: OpenFGA connection [invalid] not configured.');
         });
     });
 

@@ -16,6 +16,7 @@ use OpenFGA\{Client, ClientInterface};
 use OpenFGA\Exceptions\ClientThrowable;
 use OpenFGA\Laravel\Cache\{ReadThroughCache, TaggedCache};
 use OpenFGA\Laravel\Contracts\ManagerInterface;
+use OpenFGA\Laravel\Exceptions\{AuthorizationException, ConnectionException, InvalidTupleException, ModelNotFoundException, OpenFgaException, StoreNotFoundException};
 use OpenFGA\Laravel\Query\AuthorizationQuery;
 use OpenFGA\Laravel\Traits\ManagerOperations;
 use OpenFGA\Models\{BatchCheckItem, TupleKey, UserTypeFilter};
@@ -181,7 +182,7 @@ abstract class AbstractOpenFgaManager implements ManagerInterface
             }
 
             if (! is_string($modelId)) {
-                throw new InvalidArgumentException('model_id not configured');
+                throw ModelNotFoundException::noModelSpecified();
             }
 
             $result = $this->connection($connection)->batchCheck(
@@ -252,8 +253,11 @@ abstract class AbstractOpenFgaManager implements ManagerInterface
      * @throws \Psr\SimpleCache\InvalidArgumentException
      * @throws BindingResolutionException
      * @throws ClientThrowable
-     * @throws Exception                                 If throwExceptions is true and an error occurs
-     * @throws InvalidArgumentException
+     * @throws ConnectionException                        If connection configuration is invalid
+     * @throws InvalidTupleException                     If user, relation, or object is invalid
+     * @throws ModelNotFoundException                    If authorization model is not found
+     * @throws OpenFgaException                          If OpenFGA operation fails
+     * @throws StoreNotFoundException                    If store is not configured
      */
     #[Override]
     public function check(
@@ -278,7 +282,7 @@ abstract class AbstractOpenFgaManager implements ManagerInterface
         $storeId = $connectionConfig['store_id'] ?? null;
 
         if (! is_string($storeId)) {
-            throw new InvalidArgumentException('store_id not configured');
+            throw StoreNotFoundException::noStoreSpecified();
         }
 
         // Check cache first if enabled (skip cache if contextual tuples are provided)
@@ -341,7 +345,7 @@ abstract class AbstractOpenFgaManager implements ManagerInterface
         $modelId = $connectionConfig['model_id'] ?? null;
 
         if (! is_string($modelId)) {
-            throw new InvalidArgumentException('model_id not configured');
+            throw ModelNotFoundException::noModelSpecified();
         }
 
         // Convert context array to object if needed
@@ -453,11 +457,11 @@ abstract class AbstractOpenFgaManager implements ManagerInterface
         $modelId = $connectionConfig['model_id'] ?? null;
 
         if (! is_string($storeId)) {
-            throw new InvalidArgumentException('store_id not configured');
+            throw StoreNotFoundException::noStoreSpecified();
         }
 
         if (! is_string($modelId)) {
-            throw new InvalidArgumentException('model_id not configured');
+            throw ModelNotFoundException::noModelSpecified();
         }
 
         // Create TupleKey for the SDK
@@ -676,11 +680,11 @@ abstract class AbstractOpenFgaManager implements ManagerInterface
         $modelId = $connectionConfig['model_id'] ?? null;
 
         if (! is_string($storeId)) {
-            throw new InvalidArgumentException('store_id not configured');
+            throw StoreNotFoundException::noStoreSpecified();
         }
 
         if (! is_string($modelId)) {
-            throw new InvalidArgumentException('model_id not configured');
+            throw ModelNotFoundException::noModelSpecified();
         }
 
         // Convert context array to object if needed
@@ -820,11 +824,11 @@ abstract class AbstractOpenFgaManager implements ManagerInterface
         $modelId = $connectionConfig['model_id'] ?? null;
 
         if (! is_string($storeId)) {
-            throw new InvalidArgumentException('store_id not configured');
+            throw StoreNotFoundException::noStoreSpecified();
         }
 
         if (! is_string($modelId)) {
-            throw new InvalidArgumentException('model_id not configured');
+            throw ModelNotFoundException::noModelSpecified();
         }
 
         // Convert context array to object if needed
@@ -964,11 +968,11 @@ abstract class AbstractOpenFgaManager implements ManagerInterface
         $modelId = $connectionConfig['model_id'] ?? null;
 
         if (! is_string($storeId)) {
-            throw new InvalidArgumentException('store_id not configured');
+            throw StoreNotFoundException::noStoreSpecified();
         }
 
         if (! is_string($modelId)) {
-            throw new InvalidArgumentException('model_id not configured');
+            throw ModelNotFoundException::noModelSpecified();
         }
 
         $result = $this->connection($connection)->writeTuples(
@@ -1403,7 +1407,7 @@ abstract class AbstractOpenFgaManager implements ManagerInterface
                 $error = $result->err();
 
                 // The error from err() is always a Throwable
-                throw new RuntimeException('OpenFGA operation failed: ' . $error->getMessage(), 0, $error);
+                throw new OpenFgaException('OpenFGA operation failed: ' . $error->getMessage(), 0, $error);
             }
 
             $this->logError($result);
@@ -1554,7 +1558,7 @@ abstract class AbstractOpenFgaManager implements ManagerInterface
         $config = $this->configuration($name);
 
         if (null === $config) {
-            throw new InvalidArgumentException(sprintf('OpenFGA connection [%s] not configured.', $name));
+            throw ConnectionException::invalidConfiguration(sprintf('OpenFGA connection [%s] not configured.', $name));
         }
 
         return $this->createConnection($config);
@@ -1576,13 +1580,13 @@ abstract class AbstractOpenFgaManager implements ManagerInterface
             $authUser = $auth->guard()->user();
 
             if (null === $authUser) {
-                throw new InvalidArgumentException('Cannot resolve @me without authenticated user');
+                throw InvalidTupleException::missingUser();
             }
 
             $identifier = $authUser->getAuthIdentifier();
 
             if (! is_string($identifier) && ! is_int($identifier)) {
-                throw new InvalidArgumentException('User identifier must be string or integer');
+                throw InvalidTupleException::invalidFormat('user', (string) $identifier);
             }
 
             return 'user:' . $identifier;
