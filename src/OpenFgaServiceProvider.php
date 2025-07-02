@@ -68,6 +68,7 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
                 Console\Commands\ClearCacheCommand::class,
                 Console\Commands\CacheStatsCommand::class,
                 Console\Commands\MigrateFromSpatieCommand::class,
+                Console\Commands\SyncSpatiePermissionsCommand::class,
                 Console\Commands\SnapshotCommand::class,
                 Console\Commands\BenchmarkCommand::class,
                 Console\Commands\SetupIntegrationTestsCommand::class,

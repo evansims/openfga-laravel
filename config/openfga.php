@@ -233,6 +233,9 @@ return [
         'retries' => env('OPENFGA_WEBHOOK_RETRIES', 3),
         'send_check_events' => env('OPENFGA_WEBHOOK_SEND_CHECKS', false),
         
+        // Secret for verifying incoming webhooks from OpenFGA
+        'secret' => env('OPENFGA_WEBHOOK_SECRET'),
+        
         'endpoints' => [
             // 'primary' => [
             //     'url' => env('OPENFGA_WEBHOOK_URL'),

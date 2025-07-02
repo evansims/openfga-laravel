@@ -299,6 +299,39 @@ php artisan openfga:migrate:spatie --verify
 php artisan openfga:migrate:spatie --batch-size=50
 ```
 
+### Continuous Synchronization
+
+For applications that need to keep Spatie permissions synchronized with OpenFGA, use the sync command:
+
+```bash
+# Sync permissions from Spatie to OpenFGA
+php artisan openfga:sync-spatie-permissions
+
+# Dry run to see what would be synced
+php artisan openfga:sync-spatie-permissions --dry-run
+
+# Full sync (removes OpenFGA permissions not in Spatie)
+php artisan openfga:sync-spatie-permissions --full
+
+# Sync with custom batch size
+php artisan openfga:sync-spatie-permissions --batch-size=200
+
+# Quiet mode (less output)
+php artisan openfga:sync-spatie-permissions --quiet-mode
+```
+
+This command is useful when:
+- You're gradually migrating from Spatie to OpenFGA
+- You need to maintain both systems temporarily
+- You want to schedule periodic syncs (e.g., via cron)
+- You're testing the migration in a staging environment
+
+Example cron job for periodic sync:
+```cron
+# Sync permissions every hour
+0 * * * * cd /path/to/your/app && php artisan openfga:sync-spatie-permissions --quiet-mode >> /dev/null 2>&1
+```
+
 ### Manual Migration
 
 If you prefer manual control, you can migrate specific parts:

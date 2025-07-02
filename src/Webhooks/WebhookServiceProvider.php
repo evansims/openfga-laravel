@@ -30,6 +30,9 @@ final class WebhookServiceProvider extends ServiceProvider
             return;
         }
 
+        // Load webhook routes
+        $this->loadRoutesFrom(__DIR__ . '/../../routes/webhooks.php');
+
         // Register event listeners
         Event::subscribe(WebhookEventListener::class);
 
@@ -44,6 +47,7 @@ final class WebhookServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(WebhookManager::class);
+        $this->app->singleton(WebhookProcessor::class);
     }
 
     /**

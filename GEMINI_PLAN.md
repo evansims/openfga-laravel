@@ -47,24 +47,24 @@ The plan is prioritized to deliver the most impactful changes first.
 
 ## 2. 🚀 Feature Enhancements
 
-### 2.1. Spatie `laravel-permission` Synchronization Command
+### 2.1. Spatie `laravel-permission` Synchronization Command ✅
 **Benefit:** Provides a clear migration path for existing applications using the Spatie permission library.
 
-- [ ] Create a new Artisan command, `openfga:sync-spatie-permissions`.
-- [ ] Implement the command logic to read roles, permissions, and user/role assignments from the database.
-- [ ] Use the `OpenFgaManager` to write the corresponding relationship tuples to OpenFGA.
-- [ ] Add robust error handling and user feedback to the command.
-- [ ] Add a dedicated page in the documentation for this command under the "Spatie Compatibility" section.
-- [ ] Add integration tests for the command.
+- [x] Create a new Artisan command, `openfga:sync-spatie-permissions`.
+- [x] Implement the command logic to read roles, permissions, and user/role assignments from the database.
+- [x] Use the `OpenFgaManager` to write the corresponding relationship tuples to OpenFGA.
+- [x] Add robust error handling and user feedback to the command.
+- [x] Add a dedicated page in the documentation for this command under the "Spatie Compatibility" section.
+- [x] Add integration tests for the command.
 
-### 2.2. Introduce OpenFGA Webhook Handling
+### 2.2. Introduce OpenFGA Webhook Handling ✅
 **Benefit:** Greatly improves data consistency for applications that require real-time authorization updates.
 
-- [ ] Create a new `WebhookController` in the `src/Http/Controllers` directory.
-- [ ] Define a new route in a `routes/webhooks.php` file that points to the controller.
-- [ ] Implement a `WebhookProcessor` service to handle the logic of parsing the webhook and invalidating the relevant cache entries.
-- [ ] Add a `webhook` section to the `config/openfga.php` file to enable/disable handling and configure the endpoint.
-- [ ] Add a new `webhooks.md` documentation file explaining the feature and setup.
+- [x] Create a new `WebhookController` in the `src/Http/Controllers` directory.
+- [x] Define a new route in a `routes/webhooks.php` file that points to the controller.
+- [x] Implement a `WebhookProcessor` service to handle the logic of parsing the webhook and invalidating the relevant cache entries.
+- [x] Add a `webhook` section to the `config/openfga.php` file to enable/disable handling and configure the endpoint.
+- [x] Add a new `webhooks.md` documentation file explaining the feature and setup.
 
 ### 2.3. First-Class Multi-Tenancy Support
 **Benefit:** Allows a single Laravel instance to serve multiple tenants with isolated authorization.
