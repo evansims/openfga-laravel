@@ -17,6 +17,7 @@ This comprehensive guide covers how to effectively test applications that use Op
 - [Performance Testing](#performance-testing)
 - [Test Organization](#test-organization)
 - [Integration Testing](#integration-testing)
+- [Architectural Testing](#architectural-testing)
 - [Testing Best Practices](#testing-best-practices)
 - [Troubleshooting](#troubleshooting)
 
@@ -830,6 +831,98 @@ class RealOpenFgaTest extends TestCase
         $document->revoke($user, 'editor');
     }
 }
+```
+
+## Architectural Testing
+
+The package includes architectural tests using Pest PHP's architecture plugin to ensure code quality and consistency. These tests help prevent architectural drift and maintain our design principles.
+
+### Running Architectural Tests
+
+```bash
+# Run all architectural tests
+vendor/bin/pest tests/Architecture.php
+
+# Run specific architectural test
+vendor/bin/pest tests/Architecture.php --filter "strict types"
+
+# Run as part of the test suite
+vendor/bin/pest --testsuite architecture
+```
+
+### Architectural Rules
+
+The following architectural rules are enforced:
+
+#### 1. **Strict Types Declaration**
+All PHP files must use strict types:
+```php
+declare(strict_types=1);
+```
+
+#### 2. **No Debug Functions**
+Debug functions like `dd()`, `dump()`, `var_dump()` are not allowed in production code.
+
+#### 3. **Proper Namespace Structure**
+All classes must follow the `OpenFGA\Laravel` namespace convention.
+
+#### 4. **Interface Conventions**
+- All contracts in `Contracts` directory must be interfaces
+- Traits must have the `Trait` suffix
+- Exceptions must extend the base `OpenFgaException` class
+
+#### 5. **Laravel Integration**
+- Service providers must extend `Illuminate\Support\ServiceProvider`
+- Commands must extend `Illuminate\Console\Command`
+- Middleware must implement proper contracts
+
+#### 6. **Dependency Injection**
+No hardcoded dependencies using `new` keyword (except for specific allowed namespaces like Exceptions, Models, etc.)
+
+#### 7. **Method Standards**
+- All public methods must have return types
+- Check methods must return boolean values
+- Cache implementations must follow the get/put/forget pattern
+
+#### 8. **Modern PHP Features**
+- Use constructor property promotion where applicable
+- Value objects should be immutable with readonly properties
+
+#### 9. **Separation of Concerns**
+- Core abstracts should not depend on facades
+- Controllers should not directly use Eloquent models
+- Test helpers should only be used in test files
+
+### Adding New Architectural Rules
+
+To add new architectural rules, edit `tests/Architecture.php`:
+
+```php
+arch('new rule description')
+    ->expect('OpenFGA\Laravel\YourNamespace')
+    ->toFollowYourRule()
+    ->ignoring(['exceptions']);
+```
+
+### Architectural Test Examples
+
+```php
+// Ensure all exceptions extend base exception
+arch('exceptions extend base exception')
+    ->expect('OpenFGA\Laravel\Exceptions')
+    ->toExtend('OpenFGA\Laravel\Exceptions\OpenFgaException')
+    ->ignoring('OpenFGA\Laravel\Exceptions\OpenFgaException');
+
+// Ensure no circular dependencies
+arch('no circular dependencies')
+    ->expect('OpenFGA\Laravel\Abstracts')
+    ->not->toDependOn('OpenFGA\Laravel\OpenFgaManager');
+
+// Ensure consistent method naming
+arch('consistent method naming for checks')
+    ->expect('OpenFGA\Laravel')
+    ->toHaveMethodsThatStartWith('check')
+    ->toReturnType('bool');
 ```
 
 ## Testing Best Practices

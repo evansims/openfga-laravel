@@ -34,14 +34,14 @@ The plan is prioritized to deliver the most impactful changes first.
 - [x] Implement the provider to generate metadata for the `OpenFGA` facade.
 - [x] Add instructions to the `installation.md` documentation on how developers can generate the helper file for their projects.
 
-### 1.3. Architectural Testing with Pest
+### 1.3. Architectural Testing with Pest ✅
 **Benefit:** Prevents architectural drift and ensures code remains decoupled and maintainable.
 
-- [ ] Add `pest-plugin-arch` to the `require-dev` section of `composer.json`.
-- [ ] Create a new `tests/Architecture` test suite in `phpunit.xml`.
-- [ ] Create a new `tests/Architecture.php` test file.
-- [ ] Add an initial set of architectural rules, such as ensuring the use of strict types and enforcing that specific namespaces do not depend on others directly.
-- [ ] Document the architectural tests in the `testing.md` file.
+- [x] Add `pest-plugin-arch` to the `require-dev` section of `composer.json`.
+- [x] Create a new `tests/Architecture` test suite in `phpunit.xml`.
+- [x] Create a new `tests/Architecture.php` test file.
+- [x] Add an initial set of architectural rules, such as ensuring the use of strict types and enforcing that specific namespaces do not depend on others directly.
+- [x] Document the architectural tests in the `testing.md` file.
 
 ---
 
