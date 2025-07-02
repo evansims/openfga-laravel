@@ -90,6 +90,7 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
         $this->registerDebugbarIntegration();
         $this->registerWebhooks();
         $this->registerProfiling();
+        $this->registerIdeHelper();
         // Helper functions are autoloaded via composer.json
         $this->validateConfiguration();
     }
@@ -275,6 +276,16 @@ final class OpenFgaServiceProvider extends ServiceProvider implements Deferrable
         $router->aliasMiddleware('openfga.any', Http\Middleware\RequiresAnyPermission::class);
         $router->aliasMiddleware('openfga.all', Http\Middleware\RequiresAllPermissions::class);
         $router->aliasMiddleware('openfga.load', Http\Middleware\LoadPermissions::class);
+    }
+
+    /**
+     * Register IDE helper integration.
+     */
+    private function registerIdeHelper(): void
+    {
+        if ($this->app->environment() === 'local') {
+            $this->app->register(Providers\IdeHelperProvider::class);
+        }
     }
 
     /**

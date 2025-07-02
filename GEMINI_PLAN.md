@@ -17,22 +17,22 @@ The plan is prioritized to deliver the most impactful changes first.
 
 ## 1. 🛠️ Developer Experience (DX)
 
-### 1.1. Custom, Typed Exceptions
+### 1.1. Custom, Typed Exceptions ✅
 **Benefit:** Allows developers to write clean, precise `try/catch` blocks for specific error conditions.
 
-- [ ] Create a base `OpenFgaException` class that extends `\Exception`.
-- [ ] Define specific exception classes (e.g., `ModelNotFoundException`, `InvalidTupleException`, `StoreNotFoundException`) in the `src/Exceptions` directory.
-- [ ] Wrap the underlying OpenFGA SDK exceptions in our custom exceptions within the `OpenFgaManager` and other relevant services.
-- [ ] Update method docblocks across the codebase to include `@throws` tags for the new exceptions.
+- [x] Create a base `OpenFgaException` class that extends `\Exception`.
+- [x] Define specific exception classes (e.g., `ModelNotFoundException`, `InvalidTupleException`, `StoreNotFoundException`) in the `src/Exceptions` directory.
+- [x] Wrap the underlying OpenFGA SDK exceptions in our custom exceptions within the `OpenFgaManager` and other relevant services.
+- [x] Update method docblocks across the codebase to include `@throws` tags for the new exceptions.
 - [ ] Add a section to the `troubleshooting.md` documentation explaining the common exceptions and how to handle them.
 
-### 1.2. IDE Helper Integration
+### 1.2. IDE Helper Integration ✅
 **Benefit:** Massively improves developer productivity by enabling full autocompletion and static analysis within IDEs.
 
-- [ ] Add `barryvdh/laravel-ide-helper` to the `require-dev` section of `composer.json`.
-- [ ] Create a custom `IdeHelper` provider in the `src/Providers` directory.
-- [ ] Implement the provider to generate metadata for the `OpenFGA` facade.
-- [ ] Add instructions to the `installation.md` documentation on how developers can generate the helper file for their projects.
+- [x] Add `barryvdh/laravel-ide-helper` to the `require-dev` section of `composer.json`.
+- [x] Create a custom `IdeHelper` provider in the `src/Providers` directory.
+- [x] Implement the provider to generate metadata for the `OpenFGA` facade.
+- [x] Add instructions to the `installation.md` documentation on how developers can generate the helper file for their projects.
 
 ### 1.3. Architectural Testing with Pest
 **Benefit:** Prevents architectural drift and ensures code remains decoupled and maintainable.

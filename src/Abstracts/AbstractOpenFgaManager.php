@@ -1586,7 +1586,8 @@ abstract class AbstractOpenFgaManager implements ManagerInterface
             $identifier = $authUser->getAuthIdentifier();
 
             if (! is_string($identifier) && ! is_int($identifier)) {
-                throw InvalidTupleException::invalidFormat('user', (string) $identifier);
+                $identifierType = gettype($identifier);
+                throw InvalidTupleException::invalidFormat('user', 'type: ' . $identifierType);
             }
 
             return 'user:' . $identifier;

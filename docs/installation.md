@@ -85,6 +85,19 @@ protected $middlewareAliases = [
 ];
 ```
 
+### Step 6: Generate IDE Helper Files (Optional)
+
+For better IDE autocompletion and static analysis, generate the IDE helper files:
+
+```bash
+# Generate IDE helper files
+php artisan ide-helper:generate
+php artisan ide-helper:models
+php artisan ide-helper:meta
+```
+
+The package automatically integrates with barryvdh/laravel-ide-helper when running in local environment, providing full autocompletion support for the OpenFGA facade and all its methods.
+
 ## Configuration Options
 
 ### Multiple Connections

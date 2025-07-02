@@ -169,6 +169,7 @@ describe('OpenFgaServiceProvider', function (): void {
             $app->shouldReceive('bound')->with('router')->andReturn(false);
             $app->shouldReceive('bound')->andReturn(false);
             $app->shouldReceive('register')->andReturnSelf();
+            $app->shouldReceive('environment')->andReturn('production');
             $app->shouldReceive('make')->with('config')->andReturn(new Repository([
                 'openfga' => [
                     'default' => 'main',
@@ -538,6 +539,7 @@ describe('OpenFgaServiceProvider', function (): void {
             $app->shouldReceive('bound')->with('blade.compiler')->andReturn(false);
             $app->shouldReceive('bound')->andReturn(false);
             $app->shouldReceive('register')->andReturnSelf();
+            $app->shouldReceive('environment')->andReturn('production');
             $app->shouldReceive('make')->with('config')->andReturn(new Repository([
                 'openfga' => [
                     'default' => 'main',
@@ -628,6 +630,7 @@ describe('OpenFgaServiceProvider', function (): void {
             $mock->shouldReceive('getProviders')->andReturn([]);
             $mock->shouldReceive('afterResolving')->andReturnSelf();
             $mock->shouldReceive('resolved')->andReturn(false);
+            $mock->shouldReceive('environment')->andReturn('production');
 
             $provider = new OpenFgaServiceProvider($mock);
             $provider->register();
@@ -670,6 +673,7 @@ describe('OpenFgaServiceProvider', function (): void {
             $mock->shouldReceive('commands')->never();
             $mock->shouldReceive('afterResolving')->andReturnSelf();
             $mock->shouldReceive('resolved')->andReturn(false);
+            $mock->shouldReceive('environment')->andReturn('production');
 
             $provider = new OpenFgaServiceProvider($mock);
             $provider->register();
