@@ -40,10 +40,9 @@ DOCKER_COMPOSE=$(check_docker_compose)
 echo "🚀 Starting integration tests..."
 echo ""
 
-# Build the test container
-echo "🔨 Building test container..."
-# BuildKit is now used by default in our Dockerfile
-$DOCKER_COMPOSE -f "$COMPOSE_FILE" build test
+# Build the test container with Docker Slim optimization
+echo "🔨 Building and optimizing test container..."
+"$SCRIPT_DIR/build-slim-image.sh"
 
 # Start services first
 echo "🚀 Starting services..."

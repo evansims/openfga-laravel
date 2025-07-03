@@ -1,0 +1,89 @@
+name: Bug Report
+description: Report a bug in the OpenFGA Laravel library
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug in the OpenFGA Laravel library!
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Clear description of the bug
+      placeholder: When I try to...
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction Steps
+      description: Steps to reproduce the bug with minimal code example
+      placeholder: |
+        ```php
+        // Minimal code example that demonstrates the issue
+        $client = new OpenFGA\Client(/* config */);
+        // ...
+        ```
+      render: php
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What should happen?
+      placeholder: The method should return...
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What happens instead?
+      placeholder: Instead, it throws an error...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: php-version
+    attributes:
+      label: PHP Version
+      description: Which PHP version are you running?
+      options:
+        - PHP 8.3
+        - PHP 8.2
+        - PHP 8.1
+        - Other (specify in additional information)
+    validations:
+      required: true
+
+  - type: input
+    id: library-version
+    attributes:
+      label: OpenFGA Laravel Version
+      description: Which version of this library are you using?
+      placeholder: 1.0.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: openfga-server
+    attributes:
+      label: OpenFGA Server
+      description: Which OpenFGA server are you using?
+      options:
+        - Self-hosted OpenFGA
+        - Auth0 FGA
+        - Other (specify in additional information)
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Information
+      description: Any other context about the problem
+      placeholder: Other system information, custom server configuration, etc.

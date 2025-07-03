@@ -1,0 +1,30 @@
+version: 2
+updates:
+  # Maintain dependencies for PHP packages (Composer)
+  - package-ecosystem: "composer"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    versioning-strategy: widen
+    labels:
+      - "dependency"
+      - "php"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    reviewers:
+      - "evansims"
+    
+  # Maintain dependencies for GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependency"
+      - "github_actions"
+    commit-message:
+      prefix: "ci"
+      include: "scope"

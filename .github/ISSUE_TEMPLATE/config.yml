@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Ask a Question
+    url: https://github.com/evansims/openfga-laravel/discussions/new?category=q-a
+    about: Ask questions and discuss with other community members
+  - name: OpenFGA Documentation
+    url: https://openfga.dev/docs
+    about: The official OpenFGA documentation
+  - name: Report Security Vulnerability
+    url: https://github.com/evansims/openfga-laravel/security/advisories/new
+    about: Please report security vulnerabilities here

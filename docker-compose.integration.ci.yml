@@ -1,0 +1,67 @@
+services:
+  openfga:
+    container_name: openfga-integration-tests
+    image: openfga/openfga:latest
+    command: run
+    ports:
+      - "8080:8080"
+    labels:
+      - "com.openfga.test=integration"
+      - "com.openfga.cleanup=true"
+    networks:
+      - openfga-network
+
+  # OpenTelemetry Collector for observability testing
+  otel-collector:
+    container_name: otel-collector-integration-tests
+    image: otel/opentelemetry-collector-contrib:latest
+    command: ["--config=/etc/otel-collector-config.yml"]
+    volumes:
+      - ./tests/Support/otel-collector-config.yml:/etc/otel-collector-config.yml:ro
+    labels:
+      - "com.openfga.test=integration"
+      - "com.openfga.cleanup=true"
+    ports:
+      - "4317:4317"   # OTLP gRPC receiver
+      - "4318:4318"   # OTLP HTTP receiver
+      - "8888:8888"   # Prometheus metrics
+      - "8889:8889"   # Prometheus exporter metrics
+      - "13133:13133" # Health check endpoint
+    networks:
+      - openfga-network
+
+  test:
+    container_name: openfga-laravel-integration-tests
+    # Use pre-built image (will be tagged locally by CI)
+    image: evansims/openfga-laravel-integration-tests:latest
+    volumes:
+      - .:/app
+      - ${COMPOSER_HOME:-$HOME/.composer}:/tmp/composer
+    environment:
+      - OPENFGA_TEST_URL=http://openfga:8080
+      - FGA_API_URL=http://openfga:8080
+      - OTEL_COLLECTOR_URL=http://otel-collector:8889
+      - COMPOSER_ALLOW_SUPERUSER=1
+      - PCOV_ENABLED=1
+      # OpenTelemetry configuration for testing
+      - OTEL_SERVICE_NAME=openfga-laravel-sdk-test
+      - OTEL_SERVICE_VERSION=test
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+      - OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+      - OTEL_TRACES_EXPORTER=otlp
+      - OTEL_METRICS_EXPORTER=otlp
+      - OTEL_LOGS_EXPORTER=otlp
+      - OTEL_RESOURCE_ATTRIBUTES=service.name=openfga-laravel-sdk-test,service.version=test
+    working_dir: /app
+    depends_on:
+      - openfga
+      - otel-collector
+    networks:
+      - openfga-network
+
+networks:
+  openfga-network:
+    driver: bridge
+
+volumes:
+  composer-cache:

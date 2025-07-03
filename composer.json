@@ -102,11 +102,15 @@
   },
   "scripts": {
     "docker:build": [
-      "docker build -f Dockerfile.integration -t evansims/openfga-laravel-integration-tests:latest ."
+      "./tools/build-slim-image.sh"
     ],
     "docker:push": [
-      "@composer docker:build",
-      "docker push evansims/openfga-laravel-integration-tests:latest"
+      "echo 'Images are now automatically built and pushed via GitHub Actions.'",
+      "echo 'To manually trigger: Go to Actions → Build Test Image → Run workflow'"
+    ],
+    "docker:pull": [
+      "docker pull ghcr.io/evansims/openfga-laravel-integration-tests:latest",
+      "docker tag ghcr.io/evansims/openfga-laravel-integration-tests:latest evansims/openfga-laravel-integration-tests:latest"
     ],
     "lint": [
       "@lint:phpstan",
@@ -137,9 +141,13 @@
     ],
     "test:integration": "./tools/run-integration-tests.sh",
     "test:integration:cached": [
+      "echo 'Using existing local image without rebuilding...'",
       "docker-compose -f docker-compose.integration.yml run --rm test"
     ],
-    "test:integration:ci": "./tools/run-integration-tests-ci.sh",
+    "test:integration:ci": [
+      "echo 'CI tests now use pre-built images from GitHub Container Registry.'",
+      "echo 'See .github/workflows/integration-tests.yml'"
+    ],
     "test:integration:clean": "./tools/integration-cleanup.sh",
     "test:integration:clean:force": [
       "./tools/integration-cleanup.sh",

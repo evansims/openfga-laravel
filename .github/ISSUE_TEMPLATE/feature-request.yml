@@ -1,0 +1,71 @@
+name: Feature Request
+description: Suggest a new feature for OpenFGA Laravel
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a new feature for the OpenFGA Laravel library!
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Clear description of the problem this feature would solve
+      placeholder: When working with OpenFGA, I need to...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: How would this feature work from a user perspective?
+      placeholder: The library should provide a way to...
+    validations:
+      required: true
+
+  - type: textarea
+    id: code-example
+    attributes:
+      label: Example Code
+      description: Show how the feature would be used in code
+      placeholder: |
+        ```php
+        // Example of your proposed API
+        $client = new OpenFGA\Client(/* config */);
+        // ...
+        ```
+      render: php
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternative Approaches
+      description: Other ways you've considered to solve this problem
+      placeholder: I've tried working around this by...
+    validations:
+      required: false
+
+  - type: dropdown
+    id: api-supported
+    attributes:
+      label: OpenFGA API Support
+      description: Is this feature supported by the underlying OpenFGA API?
+      options:
+        - Yes, it's in the API
+        - No, it would need custom implementation
+        - Not sure / Not applicable
+    validations:
+      required: true
+
+  - type: input
+    id: api-link
+    attributes:
+      label: OpenFGA API Documentation
+      description: If available, link to relevant OpenFGA API documentation
+      placeholder: https://openfga.dev/api/...
+    validations:
+      required: false

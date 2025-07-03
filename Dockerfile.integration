@@ -1,5 +1,6 @@
 # syntax=docker/dockerfile:1
 # Slim single-stage build optimized for size
+# Enable BuildKit for better caching: DOCKER_BUILDKIT=1 docker build .
 
 FROM php:8.3-cli-alpine
 
