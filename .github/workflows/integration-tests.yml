@@ -42,9 +42,9 @@ jobs:
 
     - name: Run integration tests
       run: |
-        docker-compose -f docker-compose.integration.yml up -d openfga otel-collector
+        docker compose -f docker-compose.integration.yml up -d openfga otel-collector
         sleep 10
-        docker-compose -f docker-compose.integration.yml run --rm test
+        docker compose -f docker-compose.integration.yml run --rm test
 
     - name: Cleanup
       if: always()
