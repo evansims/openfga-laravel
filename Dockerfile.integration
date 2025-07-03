@@ -1,180 +1,82 @@
 # syntax=docker/dockerfile:1
-# This Dockerfile uses BuildKit features for better caching
-# BuildKit is now default in Docker 23.0+, or use DOCKER_BUILDKIT=1 for older versions
+# Slim single-stage build optimized for size
 
-# Use the official PHP image with XML extensions pre-installed
-FROM php:8.3.16-cli-alpine3.20@sha256:f23cfcc1769efd8fd6731def171edf5ee2cd880617b356147033ddd20f5cf02d AS builder
+FROM php:8.3-cli-alpine
 
-# Install Composer
-COPY --from=composer:2.7 /usr/bin/composer /usr/bin/composer
+# Install Composer from official image
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-# Install system dependencies with cache mount for APK
+# Install only essential runtime dependencies and PHP extensions
 RUN --mount=type=cache,target=/var/cache/apk \
     set -eux; \
+    # Add runtime dependencies
     apk add --no-cache \
-    # System tools
-    git \
-    unzip \
-    curl \
-    wget \
-    # Required libraries
-    libpng \
-    libjpeg-turbo \
-    freetype \
-    libwebp \
-    libxpm \
-    icu-libs \
-    libzip \
-    postgresql-libs \
-    sqlite \
-    libsodium \
-    libxml2 \
-    # Build dependencies
-    $PHPIZE_DEPS \
-    linux-headers \
-    # For extensions
-    libpng-dev \
-    libjpeg-turbo-dev \
-    freetype-dev \
-    libwebp-dev \
-    libxpm-dev \
-    icu-dev \
-    libzip-dev \
-    libxml2-dev \
-    libsodium-dev \
-    curl-dev \
-    postgresql-dev \
-    sqlite-dev \
-    oniguruma-dev \
-    # For XML extensions
-    libxslt-dev;
-
-# Enable and configure extensions
-RUN set -eux; \
-    # Install core extensions one by one to avoid issues
-    docker-php-ext-configure gd \
-        --with-freetype \
-        --with-jpeg \
-        --with-webp; \
-    docker-php-ext-install -j$(nproc) gd; \
-    # Install other required extensions
-    docker-php-ext-install -j$(nproc) \
-        bcmath \
-        ctype \
         curl \
-        fileinfo \
-        intl \
-        mbstring \
-        opcache \
-        pcntl \
-        pdo \
+        postgresql-libs \
+        sqlite-libs \
+        libzip \
+        icu-libs; \
+    # Add build dependencies temporarily
+    apk add --no-cache --virtual .build-deps \
+        $PHPIZE_DEPS \
+        postgresql-dev \
+        sqlite-dev \
+        libzip-dev \
+        icu-dev; \
+    # Install minimal PHP extensions
+    docker-php-ext-install -j$(nproc) \
         pdo_mysql \
         pdo_pgsql \
         pdo_sqlite \
-        posix \
-        sodium \
-        zip; \
-    # Install PCOV for coverage (much faster than Xdebug)
+        zip \
+        intl \
+        opcache; \
+    # Install PCOV for code coverage
     pecl install pcov; \
     docker-php-ext-enable pcov; \
-    # Configure PCOV
-    echo "pcov.enabled=1" >> /usr/local/etc/php/conf.d/docker-php-ext-pcov.ini; \
-    echo "pcov.directory=/app/src" >> /usr/local/etc/php/conf.d/docker-php-ext-pcov.ini; \
-    # Set memory limit
-    echo "memory_limit=2G" >> /usr/local/etc/php/conf.d/memory-limit.ini; \
-    # Clean up
+    # Clean up build dependencies
+    apk del .build-deps; \
     docker-php-source delete; \
-    rm -rf /tmp/* \
-    && apk del $PHPIZE_DEPS linux-headers \
-    && rm -rf /var/cache/apk/*
+    rm -rf /tmp/* /var/cache/apk/*
+
+# Configure PHP
+RUN { \
+        echo 'memory_limit=256M'; \
+        echo 'pcov.enabled=1'; \
+        echo 'pcov.directory=/app/src'; \
+    } > /usr/local/etc/php/conf.d/app.ini
 
 WORKDIR /app
 
-# Stage 1: Dependencies
 # Copy composer files first for better caching
 COPY composer.json composer.lock ./
 
-# Install dependencies with cache mount for Composer
+# Install dependencies (including dev for tests)
 RUN --mount=type=cache,target=/root/.composer/cache \
-    composer install --no-interaction --no-scripts --no-autoloader --no-progress --prefer-dist
+    composer install \
+        --no-interaction \
+        --no-scripts \
+        --prefer-dist \
+        --optimize-autoloader && \
+    # Save vendor for volume mount scenario
+    cp -r vendor /app-vendor
 
-# Stage 2: Source code
-# Copy only the necessary directories for testing
-COPY src/ src/
-COPY config/ config/
-COPY tests/ tests/
-COPY phpunit.xml ./
+# Copy only necessary application files
+COPY --chown=www-data:www-data src/ src/
+COPY --chown=www-data:www-data config/ config/
+COPY --chown=www-data:www-data tests/ tests/
+COPY --chown=www-data:www-data phpunit.xml ./
 
-# Generate optimized autoloader
-RUN composer dump-autoload --optimize
+# Create minimal wait script
+RUN printf '#!/bin/sh\n\
+set -e\n\
+[ ! -d "/app/vendor" ] && cp -r /app-vendor /app/vendor\n\
+timeout=60\n\
+until curl -sf http://openfga:8080/healthz | grep -q SERVING; do\n\
+  [ $((timeout-=2)) -le 0 ] && exit 1\n\
+  sleep 2\n\
+done\n\
+exec php vendor/bin/pest --colors=always tests/Integration\n' > /start.sh && chmod +x /start.sh
 
-# Ensure vendor directory is preserved when volume is mounted
-RUN mkdir -p /app-vendor && cp -r vendor /app-vendor/
-
-# Add a script to wait for services and run tests (using heredoc for cleaner syntax)
-COPY <<'EOF' /wait-and-test.sh
-#!/bin/sh
-set -e
-
-# Restore vendor directory if it was overridden by volume mount
-if [ ! -d "/app/vendor" ] || [ -z "$(ls -A /app/vendor)" ]; then
-  echo "Restoring vendor directory..."
-  cp -r /app-vendor/vendor /app/
-fi
-
-# Wait for OpenFGA to be ready
-echo "Waiting for OpenFGA to be ready..."
-TIMEOUT=120
-COUNTER=0
-while true; do
-  # Get the health check response
-  HEALTH_RESPONSE=$(curl -s http://openfga:8080/healthz 2>/dev/null || echo "")
-
-  # Check if the response contains SERVING status
-  if echo "$HEALTH_RESPONSE" | grep -q '"status":"SERVING"'; then
-    echo "OpenFGA is ready! Response: $HEALTH_RESPONSE"
-    break
-  fi
-
-  if [ $COUNTER -ge $TIMEOUT ]; then
-    echo "OpenFGA failed to start within $TIMEOUT seconds"
-    echo "Last health check response: $HEALTH_RESPONSE"
-    echo "Attempting to get more information..."
-    curl -v http://openfga:8080/healthz || true
-    exit 1
-  fi
-
-  echo "OpenFGA is not ready yet (attempt $COUNTER/$TIMEOUT) - Response: $HEALTH_RESPONSE"
-  sleep 2
-  COUNTER=$((COUNTER + 2))
-done
-
-# Verify stores endpoint is also accessible
-echo "Verifying OpenFGA stores endpoint..."
-if ! curl -f http://openfga:8080/stores > /dev/null 2>&1; then
-  echo "WARNING: OpenFGA stores endpoint not accessible"
-  curl -v http://openfga:8080/stores || true
-fi
-
-# Wait for OTEL Collector to be ready
-echo "Waiting for OTEL Collector to be ready..."
-TIMEOUT=60
-COUNTER=0
-until curl -f http://otel-collector:13133/ > /dev/null 2>&1; do
-  if [ $COUNTER -ge $TIMEOUT ]; then
-    echo "OTEL Collector failed to start within $TIMEOUT seconds"
-    echo "Proceeding with tests anyway..."
-    break
-  fi
-  echo "OTEL Collector is unavailable - sleeping ($COUNTER/$TIMEOUT)"
-  sleep 2
-  COUNTER=$((COUNTER + 2))
-done
-
-echo "All services are ready! Starting tests..."
-exec composer test:integration:run
-EOF
-
-RUN chmod +x /wait-and-test.sh
-
-CMD ["/wait-and-test.sh"]
+USER www-data
+CMD ["/start.sh"]
