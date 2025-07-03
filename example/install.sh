@@ -9,8 +9,20 @@ echo "🚀 Installing OpenFGA Laravel Example Application"
 echo "=================================================="
 
 # Check if we're in the example directory
-if [ ! -f "README.md" ]; then
+if [ ! -f "README.md" ] || [ ! -d "openfga" ]; then
     echo "❌ Error: Please run this script from the example/ directory"
+    exit 1
+fi
+
+# Check if this is a Laravel project
+if [ ! -f "artisan" ] || [ ! -f "composer.json" ]; then
+    echo "⚠️  Warning: This doesn't appear to be a Laravel project directory"
+    echo "This script is meant to be run after creating a fresh Laravel application"
+    echo ""
+    echo "To create a new Laravel project:"
+    echo "composer create-project laravel/laravel my-openfga-app"
+    echo "cd my-openfga-app"
+    echo "Then copy the example files and run this script"
     exit 1
 fi
 
@@ -26,13 +38,18 @@ if ! command -v composer &> /dev/null; then
     exit 1
 fi
 
-echo "📦 Installing Composer dependencies..."
-composer install --no-dev --optimize-autoloader
+echo "📦 Installing OpenFGA Laravel package..."
+composer require evansims/openfga-laravel
 
 echo "⚙️  Setting up environment configuration..."
 if [ ! -f ".env" ]; then
-    cp .env.example .env
-    echo "✅ Created .env file from .env.example"
+    if [ -f ".env.example" ]; then
+        cp .env.example .env
+        echo "✅ Created .env file from .env.example"
+    else
+        echo "❌ Error: .env.example not found. Please ensure you have a Laravel project"
+        exit 1
+    fi
 fi
 
 echo "🔑 Generating application key..."
@@ -97,30 +114,53 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
             -H "Content-Type: application/json" \
             -d '{"name": "openfga-laravel-example"}')
 
-        STORE_ID=$(echo $STORE_RESPONSE | grep -o '"id":"[^"]*"' | cut -d'"' -f4)
-
-        if [ -n "$STORE_ID" ]; then
-            echo "✅ Created store with ID: $STORE_ID"
-
-            # Create authorization model
-            MODEL_RESPONSE=$(curl -s -X POST "http://localhost:8080/stores/$STORE_ID/authorization-models" \
-                -H "Content-Type: application/json" \
-                -d @openfga/model.fga)
-
-            MODEL_ID=$(echo $MODEL_RESPONSE | grep -o '"authorization_model_id":"[^"]*"' | cut -d'"' -f4)
-
-            if [ -n "$MODEL_ID" ]; then
-                echo "✅ Created authorization model with ID: $MODEL_ID"
-
-                # Update .env file
-                sed -i.bak "s/OPENFGA_STORE_ID=.*/OPENFGA_STORE_ID=$STORE_ID/" .env
-                sed -i.bak "s/OPENFGA_MODEL_ID=.*/OPENFGA_MODEL_ID=$MODEL_ID/" .env
-                echo "✅ Updated .env with OpenFGA credentials"
-            else
-                echo "❌ Failed to create authorization model"
-            fi
+        # Check if response contains error
+        if echo "$STORE_RESPONSE" | grep -q '"error"'; then
+            echo "❌ Failed to create store. Error:"
+            echo "$STORE_RESPONSE" | jq -r '.message // .error' 2>/dev/null || echo "$STORE_RESPONSE"
+            echo ""
+            echo "Make sure OpenFGA is running and accessible at http://localhost:8080"
         else
-            echo "❌ Failed to create OpenFGA store"
+            STORE_ID=$(echo "$STORE_RESPONSE" | grep -o '"id":"[^"]*"' | cut -d'"' -f4)
+
+            if [ -n "$STORE_ID" ]; then
+                echo "✅ Created store with ID: $STORE_ID"
+
+                # Check if model.json exists
+                if [ ! -f "openfga/model.json" ]; then
+                    echo "❌ Error: openfga/model.json not found"
+                    echo "Please ensure you have copied all example files"
+                    exit 1
+                fi
+
+                # Create authorization model
+                MODEL_RESPONSE=$(curl -s -X POST "http://localhost:8080/stores/$STORE_ID/authorization-models" \
+                    -H "Content-Type: application/json" \
+                    -d @openfga/model.json)
+
+                # Check if response contains error
+                if echo "$MODEL_RESPONSE" | grep -q '"error"'; then
+                    echo "❌ Failed to create authorization model. Error:"
+                    echo "$MODEL_RESPONSE" | jq -r '.message // .error' 2>/dev/null || echo "$MODEL_RESPONSE"
+                else
+                    MODEL_ID=$(echo "$MODEL_RESPONSE" | grep -o '"authorization_model_id":"[^"]*"' | cut -d'"' -f4)
+
+                    if [ -n "$MODEL_ID" ]; then
+                        echo "✅ Created authorization model with ID: $MODEL_ID"
+
+                        # Update .env file
+                        sed -i.bak "s/OPENFGA_STORE_ID=.*/OPENFGA_STORE_ID=$STORE_ID/" .env
+                        sed -i.bak "s/OPENFGA_MODEL_ID=.*/OPENFGA_MODEL_ID=$MODEL_ID/" .env
+                        echo "✅ Updated .env with OpenFGA credentials"
+                    else
+                        echo "❌ Failed to parse authorization model ID from response"
+                        echo "Response: $MODEL_RESPONSE"
+                    fi
+                fi
+            else
+                echo "❌ Failed to parse store ID from response"
+                echo "Response: $STORE_RESPONSE"
+            fi
         fi
     else
         echo "❌ Docker is not installed. Please install Docker and run:"

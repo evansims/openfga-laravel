@@ -40,6 +40,32 @@ The application uses a comprehensive OpenFGA authorization model that supports:
 
 ## Quick Start
 
+You have two options for setting up the example application:
+
+### Option A: Docker Setup (Recommended)
+
+The easiest way to get started is using Docker, which sets up the complete environment automatically:
+
+```bash
+# Run the Docker setup script
+./docker-setup.sh
+```
+
+This will:
+- Start all required services (Laravel, MySQL, OpenFGA, Redis, Mailhog)
+- Create and configure the OpenFGA store and authorization model
+- Run database migrations and seed example data
+- Configure all environment variables automatically
+
+After setup, access the services at:
+- Laravel Application: http://localhost:8000
+- OpenFGA Playground: http://localhost:3000
+- Mailhog (Email testing): http://localhost:8025
+
+### Option B: Manual Setup
+
+If you prefer to set up manually or already have Laravel installed:
+
 ### 1. Install Dependencies
 
 ```bash
@@ -271,6 +297,62 @@ The example includes deployment considerations:
 - **Database Optimization**: Indexed queries for permission checks
 - **Caching Strategy**: Redis/Memcached configuration for permissions
 - **Monitoring**: Performance monitoring and alerting
+
+## Docker Management
+
+If you're using the Docker setup, here are useful commands:
+
+### Container Management
+```bash
+# View all containers and their status
+docker compose ps
+
+# View logs from all services
+docker compose logs -f
+
+# View logs from specific service
+docker compose logs -f app
+docker compose logs -f openfga
+
+# Stop all containers
+docker compose down
+
+# Stop and remove all data (full reset)
+docker compose down -v
+
+# Restart a specific service
+docker compose restart app
+```
+
+### Development Commands
+```bash
+# Run artisan commands
+docker compose exec app php artisan migrate
+docker compose exec app php artisan db:seed
+
+# Access application shell
+docker compose exec app sh
+
+# Access MySQL
+docker compose exec db mysql -u openfga -p
+
+# Clear Laravel caches
+docker compose exec app php artisan cache:clear
+docker compose exec app php artisan config:clear
+docker compose exec app php artisan view:clear
+```
+
+### OpenFGA Commands
+```bash
+# Check OpenFGA health
+curl http://localhost:8080/healthz
+
+# List stores
+curl http://localhost:8080/stores
+
+# Access OpenFGA Playground
+open http://localhost:3000
+```
 
 ## Next Steps
 
