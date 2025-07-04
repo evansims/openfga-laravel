@@ -68,7 +68,7 @@ COPY --chown=www-data:www-data config/ config/
 COPY --chown=www-data:www-data tests/ tests/
 COPY --chown=www-data:www-data phpunit.xml ./
 
-# Create minimal wait script
+# Create minimal wait script with proper permissions
 RUN printf '#!/bin/sh\n\
 set -e\n\
 [ ! -d "/app/vendor" ] && cp -r /app-vendor /app/vendor\n\
@@ -77,7 +77,10 @@ until curl -sf http://openfga:8080/healthz | grep -q SERVING; do\n\
   [ $((timeout-=2)) -le 0 ] && exit 1\n\
   sleep 2\n\
 done\n\
-exec php vendor/bin/pest --colors=always tests/Integration\n' > /start.sh && chmod +x /start.sh
+exec php vendor/bin/pest --colors=always tests/Integration\n' > /start.sh && \
+    chmod +x /start.sh && \
+    chown www-data:www-data /start.sh
 
 USER www-data
+ENTRYPOINT ["/bin/sh"]
 CMD ["/start.sh"]
