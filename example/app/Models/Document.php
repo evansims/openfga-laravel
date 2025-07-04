@@ -76,6 +76,14 @@ class Document extends Model
     }
 
     /**
+     * Get the authorization object string for OpenFGA.
+     */
+    public function authorizationObject(): string
+    {
+        return 'document:' . $this->id;
+    }
+
+    /**
      * Get the organization this document belongs to.
      */
     public function getOrganization(): ?Organization

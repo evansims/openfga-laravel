@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use OpenFGA\Laravel\Traits\HasAuthorization;
 
 class Team extends Model
@@ -58,9 +59,25 @@ class Team extends Model
     /**
      * The documents associated with this team.
      */
-    public function documents(): HasMany
+    public function documents(): MorphMany
     {
-        return $this->hasMany(Document::class);
+        return $this->morphMany(Document::class, 'documentable');
+    }
+
+    /**
+     * The folders associated with this team.
+     */
+    public function folders(): MorphMany
+    {
+        return $this->morphMany(Folder::class, 'folderable');
+    }
+
+    /**
+     * Get the authorization object string for OpenFGA.
+     */
+    public function authorizationObject(): string
+    {
+        return 'team:' . $this->id;
     }
 
     /**

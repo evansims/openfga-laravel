@@ -171,6 +171,14 @@ class Organization extends Model
     }
 
     /**
+     * Get the authorization object string for OpenFGA.
+     */
+    public function authorizationObject(): string
+    {
+        return 'organization:' . $this->id;
+    }
+
+    /**
      * Scope to get organizations where user has specific permission.
      */
     public function scopeWhereUserCan($query, User $user, string $relation)

@@ -9,6 +9,7 @@ use App\Models\Organization;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use OpenFGA\Laravel\Facades\OpenFga;
 use OpenFGA\Laravel\Testing\{FakesOpenFga, CreatesPermissionData};
 use Tests\TestCase;
 
@@ -388,5 +389,49 @@ class DocumentManagementTest extends TestCase
         $response->assertJson([
             'results' => [true, false] // Admin is owner, viewer is not editor
         ]);
+    }
+
+    public function test_direct_openfga_facade_usage()
+    {
+        // Test direct check
+        $hasAccess = OpenFga::check(
+            user: $this->admin->authorizationUser(),
+            relation: 'owner',
+            object: $this->document->authorizationObject()
+        );
+        $this->assertTrue($hasAccess);
+
+        // Test write permission
+        $newUser = User::factory()->create();
+        OpenFga::write([
+            [
+                'user' => $newUser->authorizationUser(),
+                'relation' => 'viewer',
+                'object' => $this->document->authorizationObject(),
+            ]
+        ]);
+
+        // Test batch check
+        $results = OpenFga::batchCheck([
+            [
+                'user' => $newUser->authorizationUser(),
+                'relation' => 'viewer',
+                'object' => $this->document->authorizationObject(),
+            ],
+            [
+                'user' => $newUser->authorizationUser(),
+                'relation' => 'editor',
+                'object' => $this->document->authorizationObject(),
+            ],
+        ]);
+        $this->assertEquals([true, false], $results);
+
+        // Test list objects
+        $documents = OpenFga::listObjects(
+            user: $this->viewer->authorizationUser(),
+            relation: 'viewer',
+            type: 'document'
+        );
+        $this->assertContains($this->document->authorizationObject(), $documents);
     }
 }

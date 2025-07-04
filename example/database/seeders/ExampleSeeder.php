@@ -307,16 +307,33 @@ class ExampleSeeder extends PermissionSeeder
 
     private function setupOrganizationPermissions(Organization $organization, $users): void
     {
+        $permissions = [];
+        
         // Admin has full organization access
-        $this->grant($users['admin']->authorizationUser(), 'admin', $organization->authorizationObject());
+        $permissions[] = [
+            'user' => $users['admin']->authorizationUser(),
+            'relation' => 'admin',
+            'object' => $organization->authorizationObject(),
+        ];
         
         // Manager has management access
-        $this->grant($users['manager']->authorizationUser(), 'manager', $organization->authorizationObject());
+        $permissions[] = [
+            'user' => $users['manager']->authorizationUser(),
+            'relation' => 'manager',
+            'object' => $organization->authorizationObject(),
+        ];
         
         // All users are members
         foreach ($users as $user) {
-            $this->grant($user->authorizationUser(), 'member', $organization->authorizationObject());
+            $permissions[] = [
+                'user' => $user->authorizationUser(),
+                'relation' => 'member',
+                'object' => $organization->authorizationObject(),
+            ];
         }
+        
+        // Write permissions in batch
+        $this->writePermissions($permissions);
 
         if ($this->command) {
             $this->command->info("  ✓ Organization: {$organization->name}");
@@ -404,5 +421,16 @@ class ExampleSeeder extends PermissionSeeder
         if ($this->command && rand(1, 5) === 1) { // Show progress for some documents
             $this->command->info("  ✓ Document: {$document->title}");
         }
+    }
+
+    /**
+     * Write permissions in batch (wrapper for grantMany).
+     *
+     * @param array $permissions Array of permission tuples
+     * @return void
+     */
+    protected function writePermissions(array $permissions): void
+    {
+        $this->grantMany($permissions);
     }
 }

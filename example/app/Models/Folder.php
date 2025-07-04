@@ -88,6 +88,14 @@ class Folder extends Model
     }
 
     /**
+     * Get the authorization object string for OpenFGA.
+     */
+    public function authorizationObject(): string
+    {
+        return 'folder:' . $this->id;
+    }
+
+    /**
      * Get the full path of this folder.
      */
     public function getFullPath(): string

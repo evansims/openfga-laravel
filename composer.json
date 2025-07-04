@@ -175,6 +175,9 @@
     "test:unit:coverage": [
       "@putenv XDEBUG_MODE=coverage",
       "@php -d memory_limit=2G vendor/bin/pest --colors=always --testsuite unit --strict-global-state --fail-on-risky --fail-on-warning --coverage --strict-coverage --compact --coverage-cobertura coverage/cobertura.xml --log-junit junit.xml"
+    ],
+    "test:example": [
+      "@php vendor/bin/pest --colors=always --testsuite example"
     ]
   }
 }
