@@ -105,12 +105,12 @@
       "./tools/build-slim-image.sh"
     ],
     "docker:push": [
-      "echo 'Images are now automatically built and pushed via GitHub Actions.'",
-      "echo 'To manually trigger: Go to Actions → Build Test Image → Run workflow'"
+      "echo 'Test images are built as needed during CI workflows.'",
+      "echo 'For manual builds, use: composer docker:build'"
     ],
     "docker:pull": [
-      "docker pull ghcr.io/evansims/openfga-laravel-integration-tests:latest",
-      "docker tag ghcr.io/evansims/openfga-laravel-integration-tests:latest evansims/openfga-laravel-integration-tests:latest"
+      "echo 'Test images are built locally as needed.'",
+      "echo 'For manual builds, use: composer docker:build'"
     ],
     "lint": [
       "@lint:phpstan",
@@ -145,7 +145,7 @@
       "docker-compose -f docker-compose.integration.yml run --rm test"
     ],
     "test:integration:ci": [
-      "echo 'CI tests now use pre-built images from GitHub Container Registry.'",
+      "echo 'CI tests now build images during the workflow for testing latest code.'",
       "echo 'See .github/workflows/integration-tests.yml'"
     ],
     "test:integration:clean": "./tools/integration-cleanup.sh",
