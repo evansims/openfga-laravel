@@ -72,6 +72,7 @@ jobs:
           --include-path=/usr/local/etc/php \
           --include-path=/usr/local/bin/php \
           --include-path=/usr/bin/composer \
+          --include-path=/start.sh \
           --include-bin=/usr/bin/curl \
           --include-bin=/bin/sh \
           --include-shell; then
@@ -90,6 +91,7 @@ jobs:
             --include-path=/usr/local/lib/php \
             --include-path=/usr/local/etc/php \
             --include-path=/usr/local/bin/php \
+            --include-path=/start.sh \
             --include-shell; then
             echo "✅ Docker Slim optimization successful with exec mode"
           else

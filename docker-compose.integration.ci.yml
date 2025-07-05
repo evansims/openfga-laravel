@@ -34,8 +34,6 @@ services:
     container_name: openfga-laravel-integration-tests
     # Use pre-built image (will be tagged locally by CI)
     image: evansims/openfga-laravel-integration-tests:latest
-    entrypoint: ["/bin/sh"]
-    command: ["/start.sh"]
     volumes:
       - .:/app
       - ${COMPOSER_HOME:-$HOME/.composer}:/tmp/composer
