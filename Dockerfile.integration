@@ -66,21 +66,23 @@ RUN --mount=type=cache,target=/root/.composer/cache \
         --no-interaction \
         --no-scripts \
         --prefer-dist \
-        --optimize-autoloader
+        --optimize-autoloader && \
+    # Copy vendor to a safe location that won't be overwritten by volume mounts
+    cp -r vendor /vendor-backup
 
 # Copy only necessary application files
-COPY --chown=www-data:www-data src/ src/
-COPY --chown=www-data:www-data config/ config/
-COPY --chown=www-data:www-data tests/ tests/
-COPY --chown=www-data:www-data phpunit.xml ./
+COPY src/ src/
+COPY config/ config/
+COPY tests/ tests/
+COPY phpunit.xml ./
 
 # Create minimal wait script with proper permissions
 RUN printf '#!/bin/sh\n\
 set -e\n\
-# Install dependencies if vendor is missing (happens with volume mounts)\n\
+# Restore vendor if missing (happens with volume mounts)\n\
 if [ ! -d "/app/vendor" ]; then\n\
-  echo "Installing dependencies..."\n\
-  composer install --no-interaction --prefer-dist --optimize-autoloader\n\
+  echo "Restoring vendor directory..."\n\
+  cp -r /vendor-backup /app/vendor\n\
 fi\n\
 # Wait for OpenFGA to be ready\n\
 timeout=60\n\
@@ -92,9 +94,8 @@ until curl -sf http://openfga:8080/healthz | grep -q SERVING; do\n\
 done\n\
 echo "OpenFGA is ready, running tests..."\n\
 exec php vendor/bin/pest --colors=always tests/Integration\n' > /start.sh && \
-    chmod +x /start.sh && \
-    chown www-data:www-data /start.sh
+    chmod +x /start.sh
 
-USER www-data
+# Don't switch user - stay as root to avoid permission issues
 ENTRYPOINT ["/bin/sh"]
 CMD ["/start.sh"]
