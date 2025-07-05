@@ -53,6 +53,7 @@ RUN { \
         echo 'memory_limit=256M'; \
         echo 'pcov.enabled=1'; \
         echo 'pcov.directory=/app/src'; \
+        echo 'pcov.exclude=~vendor~'; \
     } > /usr/local/etc/php/conf.d/app.ini
 
 WORKDIR /app
@@ -93,7 +94,12 @@ until curl -sf http://openfga:8080/healthz | grep -q SERVING; do\n\
   sleep 2\n\
 done\n\
 echo "OpenFGA is ready, running tests..."\n\
-exec php vendor/bin/pest --colors=always tests/Integration\n' > /start.sh && \
+# Ensure coverage directory exists\n\
+mkdir -p /app/coverage\n\
+# Run tests with coverage and junit output\n\
+exec php vendor/bin/pest --colors=always tests/Integration \\\n\
+  --coverage --coverage-cobertura=/app/coverage/cobertura.xml \\\n\
+  --log-junit=/app/junit.xml\n' > /start.sh && \
     chmod +x /start.sh
 
 # Don't switch user - stay as root to avoid permission issues
