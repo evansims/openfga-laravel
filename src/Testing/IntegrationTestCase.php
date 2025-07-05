@@ -195,17 +195,6 @@ abstract class IntegrationTestCase extends BaseTestCase
     }
 
     /**
-     * Configure test connection.
-     *
-     * @deprecated Configuration is now handled in defineEnvironment()
-     */
-    protected function configureTestConnection(): void
-    {
-        // Configuration is now handled in defineEnvironment()
-        // This method is kept for backward compatibility
-    }
-
-    /**
      * Create authorization model.
      *
      * @param array<string, mixed> $model
