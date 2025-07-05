@@ -36,11 +36,8 @@ jobs:
       - name: Install dependencies
         run: composer update --prefer-stable --no-interaction --no-progress --ansi
 
-      - name: Install docs dependencies
-        run: cd tools/docs && composer update --prefer-stable --no-interaction --no-progress --ansi && cd ../../
-
       - name: Execute PEST tests
-        run: composer test:unit:ci
+        run: composer test:unit:coverage
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@4650159d642e33fdc30954ca22638caf0df6cac8 # v5.4.3
