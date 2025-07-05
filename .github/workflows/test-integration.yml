@@ -42,6 +42,21 @@ jobs:
           sleep 10
           docker compose -f docker-compose.integration.yml run --rm test
 
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@4650159d642e33fdc30954ca22638caf0df6cac8 # v5.4.3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: integration
+          files: ./coverage/cobertura.xml
+          fail_ci_if_error: true
+
+      - name: Upload test results to Codecov
+        uses: codecov/test-results-action@47f89e9acb64b76debcd5ea40642d25a4adced9f # v1.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: integration
+          file: ./junit.xml
+
       - name: Cleanup
         if: always()
         run: |
