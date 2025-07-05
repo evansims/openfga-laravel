@@ -185,6 +185,18 @@ function chain(...$expectations): Closure
     };
 }
 
+// Helper to create middleware test user (deprecated - use TestFactories::createTestUser)
+function createMiddlewareTestUser(mixed $id, string $authId): object
+{
+    return TestFactories::createTestUser(authId: $authId, identifier: $id);
+}
+
+// Helper function to create test user for middleware tests (deprecated - use TestFactories::createTestUser)
+function createTestUser(string $authId = 'user:123', mixed $identifier = 123): object
+{
+    return TestFactories::createTestUser(authId: $authId, identifier: $identifier);
+}
+
 // Helper to setup route
 function setupRoute(Request $request, string $path, string $paramName, mixed $paramValue): void
 {
