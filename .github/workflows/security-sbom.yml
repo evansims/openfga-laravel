@@ -1,0 +1,70 @@
+name: "Security: SBOM"
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - composer.json
+      - composer.lock
+  pull_request:
+    branches: [main]
+    paths:
+      - composer.json
+      - composer.lock
+  release:
+    types: [created]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: "Generate Report"
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write # Needed to upload artifacts to releases
+      packages: write # Needed for SBOM upload to GitHub packages
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@cf4cade2721270509d5b1c766ab3549210a39a2a # v2.3.3
+        with:
+          php-version: "8.3"
+          coverage: none
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: composer install --no-dev --no-interaction --prefer-dist
+
+      - name: Install SBOM composer plugin
+        run: |-
+          composer global config --no-plugins allow-plugins.cyclonedx/cyclonedx-php-composer true
+          composer global require cyclonedx/cyclonedx-php-composer
+
+      - name: Generate SBOM
+        run: composer cyclonedx:make-sbom --output-format=JSON --output-file=sbom.cyclonedx.json
+
+      - name: Upload SBOM as artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: sbom
+          path: sbom.cyclonedx.json
+          retention-days: 30
+
+      # Only upload SBOM to releases when a release is created
+      - name: Upload SBOM to Release
+        if: github.event_name == 'release'
+        uses: svenstaro/upload-release-action@2b4adf59f26ea3ed6ddecb8e00f80acc6bc16bd4 # 2.9.0
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: sbom.cyclonedx.json
+          asset_name: openfga-php-sbom.cyclonedx.json
+          tag: ${{ github.ref }}
+          overwrite: true
