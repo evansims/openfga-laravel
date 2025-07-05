@@ -1,0 +1,79 @@
+codecov:
+  require_ci_to_pass: yes
+  max_report_age: 24
+  disable_default_path_fixes: no
+  strict_yaml_branch: main
+  notify:
+    after_n_builds: 3
+    wait_for_ci: yes
+
+coverage:
+  range: "90..100"
+  round: down
+  precision: 2
+  status:
+    project:
+      default:
+        target: 90%
+        threshold: 1%
+        base: auto
+        informational: false
+        only_pulls: false
+
+    patch:
+      default:
+        target: 50%
+        threshold: 5%
+        base: auto
+        informational: false
+        only_pulls: false
+
+  ignore:
+    - "tests/"
+    - "tools/"
+    - "*.xml"
+    - "*.yml"
+    - "*.yaml"
+    - "*.json"
+    - "*.md"
+    - "*.sh"
+    - "rector.php"
+    - ".php-cs-fixer.dist.php"
+    - "psalm.xml.dist"
+    - "phpstan.neon.dist"
+
+flags:
+  unit:
+    paths:
+      - src/
+    carryforward: false
+
+  integration:
+    paths:
+      - src/
+    carryforward: true
+
+  contract:
+    paths:
+      - src/
+    carryforward: true
+
+comment:
+  layout: "reach,diff,flags,tree,footer"
+  behavior: default
+  require_changes: true
+  require_base: false
+  require_head: true
+  branches:
+    - main
+
+github_checks:
+  annotations: true
+
+parsers:
+  gcov:
+    branch_detection:
+      conditional: yes
+      loop: yes
+      method: no
+      macro: no
