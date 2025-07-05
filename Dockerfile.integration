@@ -16,14 +16,20 @@ RUN --mount=type=cache,target=/var/cache/apk \
         postgresql-libs \
         sqlite-libs \
         libzip \
-        icu-libs; \
+        icu-libs \
+        libxml2 \
+        oniguruma \
+        readline; \
     # Add build dependencies temporarily
     apk add --no-cache --virtual .build-deps \
         $PHPIZE_DEPS \
         postgresql-dev \
         sqlite-dev \
         libzip-dev \
-        icu-dev; \
+        icu-dev \
+        libxml2-dev \
+        oniguruma-dev \
+        readline-dev; \
     # Install minimal PHP extensions
     docker-php-ext-install -j$(nproc) \
         pdo_mysql \
@@ -31,7 +37,9 @@ RUN --mount=type=cache,target=/var/cache/apk \
         pdo_sqlite \
         zip \
         intl \
-        opcache; \
+        opcache \
+        mbstring \
+        xml; \
     # Install PCOV for code coverage
     pecl install pcov; \
     docker-php-ext-enable pcov; \
