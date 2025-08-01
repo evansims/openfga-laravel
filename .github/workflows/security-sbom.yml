@@ -61,7 +61,7 @@ jobs:
       # Only upload SBOM to releases when a release is created
       - name: Upload SBOM to Release
         if: github.event_name == 'release'
-        uses: svenstaro/upload-release-action@2b4adf59f26ea3ed6ddecb8e00f80acc6bc16bd4 # 2.9.0
+        uses: svenstaro/upload-release-action@04733e069f2d7f7f0b4aebc4fbdbce8613b03ccd # 2.9.0
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: sbom.cyclonedx.json
