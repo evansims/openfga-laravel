@@ -62,4 +62,4 @@ jobs:
         run: composer install --prefer-dist --no-progress --no-interaction
 
       - name: Check PHP Security
-        uses: symfonycorp/security-checker-action@88efed75353c0480777568aa3969c6f2b8f6c635 # v5
+        uses: symfonycorp/security-checker-action@258311ef7ac571f1310780ef3d79fc5abef642b5 # v5
