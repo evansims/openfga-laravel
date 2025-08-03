@@ -15,6 +15,26 @@ updates:
       include: "scope"
     reviewers:
       - "evansims"
+    groups:
+      # Group all production dependencies
+      production-dependencies:
+        applies-to: version-updates
+        dependency-type: "production"
+        update-types:
+          - "minor"
+          - "patch"
+      # Group all development dependencies
+      development-dependencies:
+        applies-to: version-updates
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+      # Group major version updates separately
+      major-updates:
+        applies-to: version-updates
+        update-types:
+          - "major"
     
   # Maintain dependencies for GitHub Actions
   - package-ecosystem: "github-actions"
@@ -28,3 +48,8 @@ updates:
     commit-message:
       prefix: "ci"
       include: "scope"
+    groups:
+      # Group all GitHub Actions updates together
+      github-actions:
+        patterns:
+          - "*"
