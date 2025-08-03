@@ -6,14 +6,14 @@ describe('Example Application Integration', function (): void {
 
     it('routes file integrates with all controllers', function () use ($examplePath): void {
         $routesContent = file_get_contents($examplePath . '/routes/web.php');
-        
+
         // Check controller imports
         expect($routesContent)
             ->toContain('use App\Http\Controllers\DocumentController;')
             ->toContain('use App\Http\Controllers\OrganizationController;')
             ->toContain('use App\Http\Controllers\TeamController;')
             ->toContain('use App\Http\Controllers\FolderController;');
-        
+
         // Check document routes
         expect($routesContent)
             ->toContain('[DocumentController::class, \'index\']')
@@ -23,21 +23,21 @@ describe('Example Application Integration', function (): void {
             ->toContain('[DocumentController::class, \'edit\']')
             ->toContain('[DocumentController::class, \'update\']')
             ->toContain('[DocumentController::class, \'destroy\']');
-        
+
         // Check organization routes
         expect($routesContent)
             ->toContain('[OrganizationController::class, \'index\']')
             ->toContain('[OrganizationController::class, \'show\']')
             ->toContain('[OrganizationController::class, \'members\']')
             ->toContain('[OrganizationController::class, \'createDepartment\']');
-        
+
         // Check team routes
         expect($routesContent)
             ->toContain('[TeamController::class, \'index\']')
             ->toContain('[TeamController::class, \'show\']')
             ->toContain('[TeamController::class, \'documents\']')
             ->toContain('[TeamController::class, \'addMember\']');
-        
+
         // Check folder routes
         expect($routesContent)
             ->toContain('[FolderController::class, \'index\']')
@@ -48,30 +48,30 @@ describe('Example Application Integration', function (): void {
 
     it('routes use OpenFGA middleware correctly', function () use ($examplePath): void {
         $routesContent = file_get_contents($examplePath . '/routes/web.php');
-        
+
         // Document permissions
         expect($routesContent)
             ->toContain("middleware(['openfga:viewer,document:{document}'])")
             ->toContain("middleware(['openfga:editor,document:{document}'])")
             ->toContain("middleware(['openfga:owner,document:{document}'])");
-        
+
         // Organization permissions
         expect($routesContent)
             ->toContain("middleware(['openfga:member,organization:{organization}'])")
             ->toContain("middleware(['openfga:manager,organization:{organization}'])")
             ->toContain("middleware(['openfga:admin,organization:{organization}'])");
-        
+
         // Team permissions
         expect($routesContent)
             ->toContain("middleware(['openfga:member,team:{team}'])")
             ->toContain("middleware(['openfga:lead,team:{team}'])");
-        
+
         // Folder permissions
         expect($routesContent)
             ->toContain("middleware(['openfga:viewer,folder:{folder}'])")
             ->toContain("middleware(['openfga:editor,folder:{folder}'])")
             ->toContain("middleware(['openfga:admin,folder:{folder}'])");
-        
+
         // Advanced middleware patterns
         expect($routesContent)
             ->toContain("middleware(['openfga.any:admin|manager,organization:{organization}'])")
@@ -80,7 +80,7 @@ describe('Example Application Integration', function (): void {
 
     it('admin routes use proper namespace', function () use ($examplePath): void {
         $routesContent = file_get_contents($examplePath . '/routes/web.php');
-        
+
         expect($routesContent)
             ->toContain("Route::prefix('admin')->name('admin.')")
             ->toContain("middleware(['auth', 'openfga:admin,system:global'])")
@@ -90,7 +90,7 @@ describe('Example Application Integration', function (): void {
 
     it('API endpoints are properly defined', function () use ($examplePath): void {
         $routesContent = file_get_contents($examplePath . '/routes/web.php');
-        
+
         expect($routesContent)
             ->toContain("Route::prefix('api')->name('api.')")
             ->toContain("Route::post('/permissions/check'")
@@ -101,7 +101,7 @@ describe('Example Application Integration', function (): void {
 
     it('models integrate with seeders properly', function () use ($examplePath): void {
         $seederContent = file_get_contents($examplePath . '/database/seeders/ExampleSeeder.php');
-        
+
         expect($seederContent)
             ->toContain('use App\Models\Department;')
             ->toContain('use App\Models\Document;')
@@ -118,7 +118,7 @@ describe('Example Application Integration', function (): void {
 
     it('feature test uses SDK correctly', function () use ($examplePath): void {
         $testContent = file_get_contents($examplePath . '/tests/Feature/DocumentManagementTest.php');
-        
+
         expect($testContent)
             ->toContain('use OpenFGA\Laravel\Testing\{FakesOpenFga')
             ->toContain('use RefreshDatabase, FakesOpenFga')
@@ -131,7 +131,7 @@ describe('Example Application Integration', function (): void {
 
     it('Docker setup integrates all services', function () use ($examplePath): void {
         $dockerSetup = file_get_contents($examplePath . '/docker-setup.sh');
-        
+
         expect($dockerSetup)
             ->toContain('docker compose up -d')
             ->toContain('docker compose exec -T app php artisan key:generate')
@@ -145,7 +145,7 @@ describe('Example Application Integration', function (): void {
 
     it('install script integrates package correctly', function () use ($examplePath): void {
         $installScript = file_get_contents($examplePath . '/install.sh');
-        
+
         expect($installScript)
             ->toContain('composer require evansims/openfga-laravel')
             ->toContain('php artisan vendor:publish --provider="OpenFGA\Laravel\OpenFgaServiceProvider"')

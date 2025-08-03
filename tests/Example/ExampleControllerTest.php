@@ -6,7 +6,7 @@ describe('Example Application Controllers', function (): void {
 
     it('DocumentController has all required methods', function () use ($examplePath): void {
         $content = file_get_contents($examplePath . '/app/Http/Controllers/DocumentController.php');
-        
+
         expect($content)
             ->toContain('public function index(')
             ->toContain('public function create(')
@@ -26,7 +26,7 @@ describe('Example Application Controllers', function (): void {
 
     it('OrganizationController has proper CRUD methods', function () use ($examplePath): void {
         $content = file_get_contents($examplePath . '/app/Http/Controllers/OrganizationController.php');
-        
+
         expect($content)
             ->toContain('public function index(): View')
             ->toContain('public function show(Organization $organization): View')
@@ -43,7 +43,7 @@ describe('Example Application Controllers', function (): void {
 
     it('TeamController has member management methods', function () use ($examplePath): void {
         $content = file_get_contents($examplePath . '/app/Http/Controllers/TeamController.php');
-        
+
         expect($content)
             ->toContain('public function index(): View')
             ->toContain('public function show(Team $team): View')
@@ -54,7 +54,7 @@ describe('Example Application Controllers', function (): void {
 
     it('FolderController handles hierarchical operations', function () use ($examplePath): void {
         $content = file_get_contents($examplePath . '/app/Http/Controllers/FolderController.php');
-        
+
         expect($content)
             ->toContain('public function index(): View')
             ->toContain('public function show(Folder $folder): View')
@@ -68,7 +68,7 @@ describe('Example Application Controllers', function (): void {
 
     it('Admin UserController has permission checking', function () use ($examplePath): void {
         $content = file_get_contents($examplePath . '/app/Http/Controllers/Admin/UserController.php');
-        
+
         expect($content)
             ->toContain('namespace App\Http\Controllers\Admin;')
             ->toContain('public function index(): View')
@@ -81,7 +81,7 @@ describe('Example Application Controllers', function (): void {
 
     it('Admin AuditController handles audit logs', function () use ($examplePath): void {
         $content = file_get_contents($examplePath . '/app/Http/Controllers/Admin/AuditController.php');
-        
+
         expect($content)
             ->toContain('namespace App\Http\Controllers\Admin;')
             ->toContain('public function index(Request $request): View')
@@ -92,13 +92,13 @@ describe('Example Application Controllers', function (): void {
 
     it('controllers use authorization correctly', function () use ($examplePath): void {
         $documentController = file_get_contents($examplePath . '/app/Http/Controllers/DocumentController.php');
-        
+
         expect($documentController)
             ->toContain('OpenFga::batchCheck(')
             ->toContain('->check(')
             ->toContain('whereUserCan(')
             ->toContain('batchCheckDocumentPermissions(');
-        
+
         // Check that models use grant/revoke
         $documentModel = file_get_contents($examplePath . '/app/Models/Document.php');
         expect($documentModel)
@@ -108,7 +108,7 @@ describe('Example Application Controllers', function (): void {
 
     it('controllers validate input properly', function () use ($examplePath): void {
         $organizationController = file_get_contents($examplePath . '/app/Http/Controllers/OrganizationController.php');
-        
+
         expect($organizationController)
             ->toContain('$request->validate([')
             ->toContain("'name' => 'required|string|max:255'")
