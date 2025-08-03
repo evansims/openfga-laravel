@@ -24,7 +24,7 @@ use function sprintf;
 final class MigrateFromSpatieCommand extends Command
 {
     /**
-     * @var string|null
+     * @var string
      */
     protected $description = 'Migrate from Spatie Laravel Permission to OpenFGA';
 

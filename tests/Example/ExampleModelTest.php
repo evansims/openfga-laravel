@@ -6,7 +6,7 @@ describe('Example Application Models', function (): void {
 
     it('User model has required traits and methods', function () use ($examplePath): void {
         $content = file_get_contents($examplePath . '/app/Models/User.php');
-        
+
         expect($content)
             ->toContain('use HasFactory, Notifiable, HasAuthorization;')
             ->toContain('use OpenFGA\Laravel\Traits\HasAuthorization;')
@@ -20,7 +20,7 @@ describe('Example Application Models', function (): void {
 
     it('Organization model has required relationships', function () use ($examplePath): void {
         $content = file_get_contents($examplePath . '/app/Models/Organization.php');
-        
+
         expect($content)
             ->toContain('use HasFactory, HasAuthorization;')
             ->toContain('public function departments()')
@@ -34,7 +34,7 @@ describe('Example Application Models', function (): void {
 
     it('Department model has parent relationship', function () use ($examplePath): void {
         $content = file_get_contents($examplePath . '/app/Models/Department.php');
-        
+
         expect($content)
             ->toContain('use HasFactory, HasAuthorization;')
             ->toContain('public function organization()')
@@ -47,7 +47,7 @@ describe('Example Application Models', function (): void {
 
     it('Team model has department relationship', function () use ($examplePath): void {
         $content = file_get_contents($examplePath . '/app/Models/Team.php');
-        
+
         expect($content)
             ->toContain('use HasFactory, HasAuthorization;')
             ->toContain('public function department()')
@@ -62,7 +62,7 @@ describe('Example Application Models', function (): void {
 
     it('Document model has authorization methods', function () use ($examplePath): void {
         $content = file_get_contents($examplePath . '/app/Models/Document.php');
-        
+
         expect($content)
             ->toContain('use HasFactory, HasAuthorization')
             ->toContain('public function owner()')
@@ -78,7 +78,7 @@ describe('Example Application Models', function (): void {
 
     it('Folder model has parent relationships', function () use ($examplePath): void {
         $content = file_get_contents($examplePath . '/app/Models/Folder.php');
-        
+
         expect($content)
             ->toContain('use HasFactory, HasAuthorization;')
             ->toContain('public function organization()')
@@ -98,16 +98,16 @@ describe('Example Application Models', function (): void {
             'Department',
             'Team',
             'Document',
-            'Folder'
+            'Folder',
         ];
-        
+
         foreach ($models as $model) {
             $content = file_get_contents($examplePath . "/app/Models/{$model}.php");
-            
+
             expect($content)
                 ->toContain('protected $fillable = [');
-            
-            if ($model === 'Document') {
+
+            if ('Document' === $model) {
                 expect($content)
                     ->toContain("'title'")
                     ->toContain("'content'");
@@ -121,17 +121,17 @@ describe('Example Application Models', function (): void {
     it('models use proper authorization object naming', function () use ($examplePath): void {
         $models = [
             'Organization' => 'organization',
-            'Department' => 'department', 
+            'Department' => 'department',
             'Team' => 'team',
             'Document' => 'document',
-            'Folder' => 'folder'
+            'Folder' => 'folder',
         ];
-        
+
         foreach ($models as $model => $object) {
             $content = file_get_contents($examplePath . "/app/Models/{$model}.php");
-            
+
             expect($content)
-                ->toContain("public function authorizationObject(): string")
+                ->toContain('public function authorizationObject(): string')
                 ->toContain("return '{$object}:' . \$this->id;");
         }
     });

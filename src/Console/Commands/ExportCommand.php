@@ -17,7 +17,7 @@ final class ExportCommand extends Command
     /**
      * The console command description.
      *
-     * @var string|null
+     * @var string
      */
     protected $description = 'Export permissions to a file';
 

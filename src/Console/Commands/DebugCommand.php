@@ -26,7 +26,7 @@ final class DebugCommand extends Command
     /**
      * The console command description.
      *
-     * @var string|null
+     * @var string
      */
     protected $description = 'Debug OpenFGA configuration and test connections';
 

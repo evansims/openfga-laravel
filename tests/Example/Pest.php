@@ -16,9 +16,8 @@ declare(strict_types=1);
 // Ensure we're testing from the correct directory
 uses()->beforeEach(function (): void {
     $examplePath = __DIR__ . '/../../example';
-    
-    if (!is_dir($examplePath)) {
+
+    if (! is_dir($examplePath)) {
         $this->markTestSkipped('Example directory not found. Please ensure the example application exists at: ' . $examplePath);
     }
 })->in(__DIR__);
-

@@ -27,7 +27,7 @@ final class RevokeCommand extends Command
     /**
      * The console command description.
      *
-     * @var string|null
+     * @var string
      */
     protected $description = 'Revoke a permission from a user on an object';
 

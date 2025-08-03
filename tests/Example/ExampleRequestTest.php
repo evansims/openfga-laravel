@@ -6,7 +6,7 @@ describe('Example Application Request Classes', function (): void {
 
     it('StoreDocumentRequest has authorization checks', function () use ($examplePath): void {
         $content = file_get_contents($examplePath . '/app/Http/Requests/StoreDocumentRequest.php');
-        
+
         expect($content)
             ->toContain('class StoreDocumentRequest extends FormRequest')
             ->toContain('public function authorize(): bool')
@@ -22,7 +22,7 @@ describe('Example Application Request Classes', function (): void {
 
     it('StoreDocumentRequest has proper validation rules', function () use ($examplePath): void {
         $content = file_get_contents($examplePath . '/app/Http/Requests/StoreDocumentRequest.php');
-        
+
         expect($content)
             ->toContain("'title' => 'required|string|max:255'")
             ->toContain("'content' => 'required|string'")
@@ -37,7 +37,7 @@ describe('Example Application Request Classes', function (): void {
 
     it('UpdateDocumentRequest checks editor permissions', function () use ($examplePath): void {
         $content = file_get_contents($examplePath . '/app/Http/Requests/UpdateDocumentRequest.php');
-        
+
         expect($content)
             ->toContain('class UpdateDocumentRequest extends FormRequest')
             ->toContain('public function authorize(): bool')
@@ -49,7 +49,7 @@ describe('Example Application Request Classes', function (): void {
 
     it('UpdateDocumentRequest has version tracking', function () use ($examplePath): void {
         $content = file_get_contents($examplePath . '/app/Http/Requests/UpdateDocumentRequest.php');
-        
+
         expect($content)
             ->toContain('protected function prepareForValidation(): void')
             ->toContain('if ($this->has(\'content\'))')
@@ -60,7 +60,7 @@ describe('Example Application Request Classes', function (): void {
 
     it('UpdateDocumentRequest validates publish permission', function () use ($examplePath): void {
         $content = file_get_contents($examplePath . '/app/Http/Requests/UpdateDocumentRequest.php');
-        
+
         expect($content)
             ->toContain('public function withValidator($validator): void')
             ->toContain("if (\$this->has('status') && \$this->status === 'published')")
@@ -73,12 +73,12 @@ describe('Example Application Request Classes', function (): void {
     it('request classes have custom error messages', function () use ($examplePath): void {
         $storeContent = file_get_contents($examplePath . '/app/Http/Requests/StoreDocumentRequest.php');
         $updateContent = file_get_contents($examplePath . '/app/Http/Requests/UpdateDocumentRequest.php');
-        
+
         expect($storeContent)
             ->toContain('public function messages(): array')
             ->toContain("'title.required' => 'Please provide a title for the document.'")
             ->toContain("'content.required' => 'Document content cannot be empty.'");
-        
+
         expect($updateContent)
             ->toContain('public function messages(): array')
             ->toContain("'title.required' => 'Document title cannot be empty.'")
@@ -87,7 +87,7 @@ describe('Example Application Request Classes', function (): void {
 
     it('StoreDocumentRequest handles tag preparation', function () use ($examplePath): void {
         $content = file_get_contents($examplePath . '/app/Http/Requests/StoreDocumentRequest.php');
-        
+
         expect($content)
             ->toContain('protected function prepareForValidation(): void')
             ->toContain("if (!\$this->has('status'))")

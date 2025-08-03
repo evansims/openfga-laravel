@@ -20,7 +20,7 @@ final class StatsCommand extends Command
     /**
      * The console command description.
      *
-     * @var string|null
+     * @var string
      */
     protected $description = 'Display OpenFGA performance statistics';
 

@@ -25,7 +25,7 @@ use function sprintf;
 final class SyncSpatiePermissionsCommand extends Command
 {
     /**
-     * @var string|null
+     * @var string
      */
     protected $description = 'Synchronize Spatie Laravel Permission data with OpenFGA';
 

@@ -35,13 +35,13 @@ describe('Example Application Structure', function (): void {
     it('has executable scripts with correct permissions', function () use ($examplePath): void {
         expect($examplePath . '/install.sh')->toBeFile()
             ->and($examplePath . '/docker-setup.sh')->toBeFile();
-        
+
         // Check if files are executable
         $installPerms = fileperms($examplePath . '/install.sh');
         $dockerPerms = fileperms($examplePath . '/docker-setup.sh');
-        
-        expect($installPerms & 0111)->toBeGreaterThan(0)
-            ->and($dockerPerms & 0111)->toBeGreaterThan(0);
+
+        expect($installPerms & 0o111)->toBeGreaterThan(0)
+            ->and($dockerPerms & 0o111)->toBeGreaterThan(0);
     });
 
     it('has all required controllers', function () use ($examplePath): void {
@@ -70,27 +70,32 @@ describe('Example Application Structure', function (): void {
     it('has all required migrations', function () use ($examplePath): void {
         $migrationsPath = $examplePath . '/database/migrations';
         $migrations = glob($migrationsPath . '/*.php');
-        
+
         expect($migrations)->toHaveCount(6);
-        
-        $migrationNames = array_map(fn($path) => basename($path), $migrations);
-        
+
+        $migrationNames = array_map(fn ($path) => basename($path), $migrations);
+
         $hasOrganizations = false;
         $hasDepartments = false;
         $hasTeams = false;
         $hasFolders = false;
         $hasDocuments = false;
         $hasAuditLogs = false;
-        
+
         foreach ($migrationNames as $name) {
             if (str_contains($name, 'create_organizations_table')) $hasOrganizations = true;
+
             if (str_contains($name, 'create_departments_table')) $hasDepartments = true;
+
             if (str_contains($name, 'create_teams_table')) $hasTeams = true;
+
             if (str_contains($name, 'create_folders_table')) $hasFolders = true;
+
             if (str_contains($name, 'create_documents_table')) $hasDocuments = true;
+
             if (str_contains($name, 'create_permission_audit_logs_table')) $hasAuditLogs = true;
         }
-        
+
         expect($hasOrganizations)->toBeTrue()
             ->and($hasDepartments)->toBeTrue()
             ->and($hasTeams)->toBeTrue()
