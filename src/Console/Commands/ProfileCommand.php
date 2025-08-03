@@ -13,7 +13,7 @@ use function sprintf;
 final class ProfileCommand extends Command
 {
     /**
-     * @var string|null
+     * @var string
      */
     protected $description = 'Display OpenFGA profiling information';
 

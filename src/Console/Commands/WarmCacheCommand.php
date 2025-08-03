@@ -27,7 +27,7 @@ final class WarmCacheCommand extends Command
     /**
      * The console command description.
      *
-     * @var string|null
+     * @var string
      */
     protected $description = 'Warm the OpenFGA permission cache';
 

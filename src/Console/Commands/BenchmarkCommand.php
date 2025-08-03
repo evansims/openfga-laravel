@@ -21,7 +21,7 @@ use function sprintf;
 final class BenchmarkCommand extends Command
 {
     /**
-     * @var string|null
+     * @var string
      */
     protected $description = 'Run performance benchmarks for OpenFGA operations';
 

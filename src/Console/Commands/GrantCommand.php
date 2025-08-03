@@ -26,7 +26,7 @@ final class GrantCommand extends Command
     /**
      * The console command description.
      *
-     * @var string|null
+     * @var string
      */
     protected $description = 'Grant a permission to a user on an object';
 

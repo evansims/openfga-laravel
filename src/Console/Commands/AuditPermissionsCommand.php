@@ -22,7 +22,7 @@ final class AuditPermissionsCommand extends Command
     /**
      * The console command description.
      *
-     * @var string|null
+     * @var string
      */
     protected $description = 'Audit and analyze OpenFGA permissions';
 

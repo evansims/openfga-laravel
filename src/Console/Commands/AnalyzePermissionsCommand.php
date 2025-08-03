@@ -31,7 +31,7 @@ final class AnalyzePermissionsCommand extends Command
     /**
      * The console command description.
      *
-     * @var string|null
+     * @var string
      */
     protected $description = 'Analyze permission structure for insights and optimization';
 

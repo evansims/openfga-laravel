@@ -15,7 +15,7 @@ final class MakePermissionSeederCommand extends GeneratorCommand
     /**
      * The console command description.
      *
-     * @var string|null
+     * @var string
      */
     protected $description = 'Create a new permission seeder';
 

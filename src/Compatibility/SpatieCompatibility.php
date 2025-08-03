@@ -111,9 +111,9 @@ final class SpatieCompatibility
      * @param  ?string                 $context
      * @return Collection<int, string>
      *
-     * @psalm-return Collection<int<0, max>, string>
-     *
      * @phpstan-return Collection<int, string>
+     *
+     * @psalm-return Collection<int<0, max>, string>
      */
     public function getAllPermissions(Model $user, ?string $context = null): Collection
     {
@@ -156,9 +156,9 @@ final class SpatieCompatibility
      * @param  ?string                 $context
      * @return Collection<int, string>
      *
-     * @psalm-return Collection<int<0, max>, string>
-     *
      * @phpstan-return Collection<int, string>
+     *
+     * @psalm-return Collection<int<0, max>, string>
      */
     public function getRoleNames(Model $user, ?string $context = null): Collection
     {

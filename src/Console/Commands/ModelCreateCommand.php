@@ -110,7 +110,7 @@ final class ModelCreateCommand extends Command
     /**
      * The console command description.
      *
-     * @var string|null
+     * @var string
      */
     protected $description = 'Create a new OpenFGA authorization model from DSL';
 

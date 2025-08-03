@@ -24,7 +24,7 @@ final class ListObjectsCommand extends Command
     /**
      * The console command description.
      *
-     * @var string|null
+     * @var string
      */
     protected $description = 'List objects that a user has a specific relation to';
 

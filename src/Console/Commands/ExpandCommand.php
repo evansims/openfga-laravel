@@ -24,7 +24,7 @@ final class ExpandCommand extends Command
     /**
      * The console command description.
      *
-     * @var string|null
+     * @var string
      */
     protected $description = 'Expand a relation to see all users who have that permission';
 

@@ -17,7 +17,7 @@ final class StoreCreateCommand extends Command
     /**
      * The console command description.
      *
-     * @var string|null
+     * @var string
      */
     protected $description = 'Create a new OpenFGA store';
 

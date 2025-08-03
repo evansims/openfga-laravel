@@ -18,7 +18,7 @@ final class ClearCacheCommand extends Command
     /**
      * The console command description.
      *
-     * @var string|null
+     * @var string
      */
     protected $description = 'Clear the OpenFGA permission cache';
 

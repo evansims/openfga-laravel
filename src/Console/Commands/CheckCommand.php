@@ -32,7 +32,7 @@ final class CheckCommand extends Command
     /**
      * The console command description.
      *
-     * @var string|null
+     * @var string
      */
     protected $description = 'Check if a user has a specific permission on an object';
 

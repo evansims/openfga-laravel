@@ -24,7 +24,7 @@ final class ModelValidateCommand extends Command
     /**
      * The console command description.
      *
-     * @var string|null
+     * @var string
      */
     protected $description = 'Validate an OpenFGA model DSL file';
 
