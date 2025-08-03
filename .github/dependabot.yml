@@ -7,9 +7,6 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 10
     versioning-strategy: widen
-    labels:
-      - "dependency"
-      - "php"
     commit-message:
       prefix: "chore"
       include: "scope"
@@ -35,16 +32,13 @@ updates:
         applies-to: version-updates
         update-types:
           - "major"
-    
+
   # Maintain dependencies for GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "monthly"
     open-pull-requests-limit: 5
-    labels:
-      - "dependency"
-      - "github_actions"
     commit-message:
       prefix: "ci"
       include: "scope"
