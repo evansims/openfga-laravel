@@ -256,6 +256,7 @@ final class CacheWarmer
             $object ?? '*',
         ];
 
+        /** @var array<array-key, string> $parts */
         return implode(':', $parts);
     }
 

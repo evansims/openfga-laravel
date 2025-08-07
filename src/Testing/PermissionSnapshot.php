@@ -13,6 +13,7 @@ use RuntimeException;
 
 use function is_array;
 use function is_object;
+use function is_scalar;
 use function is_string;
 use function sprintf;
 
@@ -647,12 +648,20 @@ final class PermissionSnapshot
 
         switch ($category) {
             case 'user_permissions':
-                if (isset($diffs['missing_users'])) {
-                    $lines[] = 'Missing users: ' . implode(', ', is_array($diffs['missing_users']) ? $diffs['missing_users'] : []);
+                if (isset($diffs['missing_users']) && is_array($diffs['missing_users'])) {
+                    $missingUsers = array_map(
+                        static fn ($v): string => is_scalar($v) || (is_object($v) && method_exists($v, '__toString')) ? (string) $v : '',
+                        $diffs['missing_users'],
+                    );
+                    $lines[] = 'Missing users: ' . implode(', ', array_filter($missingUsers, static fn (string $s): bool => '' !== $s));
                 }
 
-                if (isset($diffs['new_users'])) {
-                    $lines[] = 'New users: ' . implode(', ', is_array($diffs['new_users']) ? $diffs['new_users'] : []);
+                if (isset($diffs['new_users']) && is_array($diffs['new_users'])) {
+                    $newUsers = array_map(
+                        static fn ($v): string => is_scalar($v) || (is_object($v) && method_exists($v, '__toString')) ? (string) $v : '',
+                        $diffs['new_users'],
+                    );
+                    $lines[] = 'New users: ' . implode(', ', array_filter($newUsers, static fn (string $s): bool => '' !== $s));
                 }
 
                 if (isset($diffs['users']) && is_array($diffs['users'])) {

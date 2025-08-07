@@ -6,6 +6,8 @@ namespace OpenFGA\Laravel\Support;
 
 use function implode;
 use function is_array;
+use function is_object;
+use function is_scalar;
 use function sprintf;
 
 /**
@@ -68,11 +70,15 @@ final class MessageFormatter
         array $actual,
     ): string {
         $missing = array_diff($expected, $actual);
+        $missingStrings = array_map(
+            static fn ($v): string => is_scalar($v) || (is_object($v) && method_exists($v, '__toString')) ? (string) $v : '',
+            $missing,
+        );
 
         return sprintf(
             'Failed asserting that %s contains all expected items. Missing: [%s]',
             $itemType,
-            implode(', ', $missing),
+            implode(', ', $missingStrings),
         );
     }
 
@@ -131,10 +137,15 @@ final class MessageFormatter
         string $itemType,
         array $unexpected,
     ): string {
+        $unexpectedStrings = array_map(
+            static fn ($v): string => is_scalar($v) || (is_object($v) && method_exists($v, '__toString')) ? (string) $v : '',
+            $unexpected,
+        );
+
         return sprintf(
             'Failed asserting that %s does not contain unexpected items. Found: [%s]',
             $itemType,
-            implode(', ', $unexpected),
+            implode(', ', $unexpectedStrings),
         );
     }
 

@@ -13,6 +13,7 @@ use RuntimeException;
 
 use function count;
 use function is_array;
+use function is_object;
 use function is_scalar;
 use function is_string;
 use function sprintf;
@@ -214,7 +215,7 @@ final class AuditPermissionsCommand extends Command
                 ['Metric', 'Value'],
                 collect($data['summary'])->map(static fn ($value, $key): array => [
                     ucwords(str_replace('_', ' ', is_string($key) ? $key : (string) $key)),
-                    is_array($value) ? implode(', ', $value) : (is_scalar($value) ? (string) $value : ''),
+                    is_array($value) ? implode(', ', array_values(array_filter(array_map(static fn ($v): string => is_scalar($v) || (is_object($v) && method_exists($v, '__toString')) ? (string) $v : '', $value), static fn (string $s): bool => '' !== $s))) : (is_scalar($value) ? (string) $value : ''),
                 ])->toArray(),
             );
         }

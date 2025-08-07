@@ -273,6 +273,8 @@ For more information, see the integration testing documentation.
 
         if (0 !== $returnCode) {
             $this->command->error('Failed to start OpenFGA container');
+
+            /** @var array<array-key, string> $output */
             $this->command->error(implode("\n", $output));
 
             return false;
