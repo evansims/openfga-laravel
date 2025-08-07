@@ -70,5 +70,18 @@
         <MissingParamType errorLevel="error" />
         <MissingReturnType errorLevel="error" />
         <MissingPropertyType errorLevel="error" />
+        
+        <!-- OpenFgaGate compatibility with Laravel's Gate -->
+        <!-- We need to handle mixed argument types for dual paradigm support -->
+        <RedundantConditionGivenDocblockType>
+            <errorLevel type="suppress">
+                <file name="src/Authorization/OpenFgaGate.php" />
+            </errorLevel>
+        </RedundantConditionGivenDocblockType>
+        <DocblockTypeContradiction>
+            <errorLevel type="suppress">
+                <file name="src/Authorization/OpenFgaGate.php" />
+            </errorLevel>
+        </DocblockTypeContradiction>
     </issueHandlers>
 </psalm>

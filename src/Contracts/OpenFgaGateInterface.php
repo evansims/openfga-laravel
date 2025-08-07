@@ -24,11 +24,10 @@ interface OpenFgaGateInterface extends LaravelGateContract
      *
      * @param  iterable<mixed>|string|UnitEnum $abilities Single ability string or iterable of abilities
      * @param  array<mixed>|mixed              $arguments Authorization object(s), model instances, or traditional gate arguments
-     * @param  Authenticatable|null            $user      User to check permissions for (optional, uses current user if null)
      * @return bool                            True if all abilities are granted, false otherwise
      */
     #[Override]
-    public function check($abilities, $arguments = [], $user = null): bool;
+    public function check($abilities, $arguments = []);
 
     /**
      * Check a specific OpenFGA permission.

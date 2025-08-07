@@ -30,6 +30,7 @@ use function sprintf;
  * arguments provided, making migration from Laravel's default authorization smooth.
  *
  * @template TUser of Authenticatable&Model
+ * @extends Gate<object>
  */
 final class OpenFgaGate extends Gate implements OpenFgaGateInterface
 {
@@ -49,38 +50,32 @@ final class OpenFgaGate extends Gate implements OpenFgaGateInterface
     }
 
     /**
-     * Determine if all of the given abilities should be granted for the current user.
+     * {@inheritDoc}
      *
      * Supports both Laravel's native abilities and OpenFGA permission checks.
      * OpenFGA checks are identified by the presence of authorization objects in arguments.
-     *
-     * @param iterable<mixed>|string|UnitEnum $abilities Single ability string or iterable of abilities
-     * @param array<mixed>|mixed              $arguments Authorization object(s), model instances, or traditional gate arguments
-     * @param Authenticatable|null            $user      User to check permissions for (optional, uses current user if null)
      *
      * @throws BindingResolutionException
      * @throws ClientThrowable
      * @throws Exception
      * @throws InvalidArgumentException
-     *
-     * @return bool True if all abilities are granted, false otherwise
      */
     #[Override]
-    public function check($abilities, $arguments = [], $user = null): bool
+    public function check($abilities, $arguments = [])
     {
+        // Convert single argument to array if needed
+        $argumentsArray = is_array($arguments) ? $arguments : [$arguments];
+
         // Handle single string ability first to avoid iterable/string confusion
         if (is_string($abilities)) {
             // For string abilities, check if this is an OpenFGA permission check
-            if ($this->isOpenFgaPermission($arguments)) {
-                /** @var array<mixed>|object|string $arguments */
-                return $this->checkOpenFgaPermission($abilities, $arguments, $user);
+            if ($this->isOpenFgaPermission($argumentsArray)) {
+                return $this->checkOpenFgaPermission($abilities, $argumentsArray, null);
             }
-
-            // Fall back to Laravel's default behavior for non-OpenFGA checks
-            return parent::check($abilities, $arguments);
         }
 
-        // Handle non-string abilities (arrays, Collections, UnitEnum, etc.)
+        // Fall back to Laravel's default behavior
+        // Note: Laravel's Gate::check() is designed to handle varied argument types internally
         return parent::check($abilities, $arguments);
     }
 

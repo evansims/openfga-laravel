@@ -53,6 +53,17 @@ parameters:
         -
             message: '#Cannot access an offset on mixed#'
             path: src/Support/ConfigValidator.php
+        # OpenFgaGate intentionally extends Laravel's Gate with more flexible argument handling
+        # to support both traditional Laravel authorization and OpenFGA's relationship-based model
+        -
+            message: '#Parameter .* of method OpenFGA\\Laravel\\Authorization\\OpenFgaGate::check\(\) should be contravariant#'
+            path: src/Authorization/OpenFgaGate.php
+        -
+            message: '#Method OpenFGA\\Laravel\\Authorization\\OpenFgaGate::check\(\) has parameter \$abilities with no value type specified in iterable type iterable#'
+            path: src/Authorization/OpenFgaGate.php
+        -
+            message: '#Default value of the parameter .* of method OpenFGA\\Laravel\\Authorization\\OpenFgaGate::check\(\) is incompatible#'
+            path: src/Authorization/OpenFgaGate.php
 
     paths:
         - src
