@@ -13,7 +13,6 @@ use InvalidArgumentException;
 use OpenFGA\Exceptions\ClientThrowable;
 use OpenFGA\Laravel\Contracts\{AuthorizableUser, AuthorizationObject, AuthorizationType, ManagerInterface, OpenFgaGateInterface};
 use Override;
-use UnitEnum;
 
 use function is_array;
 use function is_object;
@@ -30,6 +29,7 @@ use function sprintf;
  * arguments provided, making migration from Laravel's default authorization smooth.
  *
  * @template TUser of Authenticatable&Model
+ *
  * @extends Gate<object>
  */
 final class OpenFgaGate extends Gate implements OpenFgaGateInterface
@@ -67,11 +67,15 @@ final class OpenFgaGate extends Gate implements OpenFgaGateInterface
         $argumentsArray = is_array($arguments) ? $arguments : [$arguments];
 
         // Handle single string ability first to avoid iterable/string confusion
-        if (is_string($abilities)) {
-            // For string abilities, check if this is an OpenFGA permission check
-            if ($this->isOpenFgaPermission($argumentsArray)) {
-                return $this->checkOpenFgaPermission($abilities, $argumentsArray, null);
-            }
+        if (! is_string($abilities)) {
+            // Fall back to Laravel's default behavior
+            // Note: Laravel's Gate::check() is designed to handle varied argument types internally
+            return parent::check($abilities, $arguments);
+        }
+
+        // For string abilities, check if this is an OpenFGA permission check
+        if ($this->isOpenFgaPermission($argumentsArray)) {
+            return $this->checkOpenFgaPermission($abilities, $argumentsArray, null);
         }
 
         // Fall back to Laravel's default behavior
@@ -110,6 +114,22 @@ final class OpenFgaGate extends Gate implements OpenFgaGateInterface
         }
 
         return $this->manager->check($userId, $ability, $object);
+    }
+
+    /**
+     * Get a gate instance for the given user.
+     *
+     * @param  Authenticatable|mixed $user
+     * @return static
+     */
+    #[Override]
+    public function forUser($user)
+    {
+        return new static(
+            $this->manager,
+            $this->container,
+            static fn (): ?Authenticatable => $user instanceof Authenticatable ? $user : null,
+        );
     }
 
     /**

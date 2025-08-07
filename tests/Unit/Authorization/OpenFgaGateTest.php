@@ -165,7 +165,7 @@ describe('OpenFgaGate', function (): void {
             );
         });
 
-        it('handles custom user parameter', function (): void {
+        it('handles custom user via forUser method', function (): void {
             $customUser = TestFactories::createTestUser(
                 authId: TestConstants::ALTERNATIVE_USER_ID,
                 identifier: 999,
@@ -177,7 +177,8 @@ describe('OpenFgaGate', function (): void {
                 ->with('user:999', 'admin', 'system:1')
                 ->andReturn(true);
 
-            $result = $this->gate->check('admin', 'system:1', $customUser);
+            // Use Laravel's standard way to check permissions for a different user
+            $result = $this->gate->forUser($customUser)->check('admin', 'system:1');
             expect($result)->toBeTrue();
         });
     });
