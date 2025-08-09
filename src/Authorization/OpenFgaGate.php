@@ -27,10 +27,6 @@ use function sprintf;
  * leveraging OpenFGA's relationship-based access control. It automatically detects
  * whether to use OpenFGA or fall back to traditional Gate policies based on the
  * arguments provided, making migration from Laravel's default authorization smooth.
- *
- * @template TUser of Authenticatable&Model
- *
- * @extends Gate<object>
  */
 final class OpenFgaGate extends Gate implements OpenFgaGateInterface
 {
@@ -120,12 +116,12 @@ final class OpenFgaGate extends Gate implements OpenFgaGateInterface
      * Get a gate instance for the given user.
      *
      * @param  Authenticatable|mixed $user
-     * @return static
+     * @return self
      */
     #[Override]
     public function forUser($user)
     {
-        return new static(
+        return new self(
             $this->manager,
             $this->container,
             static fn (): ?Authenticatable => $user instanceof Authenticatable ? $user : null,

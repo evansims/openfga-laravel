@@ -51,32 +51,6 @@ $DOCKER_COMPOSE -f "$COMPOSE_FILE" up -d openfga otel-collector
 # Wait for services to be ready
 echo "⏳ Waiting for services to be ready..."
 
-# Wait for OpenFGA to be ready
-echo "Checking OpenFGA health..."
-MAX_RETRIES=30
-RETRY_COUNT=0
-while true; do
-    # Use docker compose run to access the network and check OpenFGA health
-    HEALTH_RESPONSE=$($DOCKER_COMPOSE -f "$COMPOSE_FILE" run --rm test curl -s http://openfga:8080/healthz 2>/dev/null || echo "")
-    
-    # Check if the response contains SERVING status
-    if echo "$HEALTH_RESPONSE" | grep -q '"status":"SERVING"'; then
-        echo "✅ OpenFGA is ready! Response: $HEALTH_RESPONSE"
-        break
-    fi
-    
-    RETRY_COUNT=$((RETRY_COUNT + 1))
-    if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
-        echo "❌ OpenFGA failed to start after $MAX_RETRIES attempts"
-        echo "Last health response: $HEALTH_RESPONSE"
-        docker logs openfga-integration-tests || true
-        exit 1
-    fi
-    
-    echo "Waiting for OpenFGA... (attempt $RETRY_COUNT/$MAX_RETRIES) - Status: $HEALTH_RESPONSE"
-    sleep 2
-done
-
 # Extra wait for complete initialization
 sleep 2
 

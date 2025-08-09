@@ -42,11 +42,11 @@ parameters:
         # Laravel HTTP Client Factory uses magic methods
         - '#Dynamic call to static method Illuminate\\Http\\Client\\PendingRequest::withHeaders\(\)#'
         # Psalm requires isset() checks that PHPStan considers redundant for preg_match results
-        - 
+        -
             message: '#Offset \d+ on array\{.+\} in isset\(\) always exists and is not nullable#'
             path: src/Console/Commands/ModelValidateCommand.php
         # PHPDoc type annotations for Psalm compatibility
-        - 
+        -
             message: '#PHPDoc tag @var with type .+ is not subtype of native type#'
             path: src/Console/Commands/ModelValidateCommand.php
         # ConfigValidator array access is safely guarded by array_key_exists checks
@@ -56,17 +56,11 @@ parameters:
         # OpenFgaGate intentionally extends Laravel's Gate with more flexible argument handling
         # to support both traditional Laravel authorization and OpenFGA's relationship-based model
         -
-            message: '#Parameter .* of method OpenFGA\\Laravel\\Authorization\\OpenFgaGate::check\(\) should be contravariant#'
-            path: src/Authorization/OpenFgaGate.php
-        -
             message: '#Method OpenFGA\\Laravel\\Authorization\\OpenFgaGate::check\(\) has parameter \$abilities with no value type specified in iterable type iterable#'
-            path: src/Authorization/OpenFgaGate.php
-        -
-            message: '#Default value of the parameter .* of method OpenFGA\\Laravel\\Authorization\\OpenFgaGate::check\(\) is incompatible#'
             path: src/Authorization/OpenFgaGate.php
 
     paths:
         - src
-    
+
     excludePaths:
         - src/Debugbar/OpenFgaCollector.php
