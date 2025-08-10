@@ -2,5 +2,23 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended"
+  ],
+  "packageRules": [
+    {
+      "description": "Group Docker dependencies",
+      "groupName": "Docker dependencies",
+      "matchManagers": ["dockerfile"],
+      "matchDatasources": ["docker"]
+    },
+    {
+      "description": "Group Composer dependencies",
+      "groupName": "Composer dependencies",
+      "matchManagers": ["composer"]
+    },
+    {
+      "description": "Group GitHub Actions",
+      "groupName": "GitHub Actions",
+      "matchManagers": ["github-actions"]
+    }
   ]
 }
