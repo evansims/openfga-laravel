@@ -25,10 +25,10 @@ jobs:
           egress-policy: audit
 
       - name: Checkout code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
       - name: Psalm
-        uses: docker://ghcr.io/psalm/psalm-github-actions@sha256:bb342ea117707872ecedf858466fb99e48c9c5541b477eb2b76f0d2fd30f0049
+        uses: docker://ghcr.io/psalm/psalm-github-actions@sha256:c43937bd06482149a92bcafb52b80ccdd0e5d478dc3c01a141cd5db2c8619a5c
         with:
           security_analysis: true
           report_file: results.sarif
@@ -49,10 +49,10 @@ jobs:
           egress-policy: audit
 
       - name: Checkout code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@ccf2c627fe61b1b4d924adfcbd19d661a18133a0 # 2.35.2
+        uses: shivammathur/setup-php@20529878ed81ef8e78ddf08b480401e6101a850f # 2.35.3
         with:
           php-version: "8.3"
           coverage: none
