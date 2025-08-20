@@ -10,19 +10,22 @@
       "groupName": "Docker Dependencies",
       "matchManagers": ["dockerfile"],
       "matchDatasources": ["docker"],
-      "matchUpdateTypes": ["minor"]
+      "matchUpdateTypes": ["minor"],
+      "automerge": true
     },
     {
       "description": "Group Composer Dependencies",
       "groupName": "Composer Dependencies",
       "matchManagers": ["composer"],
-      "matchUpdateTypes": ["minor"]
+      "matchUpdateTypes": ["minor"],
+      "automerge": true
     },
     {
       "description": "Group GitHub Actions",
       "groupName": "GitHub Actions",
       "matchManagers": ["github-actions"],
-      "matchUpdateTypes": ["minor"]
+      "matchUpdateTypes": ["minor"],
+      "automerge": true
     },
     {
       "description": "Group Breaking Change Suggestions",
@@ -32,7 +35,8 @@
     }
   ],
   "vulnerabilityAlerts": {
-    "enabled": true
+    "enabled": true,
+    "automerge": true
   },
   "osvVulnerabilityAlerts": true
 }
