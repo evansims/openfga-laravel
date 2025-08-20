@@ -28,7 +28,7 @@ jobs:
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
       - name: Psalm
-        uses: docker://ghcr.io/psalm/psalm-github-actions@sha256:e66af290d0a7ed45c88ea4097ea9bb8b16240b3b204aabc1ddae2f37192d4210
+        uses: docker://ghcr.io/psalm/psalm-github-actions@sha256:105c7ed84ae009b1cdeb266591d3c6c004e706abb758089ceee08e4050abf416 # v6.13.1
         with:
           security_analysis: true
           report_file: results.sarif
