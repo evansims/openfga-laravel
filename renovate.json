@@ -3,35 +3,55 @@
   "extends": [
     "config:recommended"
   ],
-  "schedule": ["* * * * 0,6"],
+  "schedule": [
+    "* * * * 0,6"
+  ],
   "packageRules": [
     {
       "description": "Group Docker Dependencies",
       "groupName": "Docker Dependencies",
-      "matchManagers": ["dockerfile"],
-      "matchDatasources": ["docker"],
-      "matchUpdateTypes": ["minor"],
+      "matchManagers": [
+        "dockerfile"
+      ],
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchUpdateTypes": [
+        "minor"
+      ],
       "automerge": true
     },
     {
       "description": "Group Composer Dependencies",
       "groupName": "Composer Dependencies",
-      "matchManagers": ["composer"],
-      "matchUpdateTypes": ["minor"],
+      "matchManagers": [
+        "composer"
+      ],
+      "matchUpdateTypes": [
+        "minor"
+      ],
       "automerge": true
     },
     {
       "description": "Group GitHub Actions",
       "groupName": "GitHub Actions",
-      "matchManagers": ["github-actions"],
-      "matchUpdateTypes": ["minor"],
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchUpdateTypes": [
+        "minor"
+      ],
       "automerge": true
     },
     {
       "description": "Group Breaking Change Suggestions",
       "groupName": "Breaking Changes",
-      "matchPackagePatterns": ["*"],
-      "matchUpdateTypes": ["major"]
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "matchPackageNames": [
+        "*"
+      ]
     }
   ],
   "vulnerabilityAlerts": {
