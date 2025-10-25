@@ -45,7 +45,7 @@ services:
 
   # MySQL Database
   db:
-    image: mysql:9.4
+    image: mysql:9.5
     container_name: openfga-laravel-mysql
     restart: unless-stopped
     environment:
