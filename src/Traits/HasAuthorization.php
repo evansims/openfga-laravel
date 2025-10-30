@@ -210,13 +210,6 @@ trait HasAuthorization
                 $model->revokeAllPermissions();
             }
         });
-
-        // Add model event to replicate permissions on duplication
-        static::replicated(function (Model $original, Model $replica): void {
-            if ($this->shouldReplicatePermissions()) {
-                $original->replicatePermissionsTo($replica);
-            }
-        });
     }
 
     /**
