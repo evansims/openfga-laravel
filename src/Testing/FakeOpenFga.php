@@ -551,11 +551,10 @@ final class FakeOpenFga
      * @param string $user
      * @param string $relation
      * @param string $object
-     * @return bool
      */
     public function revoke(string $user, string $relation, string $object): bool
     {
-        $this->tuples = array_filter($this->tuples, static fn ($tuple): bool => ! ($tuple['user'] === $user && $tuple['relation'] === $relation && $tuple['object'] === $object));
+        $this->tuples = array_filter($this->tuples, static fn (array $tuple): bool => ! ($tuple['user'] === $user && $tuple['relation'] === $relation && $tuple['object'] === $object));
 
         return true;
     }
@@ -627,7 +626,7 @@ final class FakeOpenFga
 
         // Apply deletes
         foreach ($deletes as $delete) {
-            $this->tuples = array_filter($this->tuples, static fn ($tuple): bool => ! ($tuple['user'] === $delete['user']
+            $this->tuples = array_filter($this->tuples, static fn (array $tuple): bool => ! ($tuple['user'] === $delete['user']
                     && $tuple['relation'] === $delete['relation']
                     && $tuple['object'] === $delete['object']));
         }
