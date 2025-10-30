@@ -398,10 +398,13 @@ final class FakeOpenFga
      * @param string $user
      * @param string $relation
      * @param string $object
+     * @return bool
      */
-    public function grant(string $user, string $relation, string $object): void
+    public function grant(string $user, string $relation, string $object): bool
     {
         $this->tuples[] = ['user' => $user, 'relation' => $relation, 'object' => $object];
+
+        return true;
     }
 
     /**
@@ -548,10 +551,13 @@ final class FakeOpenFga
      * @param string $user
      * @param string $relation
      * @param string $object
+     * @return bool
      */
-    public function revoke(string $user, string $relation, string $object): void
+    public function revoke(string $user, string $relation, string $object): bool
     {
         $this->tuples = array_filter($this->tuples, static fn ($tuple): bool => ! ($tuple['user'] === $user && $tuple['relation'] === $relation && $tuple['object'] === $object));
+
+        return true;
     }
 
     /**
