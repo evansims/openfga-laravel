@@ -214,12 +214,12 @@ trait FakesOpenFga // @phpstan-ignore trait.unused
 
             public function listRelations(string $user, string $object, array $relations = [], array $contextualTuples = [], array $context = [], ?string $connection = null,): array
             {
-                // TODO: Implement listRelations() method.
+                throw new \RuntimeException('listRelations() is not yet implemented in the fake.');
             }
 
             public function write(?TupleKeysInterface $writes = null, ?TupleKeysInterface $deletes = null, ?string $connection = null,): bool
             {
-                // TODO: Implement write() method.
+                throw new \RuntimeException('write() is not yet implemented in the fake.');
             }
         };
 
