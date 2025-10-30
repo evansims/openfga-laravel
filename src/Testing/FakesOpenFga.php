@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace OpenFGA\Laravel\Testing;
 
+use OpenFGA\Laravel\Contracts\ManagerInterface;
 use OpenFGA\Laravel\OpenFgaManager;
+use OpenFGA\Models\Collections\TupleKeysInterface;
 
 /**
  * Trait for faking OpenFGA in tests.
@@ -119,7 +121,7 @@ trait FakesOpenFga // @phpstan-ignore trait.unused
         $this->fakeOpenFga = new FakeOpenFga;
 
         // Create a wrapper manager that delegates to our fake
-        $fakeManager = new readonly class($this->fakeOpenFga) {
+        $fakeManager = new readonly class($this->fakeOpenFga) implements ManagerInterface {
             public function __construct(private FakeOpenFga $fake)
             {
             }
@@ -129,14 +131,14 @@ trait FakesOpenFga // @phpstan-ignore trait.unused
                 return $this->fake->check($user, $relation, $object);
             }
 
-            public function grant(string $user, string $relation, string $object, ?string $connection = null): void
+            public function grant(string|array $user, string $relation, string $object, ?string $connection = null): bool
             {
-                $this->fake->grant($user, $relation, $object);
+                return $this->fake->grant($user, $relation, $object);
             }
 
-            public function revoke(string $user, string $relation, string $object, ?string $connection = null): void
+            public function revoke(string|array $user, string $relation, string $object, ?string $connection = null): bool
             {
-                $this->fake->revoke($user, $relation, $object);
+                return $this->fake->revoke($user, $relation, $object);
             }
 
             public function listObjects(string $user, string $relation, string $type, array $contextualTuples = [], array $context = [], ?string $connection = null): array
@@ -208,6 +210,16 @@ trait FakesOpenFga // @phpstan-ignore trait.unused
                         return $this->fake->check($this->user, $this->relation, $this->object);
                     }
                 };
+            }
+
+            public function listRelations(string $user, string $object, array $relations = [], array $contextualTuples = [], array $context = [], ?string $connection = null,): array
+            {
+                throw new \RuntimeException('listRelations() is not yet implemented in the fake.');
+            }
+
+            public function write(?TupleKeysInterface $writes = null, ?TupleKeysInterface $deletes = null, ?string $connection = null,): bool
+            {
+                throw new \RuntimeException('write() is not yet implemented in the fake.');
             }
         };
 
